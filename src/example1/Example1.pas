@@ -2,7 +2,7 @@
 // Copyright 2008 Google Inc.  All rights reserved.
 // http://code.google.com/p/protobuf/
 //
-// author this port to delphi - Marat Shaymardanov, Tomsk (2007, 2013)
+// author this port to delphi - Marat Shaymardanov, Tomsk 2007, 2018
 //
 // You can freely use this code in any project
 // if sending any postcards with postage stamp to my address:
@@ -40,45 +40,45 @@ uses Classes, SysUtils, Contnrs, pbPublic, pbInput, pbOutput;
 
 type
 
-    TPhoneType = (ptMOBILE, ptHOME, ptWORK);
+  TPhoneType = (ptMOBILE, ptHOME, ptWORK);
 
-    TPhoneNumber = class
-    private
-      FTyp: TPhoneType;
-      FNumber: AnsiString;
-    const
-      ft_Number = 1;
-      ft_Typ = 2;
-    public
-      constructor Create;
-      property Number: AnsiString read FNumber write FNumber;
-      property Typ: TPhoneType read FTyp write FTyp;
-    end;
+  TPhoneNumber = class
+  private
+    FTyp: TPhoneType;
+    FNumber: AnsiString;
+  const
+    ft_Number = 1;
+    ft_Typ = 2;
+  public
+    constructor Create;
+    property Number: AnsiString read FNumber write FNumber;
+    property Typ: TPhoneType read FTyp write FTyp;
+  end;
 
-    TPerson = class
-    private
-      FName: AnsiString;
-      FEmail: AnsiString;
-      FId: integer;
-      FPhones: TObjectList;
-      function GetPhones(Index: integer): TPhoneNumber;
-      function GetPhonesCount: integer;
-    const
-      ft_Name = 1;
-      ft_Id = 2;
-      ft_Email = 3;
-      ft_Phone = 4;
-    public
-      constructor Create;
-      destructor Destroy; override;
-      procedure AddPhone(const Number: AnsiString; Typ: TPhoneType = ptHOME);
-      procedure DeletePhone(Index: integer);
-      property Name: AnsiString read FName write FName;
-      property Id: integer read FId write FId;
-      property Email: AnsiString read FEmail write FEmail;
-      property PhonesCount: integer read GetPhonesCount;
-      property Phones[Index: integer]: TPhoneNumber read GetPhones;
-    end;
+  TPerson = class
+  private
+    FName: AnsiString;
+    FEmail: AnsiString;
+    FId: Integer;
+    FPhones: TObjectList;
+    function GetPhones(Index: Integer): TPhoneNumber;
+    function GetPhonesCount: Integer;
+  const
+    ft_Name = 1;
+    ft_Id = 2;
+    ft_Email = 3;
+    ft_Phone = 4;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure AddPhone(const Number: AnsiString; Typ: TPhoneType = ptHOME);
+    procedure DeletePhone(Index: Integer);
+    property Name: AnsiString read FName write FName;
+    property Id: Integer read FId write FId;
+    property Email: AnsiString read FEmail write FEmail;
+    property PhonesCount: Integer read GetPhonesCount;
+    property Phones[Index: Integer]: TPhoneNumber read GetPhones;
+  end;
 
   TPersonBuilder = class
   private
@@ -125,7 +125,7 @@ begin
   inherited;
 end;
 
-function TPerson.GetPhonesCount: integer;
+function TPerson.GetPhonesCount: Integer;
 begin
   Result := FPhones.Count;
 end;
@@ -145,7 +145,7 @@ begin
   FPhones.Add(Phone);
 end;
 
-procedure TPerson.DeletePhone(Index: integer);
+procedure TPerson.DeletePhone(Index: Integer);
 begin
   FPhones.Delete(Index);
 end;
@@ -224,11 +224,12 @@ end;
 
 procedure TPersonReader.Load(person: TPerson);
 var
-  tag, fieldNumber, wireType: integer;
+  tag, fieldNumber, wireType: Integer;
   Phone: TPhoneNumber;
 begin
   tag := FBuffer.readTag;
-  while tag <> 0 do begin
+  while tag <> 0 do
+  begin
     wireType := getTagWireType(tag);
     fieldNumber := getTagFieldNumber(tag);
     case fieldNumber of
@@ -263,7 +264,7 @@ end;
 
 procedure TPersonReader.LoadPhone(Phone: TPhoneNumber);
 var
-  tag, fieldNumber, wireType: integer;
+  tag, fieldNumber, wireType: Integer;
   size: Integer;
   endPosition: Integer;
 begin

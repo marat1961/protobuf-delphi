@@ -1,3 +1,13 @@
+﻿// Protocol Buffers - Google's data interchange format
+// Copyright 2008 Google Inc.  All rights reserved.
+// http://code.google.com/p/protobuf/
+//
+// author this port to delphi - Marat Shaymardanov, Tomsk 2007, 2018
+//
+// You can freely use this code in any project
+// if sending any postcards with postage stamp to my address:
+// Frunze 131/1, 56, Russia, Tomsk, 634021
+
 unit pbOutput;
 
 interface
@@ -35,7 +45,7 @@ type
     (* Write the data with specified size. *)
     procedure writeRawData(const p: Pointer; size: integer);
 
-    (* Get the result as a string *)
+    (* Get the Result as a string *)
     function GetText: AnsiString;
     (* Write a double field, including tag. *)
     procedure writeDouble(fieldNumber: integer; value: double);
@@ -55,7 +65,7 @@ type
     procedure writeString(fieldNumber: integer; const value: AnsiString);
     (* Write a message field, including tag. *)
     procedure writeMessage(fieldNumber: integer; const value: IpbMessage);
-    (*  Write a unsigned int32 field, including tag. *)
+    (* Write a unsigned int32 field, including tag. *)
     procedure writeUInt32(fieldNumber: integer; value: cardinal);
     (* Get serialized size *)
     function getSerializedSize: integer;
@@ -65,8 +75,7 @@ type
 
 implementation
 
-{$r-}
-
+{$R-}
 { TProtoBuf }
 
 constructor TProtoBufOutput.Create;
@@ -102,7 +111,8 @@ begin
 end;
 
 procedure TProtoBufOutput.writeRawVarint32(value: integer);
-var b: shortint;
+var
+  b: shortint;
 begin
   repeat
     b := value and $7F;
@@ -114,7 +124,8 @@ begin
 end;
 
 procedure TProtoBufOutput.writeRawVarint64(value: int64);
-var b: shortint;
+var
+  b: shortint;
 begin
   repeat
     b := value and $7F;
@@ -137,7 +148,7 @@ begin
   writeRawData(@value, SizeOf(value));
 end;
 
-procedure TProtoBufOutput.writeFloat(fieldNumber: integer; value: Single);
+procedure TProtoBufOutput.writeFloat(fieldNumber: integer; value: single);
 begin
   writeTag(fieldNumber, WIRETYPE_FIXED32);
   writeRawData(@value, SizeOf(value));
@@ -180,8 +191,7 @@ begin
   writeRawVarint32(value);
 end;
 
-procedure TProtoBufOutput.writeMessage(fieldNumber: integer;
-  const value: IpbMessage);
+procedure TProtoBufOutput.writeMessage(fieldNumber: integer; const value: IpbMessage);
 begin
   writeTag(fieldNumber, WIRETYPE_LENGTH_DELIMITED);
   writeRawVarint32(value.getSerializedSize());
@@ -190,7 +200,7 @@ end;
 
 function TProtoBufOutput.GetText: AnsiString;
 begin
-  result := FBuffer.GetText;
+  Result := FBuffer.GetText;
 end;
 
 procedure TProtoBufOutput.SaveToFile(const FileName: string);
@@ -205,7 +215,7 @@ end;
 
 function TProtoBufOutput.getSerializedSize: integer;
 begin
-  result := FBuffer.GetCount;
+  Result := FBuffer.GetCount;
 end;
 
 procedure TProtoBufOutput.writeTo(buffer: TProtoBufOutput);
