@@ -1,5 +1,4 @@
-﻿//
-//	author Marat Shaymardanov, Tomsk 2001
+//	author Marat Shaymardanov, Tomsk 2001, 2013
 //
 // You can freely use this code in any project
 // if sending any postcards with postage stamp to my address:
@@ -11,7 +10,6 @@
 //     1. Minimize the handling of the memory manager.
 //     2. One-time allocation of the specified size
 //     3. The class is not multi-thread safe
-//
 
 unit StrBuffer;
 
@@ -36,7 +34,7 @@ type
   private
     FCount: Integer;
     FCapacity: Integer;
-    FBuff: PChar;
+    FBuff: PAnsiChar;
   protected
     class procedure Error(const Msg: string; Data: Integer);
   public
@@ -47,9 +45,9 @@ type
     procedure LoadFromFile(const FileName: string);
     procedure LoadFromStream(Stream: TStream);
     procedure Clear;
-    procedure Add(const aValue: string); overload;
+    procedure Add(const aValue: AnsiString); overload;
     procedure SetCapacity(NewCapacity: Integer);
-    function GetText: string;
+    function GetText: AnsiString;
     function GetCount: integer;
   end;
 
@@ -58,7 +56,7 @@ type
     Next: PSegment;
     Size: integer;
     Count: integer;
-    Data: array[0..0] of char;
+    Data: array[0..0] of AnsiChar;
   end;
 
   { add memory done by segments }
@@ -79,12 +77,12 @@ type
     procedure LoadFromStream(Stream: TStream);
     procedure Clear;
     procedure AddSegment(aSize: integer);
-    procedure Add(const aValue: char); overload;
-    procedure Add(const aValue: string); overload;
-    procedure Add(const aValue: PChar; aCnt: integer); overload;
-    function GetText: string;
+    procedure Add(const aValue: AnsiChar); overload;
+    procedure Add(const aValue: AnsiString); overload;
+    procedure Add(const aValue: PAnsiChar; aCnt: integer); overload;
+    function GetText: AnsiString;
     function GetCount: integer;
-    property Text: string read GetText;
+    property Text: AnsiString read GetText;
   end;
 
 implementation
@@ -124,7 +122,7 @@ begin
   SetCapacity(0);
 end;
 
-procedure TStrBuffer.Add(const aValue: string);
+procedure TStrBuffer.Add(const aValue: AnsiString);
 var cnt, delta: integer;
 begin
   cnt := Length(aValue);
@@ -134,7 +132,7 @@ begin
       delta := cnt * 2;
     SetCapacity(FCapacity + Delta);
   end;
-  System.Move(Pointer(aValue)^, PChar(FBuff + FCount)^, cnt);
+  System.Move(Pointer(aValue)^, PAnsiChar(FBuff + FCount)^, cnt);
   Inc(FCount, cnt);
 end;
 
@@ -143,7 +141,7 @@ begin
   result := FCount;
 end;
 
-function TStrBuffer.GetText: string;
+function TStrBuffer.GetText: AnsiString;
 begin
   SetLength(result, FCount);
   System.Move(FBuff^, Pointer(result)^, FCount);
@@ -189,7 +187,7 @@ end;
 procedure TStrBuffer.LoadFromStream(Stream: TStream);
 var
   size: Integer;
-  s: string;
+  s: AnsiString;
 begin
   Clear;
   size := Stream.Size - Stream.Position;
@@ -249,7 +247,7 @@ procedure TSegmentBuffer.AddSegment(aSize: integer);
 var
   segment: PSegment;
 begin
-  segment := AllocMem(aSize + SizeOf(TSegment) - SizeOf(char));
+  segment := AllocMem(aSize + SizeOf(TSegment) - SizeOf(AnsiChar));
   with segment^ do begin
     next := nil;
     size := aSize;
@@ -265,9 +263,9 @@ begin
   result := FCount;
 end;
 
-function TSegmentBuffer.GetText: string;
+function TSegmentBuffer.GetText: AnsiString;
 var
-  p: PChar;
+  p: PAnsiChar;
   segment: PSegment;
   len: integer;
 begin
@@ -282,9 +280,9 @@ begin
   end;
 end;
 
-procedure TSegmentBuffer.Add(const aValue: PChar; aCnt: integer);
+procedure TSegmentBuffer.Add(const aValue: PAnsiChar; aCnt: integer);
 var
-  p: PChar;
+  p: PAnsiChar;
   tmp: integer;
 begin
   p := aValue;
@@ -310,15 +308,15 @@ begin
   end;
 end;
 
-procedure TSegmentBuffer.Add(const aValue: string);
-var
-  p: PChar;
+procedure TSegmentBuffer.Add(const aValue: AnsiString);
+var len: integer;
 begin
-  p := Pointer(aValue);
-  Add(p, Length(aValue));
+  len := Length(aValue);
+  if len > 0 then
+    Add(@aValue[1], len);
 end;
 
-procedure TSegmentBuffer.Add(const aValue: char);
+procedure TSegmentBuffer.Add(const aValue: AnsiChar);
 begin
   Add(@aValue, 1);
 end;
@@ -358,7 +356,7 @@ end;
 procedure TSegmentBuffer.LoadFromStream(Stream: TStream);
 var
   size: Integer;
-  s: string;
+  s: AnsiString;
 begin
   Clear;
   size := Stream.Size - Stream.Position;

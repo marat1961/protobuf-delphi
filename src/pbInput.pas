@@ -1,14 +1,12 @@
-﻿//
 // Protocol Buffers - Google's data interchange format
 // Copyright 2008 Google Inc.  All rights reserved.
 // http://code.google.com/p/protobuf/
 //
-// author this port to delphi - Marat Shaymardanov, Tomsk 2007
+// author this port to delphi - Marat Shaymardanov, Tomsk 2007, 2013
 //
 // You can freely use this code in any project
 // if sending any postcards with postage stamp to my address:
 // Frunze 131/1, 56, Russia, Tomsk, 634021
-//
 
 unit pbInput;
 
@@ -30,10 +28,10 @@ type
     procedure mergeFrom(input: TProtoBufInput; extReg: IExtensionRegistry);
   end;
 
-  (* Reads and decodes protocol message fields. *)
+  // Reads and decodes protocol message fields.
   TProtoBufInput = class
   private
-    FBuffer: PChar;
+    FBuffer: PAnsiChar;
     FPos: integer;
     FLen: integer;
     FSizeLimit: integer;
@@ -41,57 +39,70 @@ type
     FLastTag: integer;
     FOwnObject: boolean;
   public
-    constructor Create(buf: PChar; len: integer; aOwnsObjects: Boolean=false); overload;
-    constructor Create(const buf: string; aOwnsObjects: Boolean=false); overload;
+    constructor Create; overload;
+    constructor Create(buf: PAnsiChar; len: integer; aOwnsObjects: Boolean=false); overload;
     destructor Destroy; override;
-    (* I/O routines to file and stream *)
+    // I/O routines to file and stream
     procedure SaveToStream(Stream: TStream);
     procedure SaveToFile(const FileName: string);
     procedure LoadFromFile(const FileName: string);
     procedure LoadFromStream(Stream: TStream);
-    // set buffer posititon
+    // Set buffer posititon
     procedure setPos(aPos: integer);
-    // get buffer posititon
+    // Get buffer posititon
     function getPos: integer;
-    (* try to read "field tag", if eof return 0.
-     * Protocol message parser used this proc for read "tag's",
-     * valid "tag" value must be > 0
-     *)
+    //  Attempt to read a field tag, returning zero if we have reached EOF.
     function readTag: integer;
-    (* Check whether the latter match the value read tag.
-     * Used to test for nested groups.
-     *)
+    // Check whether the latter match the value read tag.
+    // Used to test for nested groups.
     procedure checkLastTagWas(value: integer);
-    (* consider and ignore one field, In accordance with the specified tag value. *)
+    // Reads and discards a single field, given its tag value.
     function skipField(tag: integer): boolean;
-    (* consider and ignore one message. *)
+    // Reads and discards an entire message.
     procedure skipMessage;
-    // -----------------------------------------------------------------
+    // Read a double field value
     function readDouble: double;
+    // Read a float field value
     function readFloat: single;
+    // Read an int64 field value
     function readInt64: int64;
+    // Read an int32 field value
     function readInt32: integer;
+    // Read a fixed64 field value
     function readFixed64: int64;
+    // Read a fixed32 field value
     function readFixed32: integer;
+    // Read a boolean field value
     function readBoolean: boolean;
-    function readString: string;
-    (* read nested message *)
+    // Read a AnsiString field value
+    function readString: AnsiString;
+    // Read nested message
     procedure readMessage(builder: IBuilder; extensionRegistry: IExtensionRegistry);
+    // Read a uint32 field value
     function readUInt32: integer;
+    // Read a enum field value
     function readEnum: integer;
+    // Read an sfixed32 field value
     function readSFixed32: integer;
+    // Read an sfixed64 field value
     function readSFixed64: int64;
+    // Read an sint32 field value
     function readSInt32: integer;
+    // Read an sint64 field value
     function readSInt64: int64;
+    // Read a raw Varint from the stream. If larger than 32 bits, discard the upper bits
     function readRawVarint32: integer;
+    // Read a raw Varint
     function readRawVarint64: int64;
+    // Read a 32-bit little-endian integer
     function readRawLittleEndian32: integer;
+    // Read a 64-bit little-endian integer
     function readRawLittleEndian64: int64;
-    (* read one byte *)
+    // Read one byte
     function readRawByte: shortint;
-    (* read "size" bytes *)
+    // Read "size" bytes
     procedure readRawBytes(var data; size: integer);
-    (* skip "size" bytes *)
+    // Skip "size" bytes
     procedure skipRawBytes(size: integer);
   end;
 
@@ -117,13 +128,24 @@ end;
 
 { TProtoBufInput }
 
-constructor TProtoBufInput.Create(buf: PChar; len: integer; aOwnsObjects: Boolean);
+constructor TProtoBufInput.Create;
+begin
+  inherited Create;
+  FPos := 0;
+  FLen := 256;
+  GetMem(FBuffer, FLen);
+  FSizeLimit := DEFAULT_SIZE_LIMIT;
+  FRecursionDepth := DEFAULT_RECURSION_LIMIT;
+  FOwnObject := true;
+end;
+
+constructor TProtoBufInput.Create(buf: PAnsiChar; len: integer; aOwnsObjects: Boolean);
 begin
   inherited Create;
   if not aOwnsObjects then
     FBuffer := buf
   else begin
-    // выделить память под буфер и скопировать в него данные
+    // allocate a buffer and copy the data
     GetMem(FBuffer, len);
     Move(buf^, FBuffer^, len);
   end;
@@ -132,11 +154,6 @@ begin
   FSizeLimit := DEFAULT_SIZE_LIMIT;
   FRecursionDepth := DEFAULT_RECURSION_LIMIT;
   FOwnObject := aOwnsObjects;
-end;
-
-constructor TProtoBufInput.Create(const buf: string; aOwnsObjects: Boolean);
-begin
-  Create(PChar(buf), Length(buf), aOwnsObjects);
 end;
 
 destructor TProtoBufInput.Destroy;
@@ -148,7 +165,10 @@ end;
 
 function TProtoBufInput.readTag: integer;
 begin
-  FLastTag := readRawVarint32;
+  if FPos <= FLen then
+    FLastTag := readRawVarint32
+  else
+    FLastTag := 0;
   result := FLastTag;
 end;
 
@@ -217,7 +237,7 @@ begin
   result := readRawVarint32 <> 0;
 end;
 
-function TProtoBufInput.readString: string;
+function TProtoBufInput.readString: AnsiString;
 var size: integer;
 begin
   size := readRawVarint32;

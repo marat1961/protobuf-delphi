@@ -1,4 +1,3 @@
-п»ї//
 // Protocol Buffers - Google's data interchange format
 // Copyright 2008 Google Inc.  All rights reserved.
 // http://code.google.com/p/protobuf/
@@ -10,7 +9,6 @@
 // Frunze 131/1, 56, Russia, Tomsk, 634021
 //
 // wow! - it is my first unit test :=)
-//
 
 unit UnitTest;
 
@@ -46,16 +44,16 @@ var
   i, j: integer;
   t: TVarintCase;
   pb: TProtoBufInput;
-  buf: string;
+  buf: AnsiString;
   i64: int64;
   int: integer;
 begin
   for i := 0 to 7 do begin
     t := VarintCases[i];
-    // СЃРѕР·РґР°С‚СЊ С‚РµСЃС‚РѕРІС‹Р№ Р±СѓС„РµСЂ
+    // создать тестовый буфер
     SetLength(buf, t.size);
-    for j := 1 to t.size do buf[j] := chr(t.bytes[j]);
-    pb := TProtoBufInput.Create(buf);
+    for j := 1 to t.size do buf[j] := AnsiChar(t.bytes[j]);
+    pb := TProtoBufInput.Create(@buf[1], t.size);
     try
       if i < 5 then begin
         int := pb.readRawVarint32;
@@ -90,14 +88,14 @@ var
   i, j: integer;
   t: TLittleEndianCase;
   pb: TProtoBufInput;
-  buf: string;
+  buf: AnsiString;
   int: integer;
 begin
   for i := 0 to 5 do begin
     t := LittleEndianCases[i];
     SetLength(buf, 4);
-    for j := 1 to 4 do buf[j] := chr(t.bytes[j]);
-    pb := TProtoBufInput.Create(buf);
+    for j := 1 to 4 do buf[j] := AnsiChar(t.bytes[j]);
+    pb := TProtoBufInput.Create(@buf[1], 4);
     try
       int := pb.readRawLittleEndian32;
       Assert(t.value = int, 'Test readRawLittleEndian32 fails');
@@ -124,14 +122,14 @@ var
   i, j: integer;
   t: TLittleEndianCase;
   pb: TProtoBufInput;
-  buf: string;
+  buf: AnsiString;
   int: int64;
 begin
   for i := 0 to 3 do begin
     t := LittleEndianCases[i];
     SetLength(buf, 8);
-    for j := 1 to 8 do buf[j] := chr(t.bytes[j]);
-    pb := TProtoBufInput.Create(buf);
+    for j := 1 to 8 do buf[j] := AnsiChar(t.bytes[j]);
+    pb := TProtoBufInput.Create(@buf[1], 8);
     try
       int := pb.readRawLittleEndian64;
       Assert(t.value = int, 'Test readRawLittleEndian64 fails');
@@ -167,15 +165,15 @@ end;
 
 procedure TestReadString;
 const
-  TEST_string  = 'РўРµСЃС‚РѕРІР°СЏ СЃС‚СЂРѕРєР°';
+  TEST_string  = AnsiString('Тестовая строка');
   TEST_integer = 12345678;
   TEST_single  = 12345.123;
   TEST_double  = 1234567890.123;
 var
   out_pb: TProtoBufOutput;
   in_pb: TProtoBufInput;
-  tag: integer;
-  text: string;
+  tag, t: integer;
+  text: AnsiString;
   int: integer;
   dbl: double;
   flt: single;
@@ -188,27 +186,31 @@ begin
   out_pb.writeDouble(4, TEST_double);
   out_pb.SaveToFile('test.dmp');
 
-  in_pb := TProtoBufInput.Create('');
+  in_pb := TProtoBufInput.Create();
   in_pb.LoadFromFile('test.dmp');
   // TEST_string
   tag := makeTag(1, WIRETYPE_LENGTH_DELIMITED);
-  Assert(tag = in_pb.readTag);
+  t := in_pb.readTag;
+  Assert(tag = t);
   text := in_pb.readString;
   Assert(TEST_string = text);
   // TEST_integer
   tag := makeTag(2, WIRETYPE_FIXED32);
-  Assert(tag = in_pb.readTag);
+  t := in_pb.readTag;
+  Assert(tag = t);
   int := in_pb.readFixed32;
   Assert(TEST_integer = int);
   // TEST_single
   tag := makeTag(3, WIRETYPE_FIXED32);
-  Assert(tag = in_pb.readTag);
+  t := in_pb.readTag;
+  Assert(tag = t);
   flt := in_pb.readFloat;
   delta := TEST_single - flt;
   Assert(abs(delta) < 0.001);
   // TEST_double
   tag := makeTag(4, WIRETYPE_FIXED64);
-  Assert(tag = in_pb.readTag);
+  t := in_pb.readTag;
+  Assert(tag = t);
   dbl := in_pb.readDouble;
   {$OVERFLOWCHECKS ON}
   delta := dbl - TEST_double;
@@ -221,13 +223,13 @@ const
 var
   in_pb: TProtoBufInput;
   buf_size: integer;
-  s: string;
+  s: AnsiString;
   i: integer;
 begin
   buf_size := 64 * Mb;
   SetLength(s, buf_size);
   for i := 0 to 200 do begin
-    in_pb := TProtoBufInput.Create(PChar(s), Length(s), false);
+    in_pb := TProtoBufInput.Create(PAnsiChar(s), Length(s), false);
     in_pb.Free;
   end;
 end;

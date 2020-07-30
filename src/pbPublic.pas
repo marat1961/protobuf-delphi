@@ -1,4 +1,4 @@
-﻿unit pbPublic;
+unit pbPublic;
 
 interface
 

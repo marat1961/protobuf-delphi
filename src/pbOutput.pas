@@ -1,4 +1,4 @@
-﻿unit pbOutput;
+unit pbOutput;
 
 interface
 
@@ -14,48 +14,53 @@ type
     procedure writeTo(buffer: TProtoBufOutput);
   end;
 
-  TProtoBufOutput = class
+  TProtoBufOutput = class(TInterfacedObject, IpbMessage)
   private
     FBuffer: TSegmentBuffer;
-  protected
-    (* Закодировать и записать varint. *)
-    procedure writeRawVarint32(value: integer);
-    (* Закодировать и записать varint. *)
-    procedure writeRawVarint64(value: int64);
-    (* Закодировать и записать tag. *)
-    procedure writeTag(fieldNumber: integer; wireType: integer);
-    (* Записать один байт. *)
-    procedure writeRawByte(value: shortint);
-    (* Записать данные, указанного размера. *)
-    procedure writeRawData(const p: Pointer; size: integer);
   public
     constructor Create;
     destructor Destroy; override;
     procedure SaveToStream(Stream: TStream);
     procedure SaveToFile(const FileName: string);
     procedure Clear;
-    (* получить результат в виде строки *)
-    function GetText: string;
-    (* Записать double поле, включая tag в буфер. *)
+
+    (* Encode and write varint. *)
+    procedure writeRawVarint32(value: integer);
+    (* Encode and write varint. *)
+    procedure writeRawVarint64(value: int64);
+    (* Encode and write tag. *)
+    procedure writeTag(fieldNumber: integer; wireType: integer);
+    (* Encode and write single byte. *)
+    procedure writeRawByte(value: shortint);
+    (* Write the data with specified size. *)
+    procedure writeRawData(const p: Pointer; size: integer);
+
+    (* Get the result as a string *)
+    function GetText: AnsiString;
+    (* Write a double field, including tag. *)
     procedure writeDouble(fieldNumber: integer; value: double);
-    (* Записать single поле, включая tag в буфер. *)
-    procedure writeFloat(fieldNumber: integer; value: Single);
-    (* Записать int64 поле, включая tag в буфер. *)
+    (* Write a single field, including tag. *)
+    procedure writeFloat(fieldNumber: integer; value: single);
+    (* Write a int64 field, including tag. *)
     procedure writeInt64(fieldNumber: integer; value: int64);
-    (* Записать int32 поле, включая tag в буфер. *)
+    (* Write a int64 field, including tag. *)
     procedure writeInt32(fieldNumber: integer; value: integer);
-    (* Записать fixed64 поле, включая tag в буфер. *)
+    (* Write a fixed64 field, including tag. *)
     procedure writeFixed64(fieldNumber: integer; value: int64);
-    (* Записать fixed32 поле, включая tag в буфер. *)
+    (* Write a fixed32 field, including tag. *)
     procedure writeFixed32(fieldNumber: integer; value: integer);
-    (* Записать boolean поле, включая tag в буфер. *)
+    (* Write a boolean field, including tag. *)
     procedure writeBoolean(fieldNumber: integer; value: boolean);
-    (* Записать string поле, включая tag в буфер. *)
-    procedure writeString(fieldNumber: integer; const value: string);
-    (* Записать вложенное message поле, включая tag в буфер. *)
+    (* Write a string field, including tag. *)
+    procedure writeString(fieldNumber: integer; const value: AnsiString);
+    (* Write a message field, including tag. *)
     procedure writeMessage(fieldNumber: integer; const value: IpbMessage);
-    (* Записать unsigned int32 поле, включая tag в буфер. *)
+    (*  Write a unsigned int32 field, including tag. *)
     procedure writeUInt32(fieldNumber: integer; value: cardinal);
+    (* Get serialized size *)
+    function getSerializedSize: integer;
+    (* Write to buffer *)
+    procedure writeTo(buffer: TProtoBufOutput);
   end;
 
 implementation
@@ -83,7 +88,7 @@ end;
 
 procedure TProtoBufOutput.writeRawByte(value: shortint);
 begin
-  FBuffer.Add(chr(value));
+  FBuffer.Add(AnsiChar(value));
 end;
 
 procedure TProtoBufOutput.writeRawData(const p: Pointer; size: integer);
@@ -154,11 +159,6 @@ procedure TProtoBufOutput.writeInt32(fieldNumber, value: integer);
 begin
   writeTag(fieldNumber, WIRETYPE_VARINT);
   writeRawVarint32(value);
-{  if (value >= 0) then
-    writeRawVarint32(value)
-  else
-    // Must sign-extend.
-    writeRawVarint64(value);}
 end;
 
 procedure TProtoBufOutput.writeInt64(fieldNumber: integer; value: int64);
@@ -167,7 +167,7 @@ begin
   writeRawVarint64(value);
 end;
 
-procedure TProtoBufOutput.writeString(fieldNumber: integer; const value: string);
+procedure TProtoBufOutput.writeString(fieldNumber: integer; const value: AnsiString);
 begin
   writeTag(fieldNumber, WIRETYPE_LENGTH_DELIMITED);
   writeRawVarint32(length(value));
@@ -188,7 +188,7 @@ begin
   value.writeTo(self);
 end;
 
-function TProtoBufOutput.GetText: string;
+function TProtoBufOutput.GetText: AnsiString;
 begin
   result := FBuffer.GetText;
 end;
@@ -201,6 +201,16 @@ end;
 procedure TProtoBufOutput.SaveToStream(Stream: TStream);
 begin
   FBuffer.SaveToStream(Stream);
+end;
+
+function TProtoBufOutput.getSerializedSize: integer;
+begin
+  result := FBuffer.GetCount;
+end;
+
+procedure TProtoBufOutput.writeTo(buffer: TProtoBufOutput);
+begin
+  buffer.FBuffer.Add(GetText);
 end;
 
 end.
