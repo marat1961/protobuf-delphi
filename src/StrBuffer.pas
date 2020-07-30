@@ -1,9 +1,9 @@
-﻿// Copyright 2008, Marat Shaymardanov.  All rights reserved.
-// Tomsk 2001, 2018
+﻿// Author  - Marat Shaimardanov, Tomsk 2001 .. 2020
 //
-// You can freely use this code in any project
-// if sending any postcards with postage stamp to my address:
+// Send any postcards with postage stamp to my address:
 // Frunze 131/1, 56, Russia, Tomsk, 634021
+// then you can use this code in self project.
+
 //
 // The buffer for strings.
 // The main purpose of the rapid format of long string.
@@ -26,14 +26,16 @@ const
 
 type
 
-  { If you do not have enough space in the string than
-    is taken a piece of memory twice the size
-    and copies the data in this chunk of memory }
+{
+  If you do not have enough space in the string than
+  is taken a piece of memory twice the size
+  and copies the data in this chunk of memory
+}
   TStrBuffer = class
   private
     FCount: Integer;
     FCapacity: Integer;
-    FBuff: PAnsiChar;
+    FBuff: PByte;
   protected
     class procedure Error(const Msg: string; Data: Integer);
   public
@@ -44,22 +46,22 @@ type
     procedure LoadFromFile(const FileName: string);
     procedure LoadFromStream(Stream: TStream);
     procedure Clear;
-    procedure Add(const Value: AnsiString); overload;
+    procedure Add(const Value: TBytes); overload;
     procedure SetCapacity(NewCapacity: Integer);
-    function GetText: AnsiString;
+    function GetBytes: TBytes;
     function GetCount: Integer;
+    property Bytes: TBytes read GetBytes;
   end;
 
   PSegment = ^TSegment;
-
   TSegment = record
     Next: PSegment;
     Size: Integer;
     Count: Integer;
-    Data: array [0..0] of AnsiChar;
+    Data: array[0..0] of AnsiChar;
   end;
 
-  { Add memory by segment }
+  { add memory done by segments }
   TSegmentBuffer = class
   private
     FCount: Integer;
@@ -76,13 +78,13 @@ type
     procedure LoadFromFile(const FileName: string);
     procedure LoadFromStream(Stream: TStream);
     procedure Clear;
-    procedure AddSegment(aSize: Integer);
-    procedure Add(const Value: AnsiChar); overload;
-    procedure Add(const Value: AnsiString); overload;
-    procedure Add(const Value: PAnsiChar; Cnt: Integer); overload;
-    function GetText: AnsiString;
+    procedure AddSegment(Size: Integer);
+    procedure Add(const Value: Byte); overload;
+    procedure Add(const Value: TBytes); overload;
+    procedure Add(const Value: PByte; Cnt: Integer); overload;
+    function GetBytes: TBytes;
     function GetCount: Integer;
-    property Text: AnsiString read GetText;
+    property Bytes: TBytes read GetBytes;
   end;
 
 implementation
@@ -95,7 +97,7 @@ class procedure TStrBuffer.Error(const Msg: string; Data: Integer);
 
   function ReturnAddr: Pointer;
   asm
-    MOV     EAX,[EBP+4]
+    MOV EAX,[EBP+4]
   end;
 
 begin
@@ -122,7 +124,7 @@ begin
   SetCapacity(0);
 end;
 
-procedure TStrBuffer.Add(const Value: AnsiString);
+procedure TStrBuffer.Add(const Value: TBytes);
 var
   cnt, delta: Integer;
 begin
@@ -134,7 +136,7 @@ begin
       delta := cnt * 2;
     SetCapacity(FCapacity + delta);
   end;
-  System.Move(Pointer(Value)^, PAnsiChar(FBuff + FCount)^, cnt);
+  System.Move(Pointer(Value)^, PByte(FBuff + FCount)^, cnt);
   Inc(FCount, cnt);
 end;
 
@@ -143,7 +145,7 @@ begin
   Result := FCount;
 end;
 
-function TStrBuffer.GetText: AnsiString;
+function TStrBuffer.GetBytes: TBytes;
 begin
   SetLength(Result, FCount);
   System.Move(FBuff^, Pointer(Result)^, FCount);
@@ -166,8 +168,7 @@ begin
 end;
 
 procedure TStrBuffer.SaveToFile(const FileName: string);
-var
-  Stream: TStream;
+var Stream: TStream;
 begin
   Stream := TFileStream.Create(FileName, fmCreate);
   try
@@ -178,8 +179,7 @@ begin
 end;
 
 procedure TStrBuffer.LoadFromFile(const FileName: string);
-var
-  Stream: TStream;
+var Stream: TStream;
 begin
   Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
   try
@@ -192,13 +192,13 @@ end;
 procedure TStrBuffer.LoadFromStream(Stream: TStream);
 var
   size: Integer;
-  s: AnsiString;
+  bytes: TBytes;
 begin
   Clear;
   size := Stream.Size - Stream.Position;
-  SetString(s, nil, size);
-  Stream.Read(Pointer(s)^, size);
-  Add(s);
+  SetLength(bytes, size);
+  Stream.Read(Pointer(bytes)^, size);
+  Add(bytes);
 end;
 
 { TSegmentBuffer }
@@ -207,7 +207,7 @@ class procedure TSegmentBuffer.Error(const Msg: string; Data: Integer);
 
   function ReturnAddr: Pointer;
   asm
-    MOV     EAX,[EBP+4]
+    MOV EAX,[EBP+4]
   end;
 
 begin
@@ -219,12 +219,9 @@ begin
   inherited Create;
   FCount := 0;
   FFirst := AllocMem(4096 + SizeOf(TSegment));
-  with FFirst^ do
-  begin
-    Next := nil;
-    Size := 4096;
-    Count := 0;
-  end;
+  FFirst.Next := nil;
+  FFirst.Size := 4096;
+  FFirst.Count := 0;
   FLast := FFirst;
 end;
 
@@ -236,14 +233,13 @@ begin
 end;
 
 procedure TSegmentBuffer.Clear;
-var
-  p1, p2: PSegment;
+var p1, p2: PSegment;
 begin
   p1 := FFirst;
   while p1 <> FLast do
   begin
     p2 := p1;
-    p1 := p1^.Next;
+    p1 := p1^.next;
     FreeMem(p2, p2^.Size);
   end;
   FFirst := FLast;
@@ -251,20 +247,17 @@ begin
   FCount := 0;
 end;
 
-procedure TSegmentBuffer.AddSegment(aSize: Integer);
+procedure TSegmentBuffer.AddSegment(Size: Integer);
 var
   segment: PSegment;
 begin
-  segment := AllocMem(aSize + SizeOf(TSegment) - SizeOf(AnsiChar));
-  with segment^ do
-  begin
-    Next := nil;
-    Size := aSize;
-    Count := 0;
-  end;
-  FLast^.Next := segment;
+  segment := AllocMem(Size + SizeOf(TSegment) - SizeOf(AnsiChar));
+  segment.next := nil;
+  segment.size := Size;
+  segment.count := 0;
+  FLast^.next := segment;
   FLast := segment;
-  Inc(FCapacity, aSize);
+  Inc(FCapacity, Size);
 end;
 
 function TSegmentBuffer.GetCount: Integer;
@@ -272,14 +265,14 @@ begin
   Result := FCount;
 end;
 
-function TSegmentBuffer.GetText: AnsiString;
+function TSegmentBuffer.GetBytes: TBytes;
 var
-  p: PAnsiChar;
+  p: PByte;
   segment: PSegment;
   len: Integer;
 begin
-  SetString(Result, nil, FCount);
-  p := Pointer(Result);
+  SetLength(Result, FCount);
+  p := @Result[0];
   segment := FFirst;
   while segment <> nil do
   begin
@@ -290,9 +283,9 @@ begin
   end;
 end;
 
-procedure TSegmentBuffer.Add(const Value: PAnsiChar; Cnt: Integer);
+procedure TSegmentBuffer.Add(const Value: PByte; Cnt: Integer);
 var
-  p: PAnsiChar;
+  p: PByte;
   tmp: Integer;
 begin
   p := Value;
@@ -309,8 +302,7 @@ begin
     Dec(Cnt, tmp);
     // add another segment of the larger buffer size
     tmp := FLast^.Size;
-    if tmp < Cnt then
-      tmp := Cnt;
+    if tmp < Cnt then tmp := Cnt;
     AddSegment(tmp * 2);
   end;
   if Cnt > 0 then
@@ -321,23 +313,21 @@ begin
   end;
 end;
 
-procedure TSegmentBuffer.Add(const Value: AnsiString);
-var
-  len: Integer;
+procedure TSegmentBuffer.Add(const Value: TBytes);
+var len: Integer;
 begin
   len := Length(Value);
   if len > 0 then
-    Add(@Value[1], len);
+    Add(@Value[0], len);
 end;
 
-procedure TSegmentBuffer.Add(const Value: AnsiChar);
+procedure TSegmentBuffer.Add(const Value: Byte);
 begin
   Add(@Value, 1);
 end;
 
 procedure TSegmentBuffer.SaveToFile(const FileName: string);
-var
-  Stream: TStream;
+var Stream: TStream;
 begin
   Stream := TFileStream.Create(FileName, fmCreate);
   try
@@ -348,8 +338,7 @@ begin
 end;
 
 procedure TSegmentBuffer.SaveToStream(Stream: TStream);
-var
-  segment: PSegment;
+var segment: PSegment;
 begin
   segment := FFirst;
   while segment <> nil do
@@ -360,8 +349,7 @@ begin
 end;
 
 procedure TSegmentBuffer.LoadFromFile(const FileName: string);
-var
-  Stream: TStream;
+var Stream: TStream;
 begin
   Stream := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
   try
@@ -374,16 +362,15 @@ end;
 procedure TSegmentBuffer.LoadFromStream(Stream: TStream);
 var
   size: Integer;
-  s: AnsiString;
+  bytes: TBytes;
 begin
   Clear;
   size := Stream.Size - Stream.Position;
-  SetString(s, nil, size);
-  Stream.Read(Pointer(s)^, size);
-  Add(s);
+  SetLength(bytes, size);
+  Stream.Read(Pointer(bytes)^, size);
+  Add(bytes);
 end;
 
 {$RANGECHECKS ON}
 
 end.
-

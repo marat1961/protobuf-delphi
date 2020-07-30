@@ -1,19 +1,17 @@
-// Protocol Buffers - Google's data interchange format
-// Copyright 2008 Google Inc.  All rights reserved.
-// http://code.google.com/p/protobuf/
+﻿// Author this code - Marat Shaimardanov, Tomsk (2007..2020)
 //
-// author this port to delphi - Marat Shaymardanov, Tomsk 2007, 2018
-//
-// You can freely use this code in any project
-// if sending any postcards with postage stamp to my address:
+// Send any postcards with postage stamp to my address:
 // Frunze 131/1, 56, Russia, Tomsk, 634021
+// then you can use this code in self project.
 
 program Project1;
 
 {$APPTYPE CONSOLE}
 
 uses
-  SysUtils, TypInfo,
+  FastMM4, // Always in the first place!
+  SysUtils,
+  TypInfo,
   Example1 in 'Example1.pas',
   UnitTest in '..\UnitTest.pas',
   pbInput in '..\pbInput.pas',
@@ -30,10 +28,10 @@ var
 begin
   Person := TPerson.Create;
   try
-    Person.Name := 'Marat Shaymardanov';
+    Person.Name := 'Marat Shaimardanov';
     Person.Id := 1;
     Person.Email := 'marat.sh.1961@gmail.com';
-    Person.AddPhone('+7 392 224 3699');
+    Person.AddPhone('+7 382 224 3699');
     Person.AddPhone('+7 913 826 2144', ptMOBILE);
     // write person and save to file
     PersonBuilder := TPersonBuilder.Create;
@@ -70,8 +68,10 @@ begin
         PhoneNumber := Person.Phones[i];
         Writeln('[', IntToStr(i + 1), ']');
         Writeln('  Number: ', PhoneNumber.Number);
-        Writeln('  Type: ', GetEnumName(TypeInfo(TPhoneType), Integer(PhoneNumber.Typ)));
+        Writeln('  Type: ', GetEnumName(TypeInfo(TPhoneType),
+          Integer(PhoneNumber.Typ)));
       end;
+      Readln;
     finally
       Person.Free;
     end;
@@ -90,7 +90,4 @@ begin
   Writeln('Run Protocol Buffer Tests');
   TestAll;
   TestPerson;
-  Writeln('All tests passed');
-  Readln;
 end.
-

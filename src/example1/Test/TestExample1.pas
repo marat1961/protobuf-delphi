@@ -1,3 +1,13 @@
+// Protocol Buffers - Google's data interchange format
+// Copyright 2008 Google Inc.  All rights reserved.
+// http://code.google.com/p/protobuf/
+//
+// Author this port to delphi - Marat Shaimardanov, Tomsk (2007..2020)
+//
+// Send any postcards with postage stamp to my address:
+// Frunze 131/1, 56, Russia, Tomsk, 634021
+// then you can use this code in self project.
+
 unit TestExample1;
 
 interface
@@ -34,7 +44,6 @@ type
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestGetBuf;
     procedure TestWrite;
   end;
 
@@ -46,7 +55,6 @@ type
     procedure SetUp; override;
     procedure TearDown; override;
   published
-    procedure TestGetBuf;
     procedure TestLoad;
   end;
 
@@ -84,13 +92,15 @@ var
 begin
   Check(FPerson.PhonesCount = 1, 'Should be one phone');
   Phone := FPerson.Phones[0];
-  Check(Phone.Number = '+7 392 224 3699', 'This is a phone with number 8 392 224 3699');
+  Check(Phone.Number = '+7 382 224 3699',
+    'This is a phone with number +7 382 224 3699');
   Check(Phone.Typ = ptHOME, 'This is a home phone');
-
   FPerson.AddPhone('+7 913 826 2144', ptMOBILE);
   Check(FPerson.PhonesCount = 2, 'Should have two phone');
+
   Phone := FPerson.Phones[1];
-  Check(Phone.Number = '+7 913 826 2144', 'This is a phone with number 913 826 2144');
+  Check(Phone.Number = '+7 913 826 2144',
+    'This is a phone with number 913 826 2144');
   Check(Phone.Typ = ptMOBILE, 'This is a mobile phone');
 end;
 
@@ -105,24 +115,16 @@ begin
   FPersonBuilder := nil;
 end;
 
-procedure TestTPersonBuilder.TestGetBuf;
-var
-  ReturnValue: TProtoBufOutput;
-begin
-  ReturnValue := FPersonBuilder.GetBuf;
-  Check(ReturnValue <> nil);
-end;
-
 procedure TestTPersonBuilder.TestWrite;
 var
   Person: TPerson;
 begin
   Person := TPerson.Create;
   try
-    Person.Name := 'Marat Shaymardanov';
+    Person.Name := 'Marat Shaimardanov';
     Person.Id := 1;
-    Person.Email := 'marat-sh@sibmail.com';
-    Person.AddPhone('+7 392 224 3699');
+    Person.Email := 'marat.sh.1961@gmail.com';
+    Person.AddPhone('+7 382 224 3699');
     Person.AddPhone('+7 913 826 2144', ptMOBILE);
     FPersonBuilder.Write(Person);
     FPersonBuilder.GetBuf.SaveToFile('person.pb');
@@ -142,14 +144,6 @@ begin
   FPersonReader := nil;
 end;
 
-procedure TestTPersonReader.TestGetBuf;
-var
-  ReturnValue: TProtoBufInput;
-begin
-  ReturnValue := FPersonReader.GetBuf;
-  Check(ReturnValue <> nil);
-end;
-
 procedure TestTPersonReader.TestLoad;
 var
   Person: TPerson;
@@ -159,19 +153,27 @@ begin
   FPersonReader.GetBuf.LoadFromFile('person.pb');
   FPersonReader.Load(Person);
 
-  Check(Person.Name = 'Marat Shaymardanov', 'test Name');
-  Check(Person.Id = 1, 'Good Id');
-  Check(Person.Email = 'marat-sh@sibmail.com', 'test Email');
+  Check(Person.Name = 'Marat Shaimardanov',
+    'test Name');
+  Check(Person.Id = 1,
+    'Good Id');
+  Check(Person.Email = 'marat.sh.1961@gmail.com',
+    'test Email');
 
-  Check(person.PhonesCount = 2, 'Should have two phone');
+  Check(person.PhonesCount = 2,
+    'Should have two phone');
 
   Phone := Person.Phones[0];
-  Check(Phone.Number = '+7 392 224 3699', 'This is a phone with number +7 392 224 3699');
-  Check(Phone.Typ = ptHOME, 'This is a home phone');
+  Check(Phone.Number = '+7 382 224 3699',
+    'This is a phone with number +7 392 224 3699');
+  Check(Phone.Typ = ptHOME,
+    'This is a home phone');
 
   Phone := person.Phones[1];
-  Check(Phone.Number = '+7 913 826 2144', 'This is a phone with number +7 913 826 2144');
-  Check(Phone.Typ = ptMOBILE, 'This is a mobile phone');
+  Check(Phone.Number = '+7 913 826 2144',
+    'This is a phone with number +7 913 826 2144');
+  Check(Phone.Typ = ptMOBILE,
+    'This is a mobile phone');
 end;
 
 initialization

@@ -2,11 +2,11 @@
 // Copyright 2008 Google Inc.  All rights reserved.
 // http://code.google.com/p/protobuf/
 //
-// author this port to delphi - Marat Shaymardanov, Tomsk 2007, 2018
+// Author this port to delphi - Marat Shaimardanov, Tomsk (2007..2020)
 //
-// You can freely use this code in any project
-// if sending any postcards with postage stamp to my address:
+// Send any postcards with postage stamp to my address:
 // Frunze 131/1, 56, Russia, Tomsk, 634021
+// then you can use this code in self project.
 
 unit Example1;
 
@@ -45,20 +45,20 @@ type
   TPhoneNumber = class
   private
     FTyp: TPhoneType;
-    FNumber: AnsiString;
+    FNumber: string;
   const
     ft_Number = 1;
     ft_Typ = 2;
   public
     constructor Create;
-    property Number: AnsiString read FNumber write FNumber;
+    property Number: string read FNumber write FNumber;
     property Typ: TPhoneType read FTyp write FTyp;
   end;
 
   TPerson = class
   private
-    FName: AnsiString;
-    FEmail: AnsiString;
+    FName: string;
+    FEmail: string;
     FId: Integer;
     FPhones: TObjectList;
     function GetPhones(Index: Integer): TPhoneNumber;
@@ -71,11 +71,11 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    procedure AddPhone(const Number: AnsiString; Typ: TPhoneType = ptHOME);
+    procedure AddPhone(const Number: string; Typ: TPhoneType = ptHOME);
     procedure DeletePhone(Index: Integer);
-    property Name: AnsiString read FName write FName;
+    property Name: string read FName write FName;
     property Id: Integer read FId write FId;
-    property Email: AnsiString read FEmail write FEmail;
+    property Email: string read FEmail write FEmail;
     property PhonesCount: Integer read GetPhonesCount;
     property Phones[Index: Integer]: TPhoneNumber read GetPhones;
   end;
@@ -97,7 +97,7 @@ type
   public
     constructor Create;
     destructor Destroy; override;
-    function GetBuf: TProtoBufInput;
+    function GetBuf: PProtoBufInput;
     procedure Load(person: TPerson);
   end;
 
@@ -135,7 +135,7 @@ begin
   Result := FPhones.Items[Index] as TPhoneNumber;
 end;
 
-procedure TPerson.AddPhone(const Number: AnsiString; Typ: TPhoneType = ptHOME);
+procedure TPerson.AddPhone(const Number: string; Typ: TPhoneType = ptHOME);
 var
   Phone: TPhoneNumber;
 begin
@@ -155,7 +155,7 @@ end;
 constructor TPersonBuilder.Create;
 begin
   inherited Create;
-  FBuffer := TProtoBufOutput.Create;
+  FBuffer := TProtoBufOutput.From;
 end;
 
 destructor TPersonBuilder.Destroy;
@@ -183,7 +183,7 @@ begin
   // Save Phones as Message
   if Person.GetPhonesCount > 0 then
   begin
-    PhonesBuffer := TProtoBufOutput.Create;
+    PhonesBuffer := TProtoBufOutput.From;
     try
       // Write person's phones
       for i := 0 to Person.GetPhonesCount - 1 do
@@ -207,19 +207,17 @@ end;
 
 constructor TPersonReader.Create;
 begin
-  inherited;
-  FBuffer := TProtoBufInput.Create;
+  FBuffer.Init;
 end;
 
 destructor TPersonReader.Destroy;
 begin
   FBuffer.Free;
-  inherited;
 end;
 
-function TPersonReader.GetBuf: TProtoBufInput;
+function TPersonReader.GetBuf: PProtoBufInput;
 begin
-  Result := FBuffer;
+  Result := @FBuffer;
 end;
 
 procedure TPersonReader.Load(person: TPerson);
@@ -293,4 +291,3 @@ begin
 end;
 
 end.
-

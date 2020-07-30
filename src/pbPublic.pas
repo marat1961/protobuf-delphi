@@ -2,11 +2,11 @@
 // Copyright 2008 Google Inc.  All rights reserved.
 // http://code.google.com/p/protobuf/
 //
-// author this port to delphi - Marat Shaymardanov, Tomsk 2007, 2018
+// Author this port to delphi - Marat Shaimardanov, Tomsk (2007..2020)
 //
-// You can freely use this code in any project
-// if sending any postcards with postage stamp to my address:
+// Send any postcards with postage stamp to my address:
 // Frunze 131/1, 56, Russia, Tomsk, 634021
+// then you can use this code in self project.
 
 unit pbPublic;
 
@@ -25,31 +25,30 @@ const
 
   RecursionLimit = 64;
 
-(* Get a tag value, determines the wire type (the lower 3 bits) *)
-function getTagWireType(tag: Integer): Integer;
+// Given a tag value, determines the wire type (the lower 3 bits).
+function getTagWireType(tag: Integer): Integer; inline;
 
-(* Get a tag value, determines the field number (the upper 29 bits) *)
-function getTagFieldNumber(tag: Integer): Integer;
+// Given a tag value, determines the field number (the upper 29 bits).
+function getTagFieldNumber(tag: Integer): Integer; inline;
 
-(* Makes a tag value given a field number and wire type *)
-function makeTag(fieldNumber, wireType: Integer): Integer;
+// Makes a tag value given a field number and wire type.
+function makeTag(fieldNumber, wireType: Integer): Integer; inline;
 
 implementation
 
 function getTagWireType(tag: Integer): Integer;
 begin
-  Result := tag and TAG_TYPE_MASK;
+  result := tag and TAG_TYPE_MASK;
 end;
 
 function getTagFieldNumber(tag: Integer): Integer;
 begin
-  Result := tag shr TAG_TYPE_BITS;
+  result := tag shr TAG_TYPE_BITS;
 end;
 
 function makeTag(fieldNumber, wireType: Integer): Integer;
 begin
-  Result := (fieldNumber shl TAG_TYPE_BITS) or wireType;
+  result := (fieldNumber shl TAG_TYPE_BITS) or wireType;
 end;
 
 end.
-
