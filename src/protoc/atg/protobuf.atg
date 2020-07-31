@@ -1,0 +1,356 @@
+﻿$csafnx
+
+COMPILER Pb
+// Copyright (c) 2020 Tomsk, Marat Shaimardanov
+// Delphi protocol buffer syntax
+
+USES SysUtils, ParseTable;
+
+MACROS
+  prefix = "pb" .
+
+CHARACTERS
+  eol = CHR(13) .
+  letter  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" .
+  firstDecimal = "123456789" .
+  decimalDigit = "0123456789" .
+  octalDigit = "01234567" .
+  hexDigit  = decimalDigit + "ABCDEF" + "abcdef" .
+  noQuote = ANY - "'" - eol .
+  noApos = ANY - '"' - eol .
+  noBracket = ANY - "[" - "]".
+
+TOKENS
+  ident = letter { letter | decimalDigit | "_" } .
+  decimalLit = firstDecimal { decimalDigit } .
+  octalLit = "0" { octalDigit } .
+  hexLit = "0" ( "x" | "X" ) hexDigit { hexDigit } .
+  real =
+    decimalDigit { decimalDigit } "." { decimalDigit }
+    [ ( "e" | "E" ) [ "+" | "-" ] decimalDigit { decimalDigit } ] .
+  string  =
+    "'" { noQuote } "'"
+    | '"' { noApos } '"' .
+
+/*
+charValue = hexEscape | octEscape | charEscape | /[^\0\n\\]/.
+hexEscape = '\' ( "x" | "X" ) hexDigit hexDigit.
+octEscape = '\' octalDigit octalDigit octalDigit .
+charEscape = '\' ( "a" | "b" | "f" | "n" | "r" | "t" | "v" | '\' | "'" | '"' ) .
+*/
+
+IGNORE  CHR(9) .. CHR(13)
+
+PRODUCTIONS
+
+// Integer literals
+intLit =
+decimalLit
+| octalLit
+| hexLit
+.
+
+// Floating-point literals
+floatLit =
+real
+| "inf"
+| "nan"
+.
+
+// Identifiers
+Ident<var name: string> =
+ident
+.
+
+fullIdent<var name: string> =
+ident
+{ "." ident
+}
+.
+
+// messageType or enumType
+userType<var typ: string>
+=
+[ "."
+]
+ident
+{ "." ident
+}
+.
+
+// Boolean
+
+boolLit =
+"true"
+| "false"
+.
+
+// String literals
+
+strLit =
+string
+.
+
+emptyStatement = ";"
+.
+
+// Constant
+
+constant =
+fullIdent<name>
+| (
+  [ "-"
+  | "+"
+  ]
+  (
+  intLit
+  | floatLit
+  ))
+| strLit
+| boolLit
+.
+
+// Syntax
+syntax = "syntax" "=" strLit ";"
+.
+
+// Import Statement
+
+import = "import"
+[ "weak"
+| "public"
+]
+strLit
+";"
+.
+
+// Package
+package = "package"
+fullIdent<name>
+";"
+.
+
+// Option
+option = "option"
+optionName
+"=" constant
+";"
+.
+
+optionName = (
+ident
+| "(" fullIdent<name>
+")"
+)
+{ "." ident
+}
+.
+
+// Fields
+
+type =
+"double"
+| "float"
+| "int32"
+| "int64"
+| "uint32"
+| "uint64"
+| "sint32"
+| "sint64"
+| "fixed32"
+| "fixed64"
+| "sfixed32"
+| "sfixed64"
+| "bool"
+| "string"
+| "bytes"
+| userType<typ>
+.
+
+fieldNumber = intLit
+.
+
+field =
+[ "repeated"
+]
+type
+Ident<fieldName>
+"="
+fieldNumber
+[ "[" fieldOptions
+"]" ] ";"
+.
+
+oneof =
+"oneof"
+Ident<oneofName>
+"{" {
+option
+| oneofField
+| emptyStatement
+} "}"
+.
+
+oneofField =
+type
+Ident<fieldName>
+"="
+fieldNumber
+[ "[" fieldOptions
+"]" ] ";"
+.
+
+fieldOptions =
+fieldOption
+{ ","  fieldOption
+}
+.
+
+fieldOption =
+optionName
+"="
+constant
+.
+
+mapField =
+"map" "<" keyType
+"," type
+">"
+Ident<mapName>
+"="
+fieldNumber
+[ "[" fieldOptions
+"]" ] ";"
+.
+
+keyType =
+"int32"
+| "int64"
+| "uint32"
+| "uint64"
+| "sint32"
+| "sint64"
+| "fixed32"
+| "fixed64"
+| "sfixed32"
+| "sfixed64"
+| "bool"
+| "string"
+.
+
+reserved = "reserved"
+( ranges
+| fieldNames
+) ";"
+.
+
+ranges =
+range
+{ "," range
+}
+.
+
+range =
+intLit
+[ "to" (
+intLit
+| "max"
+) ]
+.
+
+fieldNames =
+Ident<fieldName>
+{ "," Ident<fieldName>
+}
+.
+
+enum =
+"enum"
+Ident<name>
+enumBody
+.
+
+enumBody =
+"{" {
+option
+| enumField
+| emptyStatement
+} "}"
+.
+
+enumField =
+ident
+"="
+[ "-"
+]
+intLit
+[ "[" enumValueOption
+{ ","  enumValueOption
+} "]" ]";"
+.
+
+enumValueOption =
+optionName "=" constant
+.
+
+message =
+"message" Ident<messageName>
+messageBody
+.
+
+messageBody =
+"{" {
+field
+| enum
+| message
+| option
+| oneof
+| mapField
+| reserved
+| emptyStatement
+} "}"
+.
+
+service =
+"service" Ident<serviceName>
+"{" {
+option
+| rpc
+| emptyStatement
+} "}"
+.
+
+rpc =
+"rpc" Ident<name>
+"("
+[ "stream"
+]
+userType<messageType>
+")"
+"returns"
+"(" [ "stream" ]
+userType<messageType>
+")"
+(( "{" {
+option
+| emptyStatement
+} "}" ) | ";")
+.
+
+Pb =
+syntax {
+import
+| package
+| option
+| topLevelDef
+| emptyStatement
+} .
+
+topLevelDef =
+message
+| enum
+| service
+.
+
+END Pb.
+
