@@ -1,74 +1,200 @@
 ﻿$csafnx
 
 COMPILER Pb
-// Copyright (c) 2020 Tomsk, Marat Shaimardanov
-// Delphi protocol buffer syntax
 
-USES SysUtils, ParseTable;
+// Copyright (c) 2020 Tomsk, Marat Shaimardanov
+// Protocol buffer syntax for Delphi
 
 MACROS
   prefix = "pb" .
 
 CHARACTERS
-  eol = CHR(13) .
-  letter  = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" .
+  cr           = '\r'.
+  lf           = '\n'.
+  tab          = '\t'.
+  letter       = 'A'..'Z' + 'a'..'z'.
   firstDecimal = "123456789" .
   decimalDigit = "0123456789" .
-  octalDigit = "01234567" .
-  hexDigit  = decimalDigit + "ABCDEF" + "abcdef" .
-  noQuote = ANY - "'" - eol .
-  noApos = ANY - '"' - eol .
-  noBracket = ANY - "[" - "]".
+  octalDigit   = "01234567" .
+  hexDigit     = decimalDigit + "ABCDEF" + "abcdef" .
+  noApos       = ANY - '"' - '\\' - cr - lf .
+  noQuote      = ANY - '\'' - '\\' - cr - lf .
+  printable    = '\u0020' .. '\u007e' .
+  noEscape     = ANY - '\\' - cr - lf .
 
 TOKENS
-  ident = letter { letter | decimalDigit | "_" } .
+  ident      = letter { letter | decimalDigit | "_" } .
   decimalLit = firstDecimal { decimalDigit } .
-  octalLit = "0" { octalDigit } .
-  hexLit = "0" ( "x" | "X" ) hexDigit { hexDigit } .
-  real =
-    decimalDigit { decimalDigit } "." { decimalDigit }
+  octalLit   = "0" { octalDigit } .
+  hexLit     = "0" ( "x" | "X" ) hexDigit { hexDigit } .
+  real       = decimalDigit { decimalDigit } "." { decimalDigit }
     [ ( "e" | "E" ) [ "+" | "-" ] decimalDigit { decimalDigit } ] .
-  string  =
-    "'" { noQuote } "'"
-    | '"' { noApos } '"' .
+  string     = ( '"' { noApos | '\\' printable } '"' ) |
+               ( '\'' { noApos | '\\' printable } '"' ) .
+  badString  = '"' { noApos | '\\' printable } (cr | lf) .
+  char       = '\'' ( noQuote | '\\' printable { hexDigit } ) '\'' .
 
-/*
-charValue = hexEscape | octEscape | charEscape | /[^\0\n\\]/.
-hexEscape = '\' ( "x" | "X" ) hexDigit hexDigit.
-octEscape = '\' octalDigit octalDigit octalDigit .
-charEscape = '\' ( "a" | "b" | "f" | "n" | "r" | "t" | "v" | '\' | "'" | '"' ) .
-*/
+COMMENTS FROM "/*" TO "*/" NESTED
+COMMENTS FROM "//" TO cr
 
-IGNORE  CHR(9) .. CHR(13)
+IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
+Pb =
+Syntax {
+Import
+| Package
+| Option
+| TopLevelDef
+| EmptyStatement
+} .
+
+// Syntax
+
+Syntax                       (. var s: string; .)
+ =
+"syntax" "=" strLit          (. s := t.val;
+                                tab.Syntax := TSyntaxVersion.Proto2;
+                                if s = 'proto3' then
+                                  tab.Syntax := TSyntaxVersion.Proto3
+                                else if s <> 'proto2' then
+                                  SemErr('invalid syntax version'); .)
+";"
+.
+
+// Import Statement
+
+Import                       (. var import: TpbImport; .)
+=
+ "import"
+[ "weak"                     (. import.weak := True; .)
+| "public"                   (. import.publ := True; .)
+]
+strLit                       (. import.Name := t.val;
+                                Tab.AddImport(import); .)
+";"
+.
+
+// Package
+
+Package                      (. var p: TpbPackage; .)
+=
+"package"
+FullIdent<p.Name>            (. Tab.AddPackage(p); .)
+";"
+.
+
+// Option
+
+Option                       (. var option: TpbOption; .)
+=
+"option"
+OptionName<option.Name>
+"=" Constant                 (. Tab.AddOption(option); .)
+";"
+.
+
+OptionName<var s: string>    (. var name: string; .)
+=
+(
+ident                        (. name := t.val; .)
+| "(" FullIdent<name>        (. name := name + '(' + name + ')'; .)
+")"
+)
+{ "." ident                  (. name := name + '.' + t.val; .)
+}
+.
+
+TopLevelDef
+=
+Message
+| Enum
+| service
+.
+
+Message                      (. var msg: TpbMessage; .)
+=
+"message" Ident<msg.Name>
+MessageBody                  (. Tab.AddOption(option); .)
+.
+
+MessageBody
+=
+"{" {
+Field
+| Enum
+| Message
+| Option
+| oneof
+| mapField
+| Reserved
+| EmptyStatement
+} "}"
+.
+
+service
+=
+"service" Ident<serviceName>
+"{" {
+Option
+| rpc
+| EmptyStatement
+} "}"
+.
+
+rpc
+=
+"rpc" Ident<name>
+"("
+[ "stream"
+]
+userType<messageType>
+")"
+"returns"
+"(" [ "stream" ]
+userType<messageType>
+")"
+(( "{" {
+Option
+| EmptyStatement
+} "}" ) | ";")
+.
+
 // Integer literals
-intLit =
-decimalLit
-| octalLit
-| hexLit
+
+intLit<var s: string>
+=
+decimalLit                   (. s := t.val; .)
+| octalLit                   (. s := t.val; .)
+| hexLit                     (. s := t.val; .)
 .
 
 // Floating-point literals
-floatLit =
-real
-| "inf"
-| "nan"
+
+floatLit<var s: string>
+=
+real                         (. s  := t.val; .)
+| "inf"                      (. s := 'Infinity'; .)
+| "nan"                      (. s := 'NaN'; .)
 .
 
 // Identifiers
-Ident<var name: string> =
-ident
+
+Ident<var name: string>
+=
+ident                        (. name := t.val; .)
 .
 
-fullIdent<var name: string> =
-ident
-{ "." ident
+FullIdent<var name: string>
+=
+ident                        (. name := t.val; .)
+{ "." ident                  (. name := name + '.' + t.val; .)
 }
 .
 
 // messageType or enumType
+
 userType<var typ: string>
 =
 [ "."
@@ -91,59 +217,24 @@ strLit =
 string
 .
 
-emptyStatement = ";"
+EmptyStatement = ";"
 .
 
 // Constant
 
-constant =
-fullIdent<name>
+Constant                     (. var c: TpbConstant; .)
+=                            (. c.Init; .)
+FullIdent<c.name>
 | (
-  [ "-"
+  [ "-"                      (. c.sign := -1; .)
   | "+"
   ]
   (
-  intLit
-  | floatLit
+  intLit<c.val>              (. c.kind := TpbConstant.cInt; .)
+  | floatLit<c.val>          (. c.kind := TpbConstant.cFloat; .)
   ))
-| strLit
-| boolLit
-.
-
-// Syntax
-syntax = "syntax" "=" strLit ";"
-.
-
-// Import Statement
-
-import = "import"
-[ "weak"
-| "public"
-]
-strLit
-";"
-.
-
-// Package
-package = "package"
-fullIdent<name>
-";"
-.
-
-// Option
-option = "option"
-optionName
-"=" constant
-";"
-.
-
-optionName = (
-ident
-| "(" fullIdent<name>
-")"
-)
-{ "." ident
-}
+| strLit                     (. c.kind := TpbConstant.cStr; c.val := t.val; .)
+| boolLit                    (. c.kind := TpbConstant.cBool; c.val := t.val; .)
 .
 
 // Fields
@@ -167,63 +258,71 @@ type =
 | userType<typ>
 .
 
-fieldNumber = intLit
+FieldNumber<var fn: string>
+=
+intLit<fn>
 .
 
-field =
+Field                        (. var f: TPbField; .)
+=
 [ "repeated"
 ]
 type
 Ident<fieldName>
 "="
-fieldNumber
-[ "[" fieldOptions
+FieldNumber<f.FieldNumber>
+[ "[" FieldOptions
 "]" ] ";"
 .
 
-oneof =
+oneof
+=
 "oneof"
 Ident<oneofName>
 "{" {
-option
+Option
 | oneofField
-| emptyStatement
+| EmptyStatement
 } "}"
 .
 
-oneofField =
+oneofField =                 (. var f: TPbField; .)
 type
 Ident<fieldName>
 "="
-fieldNumber
-[ "[" fieldOptions
+FieldNumber<f.FieldNumber>
+[ "[" FieldOptions
 "]" ] ";"
 .
 
-fieldOptions =
-fieldOption
-{ ","  fieldOption
+FieldOptions
+=
+FieldOption
+{ ","  FieldOption
 }
 .
 
-fieldOption =
-optionName
+FieldOption                  (. var option: TOption; .)
+=
+OptionName<option.Name>
 "="
-constant
+Constant                     (. Tab.AddOption(option); .)
 .
 
-mapField =
+mapField                     (. var f: TPbField; .)
+=
 "map" "<" keyType
 "," type
 ">"
 Ident<mapName>
 "="
-fieldNumber
-[ "[" fieldOptions
+FieldNumber<f.FieldNumber>
+[ "[" FieldOptions
 "]" ] ";"
 .
 
-keyType =
+keyType
+=
 "int32"
 | "int64"
 | "uint32"
@@ -238,118 +337,70 @@ keyType =
 | "string"
 .
 
-reserved = "reserved"
-( ranges
-| fieldNames
+Reserved
+=
+"reserved"
+( Ranges
+| FieldNames
 ) ";"
 .
 
-ranges =
-range
-{ "," range
+Ranges                       (. var lo, hi: string; .)
+=
+Range<lo, ho>
+{ "," Range<lo, hi>
 }
 .
 
-range =
-intLit
+Range<var lo, hi: string>
+=
+intLit<lo>
 [ "to" (
-intLit
-| "max"
+intLit<hi>
+| "max"                      (. hi := 'max'; .)
 ) ]
 .
 
-fieldNames =
+FieldNames
+=
 Ident<fieldName>
 { "," Ident<fieldName>
 }
 .
 
-enum =
+Enum
+=
 "enum"
 Ident<name>
-enumBody
+EnumBody
 .
 
-enumBody =
+EnumBody
+=
 "{" {
-option
-| enumField
-| emptyStatement
+Option
+| EnumField
+| EmptyStatement
 } "}"
 .
 
-enumField =
+EnumField                     (. var n: string; .)
+=
 ident
 "="
 [ "-"
 ]
-intLit
-[ "[" enumValueOption
-{ ","  enumValueOption
+intLit<n>
+[ "[" EnumValueOption
+{ ","  EnumValueOption
 } "]" ]";"
 .
 
-enumValueOption =
-optionName "=" constant
-.
-
-message =
-"message" Ident<messageName>
-messageBody
-.
-
-messageBody =
-"{" {
-field
-| enum
-| message
-| option
-| oneof
-| mapField
-| reserved
-| emptyStatement
-} "}"
-.
-
-service =
-"service" Ident<serviceName>
-"{" {
-option
-| rpc
-| emptyStatement
-} "}"
-.
-
-rpc =
-"rpc" Ident<name>
-"("
-[ "stream"
-]
-userType<messageType>
-")"
-"returns"
-"(" [ "stream" ]
-userType<messageType>
-")"
-(( "{" {
-option
-| emptyStatement
-} "}" ) | ";")
-.
-
-Pb =
-syntax {
-import
-| package
-| option
-| topLevelDef
-| emptyStatement
-} .
-
-topLevelDef =
-message
-| enum
-| service
+EnumValueOption              (. var option: TOption; .)
+ =
+OptionName<option.Name>
+"="
+Constant                     (. Tab.AddOption(option); .)
 .
 
 END Pb.
