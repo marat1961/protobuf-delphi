@@ -12,14 +12,18 @@ unit pbPublic;
 
 interface
 
-const
-  WIRETYPE_VARINT = 0;
-  WIRETYPE_FIXED64 = 1;
-  WIRETYPE_LENGTH_DELIMITED = 2;
-  WIRETYPE_START_GROUP = 3;
-  WIRETYPE_END_GROUP = 4;
-  WIRETYPE_FIXED32 = 5;
+type
+  TWire = record
+  const
+    VARINT = 0;
+    FIXED64 = 1;
+    LENGTH_DELIMITED = 2;
+    START_GROUP = 3;
+    END_GROUP = 4;
+    FIXED32 = 5;
+  end;
 
+const
   TAG_TYPE_BITS = 3;
   TAG_TYPE_MASK = (1 shl TAG_TYPE_BITS) - 1;
 

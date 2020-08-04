@@ -13,11 +13,11 @@ uses
   SysUtils,
   TypInfo,
   Example1 in 'Example1.pas',
-  UnitTest in '..\UnitTest.pas',
-  pbInput in '..\pbInput.pas',
-  pbOutput in '..\pbOutput.pas',
-  pbPublic in '..\pbPublic.pas',
-  StrBuffer in '..\StrBuffer.pas';
+  UnitTest in '..\proto\UnitTest.pas',
+  pbInput in '..\proto\pbInput.pas',
+  pbOutput in '..\proto\pbOutput.pas',
+  pbPublic in '..\proto\pbPublic.pas',
+  StrBuffer in '..\proto\StrBuffer.pas';
 
 {$R *.RES}
 

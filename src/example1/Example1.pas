@@ -233,22 +233,22 @@ begin
     case fieldNumber of
       TPerson.ft_Name:
         begin
-          Assert(wireType = WIRETYPE_LENGTH_DELIMITED);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
           person.Name := FBuffer.readString;
         end;
       TPerson.ft_Id:
         begin
-          Assert(wireType = WIRETYPE_VARINT);
+          Assert(wireType = TWire.VARINT);
           person.Id := FBuffer.readInt32;
         end;
       TPerson.ft_Email:
         begin
-          Assert(wireType = WIRETYPE_LENGTH_DELIMITED);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
           person.Email := FBuffer.readString;
         end;
       TPerson.ft_Phone:
         begin
-          Assert(wireType = WIRETYPE_LENGTH_DELIMITED);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
           Phone := TPhoneNumber.Create;
           Person.FPhones.Add(Phone);
           LoadPhone(Phone);
@@ -276,12 +276,12 @@ begin
     case fieldNumber of
       TPhoneNumber.ft_Number:
         begin
-          Assert(wireType = WIRETYPE_LENGTH_DELIMITED);
+          Assert(wireType = TWire.LENGTH_DELIMITED);
           Phone.Number := FBuffer.readString;
         end;
       TPhoneNumber.ft_Typ:
         begin
-          Assert(wireType = WIRETYPE_VARINT);
+          Assert(wireType = TWire.VARINT);
           Phone.Typ := TPhoneType(FBuffer.readInt32);
         end;
       else

@@ -190,13 +190,13 @@ function TProtoBufInput.skipField(tag: Integer): Boolean;
 begin
   Result := True;
   case getTagWireType(tag) of
-    WIRETYPE_VARINT:
+    TWire.VARINT:
       readInt32;
-    WIRETYPE_FIXED64:
+    TWire.FIXED64:
       readRawLittleEndian64;
-    WIRETYPE_LENGTH_DELIMITED:
+    TWire.LENGTH_DELIMITED:
       skipRawBytes(readRawVarint32);
-    WIRETYPE_FIXED32:
+    TWire.FIXED32:
       readRawLittleEndian32;
     else
       raise Exception.Create('InvalidProtocolBufferException.invalidWireType');

@@ -236,26 +236,26 @@ begin
   try
    in_pb. LoadFromFile('test.dmp');
     // TEST_string
-    tag := makeTag(1, WIRETYPE_LENGTH_DELIMITED);
+    tag := makeTag(1, TWire.LENGTH_DELIMITED);
     t := in_pb.readTag;
     Assert(tag = t);
     text := in_pb.readString;
     Assert(TEST_string = text);
     // TEST_integer
-    tag := makeTag(2, WIRETYPE_FIXED32);
+    tag := makeTag(2, TWire.FIXED32);
     t := in_pb.readTag;
     Assert(tag = t);
     int := in_pb.readFixed32;
     Assert(TEST_integer = int);
     // TEST_single
-    tag := makeTag(3, WIRETYPE_FIXED32);
+    tag := makeTag(3, TWire.FIXED32);
     t := in_pb.readTag;
     Assert(tag = t);
     flt := in_pb.readFloat;
     delta := TEST_single - flt;
     Assert(abs(delta) < 0.001);
     // TEST_double
-    tag := makeTag(4, WIRETYPE_FIXED64);
+    tag := makeTag(4, TWire.FIXED64);
     t := in_pb.readTag;
     Assert(tag = t);
     dbl := in_pb.readDouble;

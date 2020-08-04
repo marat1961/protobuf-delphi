@@ -130,43 +130,43 @@ end;
 
 procedure TProtoBufOutput.writeBoolean(fieldNumber: Integer; value: Boolean);
 begin
-  writeTag(fieldNumber, WIRETYPE_VARINT);
+  writeTag(fieldNumber, TWire.VARINT);
   writeRawByte(ord(value));
 end;
 
 procedure TProtoBufOutput.writeDouble(fieldNumber: Integer; value: Double);
 begin
-  writeTag(fieldNumber, WIRETYPE_FIXED64);
+  writeTag(fieldNumber, TWire.FIXED64);
   writeRawData(@value, SizeOf(value));
 end;
 
 procedure TProtoBufOutput.writeFloat(fieldNumber: Integer; value: Single);
 begin
-  writeTag(fieldNumber, WIRETYPE_FIXED32);
+  writeTag(fieldNumber, TWire.FIXED32);
   writeRawData(@value, SizeOf(value));
 end;
 
 procedure TProtoBufOutput.writeFixed32(fieldNumber, value: Integer);
 begin
-  writeTag(fieldNumber, WIRETYPE_FIXED32);
+  writeTag(fieldNumber, TWire.FIXED32);
   writeRawData(@value, SizeOf(value));
 end;
 
 procedure TProtoBufOutput.writeFixed64(fieldNumber: Integer; value: Int64);
 begin
-  writeTag(fieldNumber, WIRETYPE_FIXED64);
+  writeTag(fieldNumber, TWire.FIXED64);
   writeRawData(@value, SizeOf(value));
 end;
 
 procedure TProtoBufOutput.writeInt32(fieldNumber, value: Integer);
 begin
-  writeTag(fieldNumber, WIRETYPE_VARINT);
+  writeTag(fieldNumber, TWire.VARINT);
   writeRawVarint32(value);
 end;
 
 procedure TProtoBufOutput.writeInt64(fieldNumber: Integer; value: Int64);
 begin
-  writeTag(fieldNumber, WIRETYPE_VARINT);
+  writeTag(fieldNumber, TWire.VARINT);
   writeRawVarint64(value);
 end;
 
@@ -175,7 +175,7 @@ procedure TProtoBufOutput.writeString(fieldNumber: Integer;
 var
   bytes, text: TBytes;
 begin
-  writeTag(fieldNumber, WIRETYPE_LENGTH_DELIMITED);
+  writeTag(fieldNumber, TWire.LENGTH_DELIMITED);
   bytes := TEncoding.Unicode.GetBytes(value);
   text := TEncoding.Unicode.Convert(TEncoding.Unicode, TEncoding.UTF8, bytes);
   writeRawVarint32(Length(text));
@@ -184,14 +184,14 @@ end;
 
 procedure TProtoBufOutput.writeUInt32(fieldNumber: Integer; value: Cardinal);
 begin
-  writeTag(fieldNumber, WIRETYPE_VARINT);
+  writeTag(fieldNumber, TWire.VARINT);
   writeRawVarint32(value);
 end;
 
 procedure TProtoBufOutput.writeMessage(fieldNumber: Integer;
   const value: TProtoBufOutput);
 begin
-  writeTag(fieldNumber, WIRETYPE_LENGTH_DELIMITED);
+  writeTag(fieldNumber, TWire.LENGTH_DELIMITED);
   writeRawVarint32(value.getSerializedSize);
   value.writeTo(self);
 end;
