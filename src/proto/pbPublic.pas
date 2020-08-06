@@ -23,6 +23,8 @@ type
     FIXED32 = 5;
   end;
 
+  TWireType = 0..7;
+
 const
   TAG_TYPE_BITS = 3;
   TAG_TYPE_MASK = (1 shl TAG_TYPE_BITS) - 1;

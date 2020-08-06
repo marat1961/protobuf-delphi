@@ -368,9 +368,10 @@ procedure TpbParser._Message;
 var msg: TpbMessage;
 begin
   Expect(20);
+  msg := TpbMessage.Create();
   _Ident(msg.Name);
   _MessageBody;
-  Tab.AddOption(option);
+  Tab.AddMessage(msg);
 end;
 
 procedure TpbParser._Enum;

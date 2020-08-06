@@ -12,7 +12,8 @@ uses
   Oz.Pb.Parser in '..\src\protoc\Oz.Pb.Parser.pas',
   Oz.Pb.Scanner in '..\src\protoc\Oz.Pb.Scanner.pas',
   Oz.Cocor.Lib in '..\src\protoc\Oz.Cocor.Lib.pas',
-  Oz.Cocor.Utils in '..\src\protoc\Oz.Cocor.Utils.pas';
+  Oz.Cocor.Utils in '..\src\protoc\Oz.Cocor.Utils.pas',
+  pbPublic in '..\src\proto\pbPublic.pas';
 
 begin
   try
