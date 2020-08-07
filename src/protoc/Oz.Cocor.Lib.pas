@@ -70,7 +70,7 @@ type
 {$Region 'TPosition: position of source code stretch'}
 
   // e.g. semantic action, resolver expressions
-  PPosition = ^PPosition;
+  PPosition = ^TPosition;
   TPosition = record
     beg: Integer;        // start relative to the beginning of the file
     ends: Integer;       // end of stretch

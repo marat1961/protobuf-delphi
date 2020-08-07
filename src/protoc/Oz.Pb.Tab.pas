@@ -11,6 +11,7 @@ uses
 type
 
   TpbMessage = class;
+  TpbTable = class;
 
 {$Region 'TStringValue'}
 
@@ -45,21 +46,6 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbImport: Importing definition'}
-
-  TpbImport = class
-  private
-    FValue: string;
-    FWeak: Boolean;
-  public
-    // import = "import" [ "weak" | "public" ] strLit ";"
-    constructor Create(const Value: string; Weak: Boolean = True);
-    property Value: string read FValue;
-    property Weak: Boolean read FWeak;
-  end;
-
-{$EndRegion}
-
 {$Region 'TIdent: base class for creating all other objects'}
 
   // Ident mode
@@ -89,6 +75,21 @@ type
     property Mode: TMode read FMode;
     // The scope where this object can be found.
     property Scope: TIdent read FScope;
+  end;
+
+{$EndRegion}
+
+{$Region 'TpbImport: Importing definition'}
+
+  TpbImport = class(TIdent)
+  private
+    FValue: string;
+    FWeak: Boolean;
+  public
+    // import = "import" [ "weak" | "public" ] strLit ";"
+    constructor Create(const Value: string; Weak: Boolean = True);
+    property Value: string read FValue;
+    property Weak: Boolean read FWeak;
   end;
 
 {$EndRegion}
@@ -279,6 +280,21 @@ type
 {$Region 'TpbModule: search tree root'}
 
   TpbModule = class(TIdent)
+  private
+    FTable: TpbTable;
+    FImports: TList<TpbImport>;
+    FConstants: TList<TpbConstant>;
+    FTypes: TList<TpbType>;
+    function FindImport(const id: string): TpbImport;
+    function FindConst(const id: string): TpbConstant;
+  protected
+    constructor Create(Table: TpbTable; const Name: string);
+  public
+    destructor Destroy; override;
+    function Find(const id: string): TIdent;
+    function FindType(const id: string): TpbType;
+    procedure AddConst(c: TpbConstant);
+    procedure AddType(t: TpbType);
   end;
 
 {$EndRegion}
@@ -319,16 +335,13 @@ implementation
 function GetWireType(tm: TTypeMode): TWireType;
 begin
   case tm of
-    // int32, int64, uint32, uint64, sint32, sint64, bool, enum
     TTypeMode.tmInt32, TTypeMode.tmInt64,
     TTypeMode.tmUint32, TTypeMode.tmUint64,
     TTypeMode.tmSint32, TTypeMode.tmSint64,
     TTypeMode.tmBool, TTypeMode.tmEnum:
       Result := TWire.VARINT;
-    // fixed64, sfixed64, double
     TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble:
       Result := TWire.FIXED64;
-    // fixed32, SFixed32, float
     TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
       Result := TWire.FIXED32;
     // string, bytes, embedded messages, !packed repeated fields
@@ -367,7 +380,7 @@ end;
 
 constructor TpbImport.Create(const Value: string; Weak: Boolean);
 begin
-  inherited Create;
+  inherited Create(nil, '');
   FValue := Value;
   FWeak := Weak;
 end;
@@ -521,13 +534,21 @@ end;
 
 destructor TpbMessage.Destroy;
 begin
-
+  FFields.Free;
+  FMessages.Free;
+  FEnums.Free;
   inherited;
 end;
 
 function TpbMessage.GetWireSize: Integer;
 begin
-
+  case WireType of
+    TWire.FIXED64:
+      Result := 8;
+    TWire.Fixed32:
+      Result := 4;
+    else Result := -1;
+  end;
 end;
 
 {$EndRegion}
@@ -537,18 +558,22 @@ end;
 constructor TpbTable.Create(Parser: TBaseParser);
 begin
   inherited;
-
+  FModule := TpbModule.Create(nil, 'Module');
+  FSystem := TpbModule.Create(nil, 'System');
 end;
 
 destructor TpbTable.Destroy;
 begin
-
+  FModule.Free;
+  FSystem.Free;
   inherited;
 end;
 
 function TpbTable.Find(const id: string): TIdent;
 begin
-
+  Result := FSystem.Find(id);
+  if Result = nil then
+    Result := FModule.Find(id);
 end;
 
 procedure TpbTable.AddImport(const import: TpbImport);
@@ -594,6 +619,82 @@ end;
 function TpbTable.OpenModule(const id: string): TpbMessage;
 begin
 
+end;
+
+{$EndRegion}
+
+{$Region 'TpbModule'}
+
+constructor TpbModule.Create(Table: TpbTable; const Name: string);
+begin
+  inherited Create(nil, Name, TMode.mModule);
+  FTable := Table;
+  FImports := TList<TpbImport>.Create;
+  FConstants := TList<TpbConstant>.Create;
+  FTypes := TList<TpbType>.Create;
+end;
+
+destructor TpbModule.Destroy;
+begin
+  FImports.Free;
+  FConstants.Free;
+  FTypes.Free;
+  inherited;
+end;
+
+function TpbModule.Find(const id: string): TIdent;
+begin
+  Result := FindImport(id);
+  if Result <> nil then exit;
+  Result := FindConst(id);
+  if Result <> nil then exit;
+  Result := FindType(id);
+end;
+
+function TpbModule.FindImport(const id: string): TpbImport;
+var
+  i: Integer;
+begin
+  for i := 0 to FImports.Count - 1 do
+  begin
+    Result := FImports.Items[i];
+    if Result.Name = id then exit;
+  end;
+  Result := nil;
+end;
+
+function TpbModule.FindConst(const id: string): TpbConstant;
+var
+  i: Integer;
+begin
+  for i := 0 to FConstants.Count - 1 do
+  begin
+    Result := FConstants.Items[i];
+    if Result.Name = id then exit;
+  end;
+end;
+
+function TpbModule.FindType(const id: string): TpbType;
+var
+  i: Integer;
+begin
+  for i := 0 to FTypes.Count - 1 do
+  begin
+    Result := FTypes.Items[i];
+    if Result.Name = id then exit;
+  end;
+end;
+
+procedure TpbModule.AddConst(c: TpbConstant);
+begin
+  FConstants.Add(c);
+  c.FScope := Self;
+end;
+
+procedure TpbModule.AddType(t: TpbType);
+begin
+  FTypes.Add(t);
+  t.FScope := Self;
 end;
 
 {$EndRegion}
