@@ -41,57 +41,86 @@ IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
-Pb =
-Syntax {
-Import
-| Package
-| Option
-| TopLevelDef
+Pb                          (. var Scope: TpbModule; .)
+=                           (. Scope := tab.Module; .)
+Syntax<Scope>
+{
+  Import<Scope>
+| Package<Scope>
+| Option<Scope>
+| TopLevelDef<Scope>
 | EmptyStatement
 } .
 
+TopLevelDef<Scope: TpbModule>
+=
+  Message<tab.Module>
+| Enum<tab.Module>
+| Service<tab.Module>
+.
+
+Message<Scope: TIdent>       (. var
+                                 msg: TpbMessage;
+                                 name: string; .)
+=
+"message" Ident<name>        (. msg := Tab.AddMessage(Scope, name, ''); .)
+MessageBody<msg>
+.
+
+MessageBody<msg: TpbMessage>
+=
+"{" {
+  Field<msg>
+| MapField
+| Enum<msg>
+| Message<msg>
+| Option<msg>
+| OneOf<msg>
+| Reserved
+| EmptyStatement
+} "}"
+.
+
 // Syntax
 
-Syntax                       (. var s: string; .)
+Syntax<Scope: TpbModule>
  =
-"syntax" "=" strLit          (. s := t.val;
-                                tab.Syntax := TSyntaxVersion.Proto2;
-                                if s = 'proto3' then
-                                  tab.Syntax := TSyntaxVersion.Proto3
-                                else if s <> 'proto2' then
+"syntax" "=" strLit          (. tab.Module.Syntax := TSyntaxVersion.Proto2;
+                                if t.val = 'proto3' then
+                                  tab.Module.Syntax := TSyntaxVersion.Proto3
+                                else if t.val <> 'proto2' then
                                   SemErr('invalid syntax version'); .)
 ";"
 .
 
 // Import Statement
 
-Import                       (. var import: TpbImport; .)
-=
+Import<Scope: TpbModule>     (. var weak: Boolean; .)
+=                            (. weak := False; .)
  "import"
-[ "weak"                     (. import.weak := True; .)
-| "public"                   (. import.publ := True; .)
+[ "weak"                     (. weak := True; .)
+| "public"
 ]
-strLit                       (. import.Name := t.val;
-                                Tab.AddImport(import); .)
+strLit                       (. tab.Module.LookupImport(t.val, weak); .)
 ";"
 .
 
 // Package
 
-Package                      (. var p: TpbPackage; .)
+Package<Scope: TpbModule>    (. var Name: string; .)
 =
 "package"
-FullIdent<p.Name>            (. Tab.AddPackage(p); .)
+FullIdent<Name>              (. Tab.AddPackage(Name); .)
 ";"
 .
 
 // Option
 
-Option                       (. var option: TpbOption; .)
+Option<Scope: TpbModule>     (. var Name: string; Cv: TConst;  .)
 =
 "option"
 OptionName<option.Name>
-"=" Constant                 (. Tab.AddOption(option); .)
+"=" Constant<Cv>             (. Tab.Module.AddOption(Name, Cv); .)
 ";"
 .
 
@@ -106,44 +135,17 @@ ident                        (. name := t.val; .)
 }
 .
 
-TopLevelDef                  (. .)
-=
-Message
-| Enum
-| Service
-.
-
-Message                      (. var msg: TpbMessage; .)
-=
-"message" Ident<msg.Name>
-MessageBody                  (. Tab.AddOption(option); .)
-.
-
-MessageBody
-=
-"{" {
-Field
-| Enum
-| Message
-| Option
-| oneof
-| mapField
-| Reserved
-| EmptyStatement
-} "}"
-.
-
-Service
+Service<Scope: TpbModule>    (. var service: TpbService; .)
 =
 "service" Ident<ServiceName>
 "{" {
-Option
-| Rpc
+  Option<service>
+| Rpc<service.Rpc>
 | EmptyStatement
 } "}"
 .
 
-Rpc
+Rpc<service: TpbService>
 =
 "rpc" Ident<name>
 "("
@@ -156,7 +158,7 @@ UserType<messageType>
 UserType<messageType>
 ")"
 (( "{" {
-Option
+Option<rpc>
 | EmptyStatement
 } "}" ) | ";")
 .
@@ -195,7 +197,7 @@ ident                        (. name := t.val; .)
 
 // messageType or enumType
 
-UserType<var typ: string>
+UserType<var typ: string>    (. .)
 =
 [ "."
 ]
@@ -222,25 +224,26 @@ EmptyStatement = ";"
 
 // Constant
 
-Constant                     (. var c: TpbConstant; .)
-=                            (. c.Init; .)
-FullIdent<c.name>
+Constant<var c: TConst>      (. var cval: string; .)
+=
+FullIdent<cval>              (. c.Init(cval, TConstType.cIdent); .)
 | (
   [ "-"                      (. c.sign := -1; .)
   | "+"
   ]
   (
-  intLit<c.val>              (. c.kind := TpbConstant.cInt; .)
-  | floatLit<c.val>          (. c.kind := TpbConstant.cFloat; .)
+  intLit<cval>               (. c.Init(cval, TpbConstant.cInt); .)
+  | floatLit<cval>           (. c.Init(cval, TpbConstant.cFloat); .)
   ))
-| strLit                     (. c.kind := TpbConstant.cStr; c.val := t.val; .)
-| boolLit                    (. c.kind := TpbConstant.cBool; c.val := t.val; .)
+| strLit                     (. c.Init(t.val, TpbConstant.cStr); .)
+| boolLit                    (. c.Init(t.val, TpbConstant.cBool); .)
 .
 
 // Fields
 
-Type =
-"double"
+Type<f: TPbField>
+=
+  "double"
 | "float"
 | "int32"
 | "int64"
@@ -263,61 +266,62 @@ FieldNumber<var fn: string>
 intLit<fn>
 .
 
-Field                        (. var f: TPbField; .)
+Field<msg: TpbMessage>       (. var f: TPbField; .)
 =
 [ "repeated"
 ]
-Type
+Type<f>
 Ident<fieldName>
 "="
 FieldNumber<f.FieldNumber>
-[ "[" FieldOptions
+[ "[" FieldOptions<f>
 "]" ] ";"
 .
 
-oneof
+OneOf<msg: TpbMessage>       (. var oneOf: TPbOneOf; .)
 =
 "oneof"
 Ident<oneofName>
 "{" {
-Option
-| oneofField
+  Option<oneOf>
+| OneOfField<oneOf>
 | EmptyStatement
 } "}"
 .
 
-oneofField =                 (. var f: TPbField; .)
-Type
-Ident<fieldName>
+OneOfField<oneOf: TPbOneOf>  (. var f: TPbField; .)
+=
+Type<f>
+Ident<f.fieldName>
 "="
 FieldNumber<f.FieldNumber>
-[ "[" FieldOptions
+[ "[" FieldOptions<f>
 "]" ] ";"
 .
 
-FieldOptions
+FieldOptions<f: TPbField>
 =
-FieldOption
-{ ","  FieldOption
+FieldOption<f>
+{ ","  FieldOption<f>
 }
 .
 
-FieldOption                  (. var option: TOption; .)
+FieldOption<f: TPbField>     (. var Name: string; Cv: TConst; .)
 =
 OptionName<option.Name>
 "="
-Constant                     (. Tab.AddOption(option); .)
+Constant<Cv>                  (. f.AddOption(Name, Cv); .)
 .
 
-mapField                     (. var f: TPbField; .)
+MapField                     (. var f: TPbField; .)
 =
 "map" "<" keyType
-"," Type
+"," Type<f>
 ">"
 Ident<mapName>
 "="
 FieldNumber<f.FieldNumber>
-[ "[" FieldOptions
+[ "[" FieldOptions<f>
 "]" ] ";"
 .
 
@@ -368,39 +372,39 @@ Ident<fieldName>
 }
 .
 
-Enum
+Enum<Scope: TIdent>          (. var e: TPbEnum; .)
 =
 "enum"
 Ident<name>
-EnumBody
+EnumBody<e>
 .
 
-EnumBody
+EnumBody<e: TPbEnum>
 =
 "{" {
-Option
-| EnumField
+Option<e>
+| EnumField<e>
 | EmptyStatement
 } "}"
 .
 
-EnumField                     (. var n: string; .)
+EnumField<e: TPbEnum>        (. var n: string; .)
 =
 ident
 "="
 [ "-"
 ]
 intLit<n>
-[ "[" EnumValueOption
-{ ","  EnumValueOption
+[ "[" EnumValueOption<e>
+{ ","  EnumValueOption<e>
 } "]" ]";"
 .
 
-EnumValueOption              (. var option: TOption; .)
- =
-OptionName<option.Name>
+EnumValueOption<e: TPbEnum>  (. var Name: string; Cv: TConst; .)
+=
+OptionName<Name>
 "="
-Constant                     (. Tab.AddOption(option); .)
+Constant<Cv>                 (. e.AddOption(Name, Cv); .)
 .
 
 END Pb.

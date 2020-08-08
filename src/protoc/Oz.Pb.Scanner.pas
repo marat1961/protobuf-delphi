@@ -39,13 +39,13 @@ begin
   start.Add(48, 15);
   start.Add(34, 16);
   start.Add(39, 17);
-  start.Add(61, 26);
-  start.Add(59, 27);
-  start.Add(40, 28);
-  start.Add(41, 29);
-  start.Add(46, 30);
-  start.Add(123, 31);
-  start.Add(125, 32);
+  start.Add(123, 26);
+  start.Add(125, 27);
+  start.Add(61, 28);
+  start.Add(59, 29);
+  start.Add(40, 30);
+  start.Add(41, 31);
+  start.Add(46, 32);
   start.Add(45, 33);
   start.Add(43, 34);
   start.Add(91, 35);
@@ -167,20 +167,20 @@ end;
 
 procedure TpbScanner.CheckLiteral;
 begin
-  if t.val = 'syntax' then
+  if t.val = 'message' then
     t.kind := 9
-  else if t.val = 'import' then
+  else if t.val = 'syntax' then
     t.kind := 12
-  else if t.val = 'weak' then
-    t.kind := 13
-  else if t.val = 'public' then
-    t.kind := 14
-  else if t.val = 'package' then
+  else if t.val = 'import' then
     t.kind := 15
-  else if t.val = 'option' then
+  else if t.val = 'weak' then
     t.kind := 16
-  else if t.val = 'message' then
-    t.kind := 20
+  else if t.val = 'public' then
+    t.kind := 17
+  else if t.val = 'package' then
+    t.kind := 18
+  else if t.val = 'option' then
+    t.kind := 19
   else if t.val = 'service' then
     t.kind := 23
   else if t.val = 'rpc' then
@@ -650,15 +650,15 @@ begin
       end;
       28:
       begin
-        t.kind := 17; break;
+        t.kind := 13; break;
       end;
       29:
       begin
-        t.kind := 18; break;
+        t.kind := 14; break;
       end;
       30:
       begin
-        t.kind := 19; break;
+        t.kind := 20; break;
       end;
       31:
       begin
