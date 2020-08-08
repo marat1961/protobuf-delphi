@@ -322,7 +322,7 @@ type
     FOptions: TEnumOptions;
     function GetOptions: PEnumOptions;
   public
-    constructor Create(Scope: TpbMessage; const Name: string);
+    constructor Create(Scope: TIdent; const Name: string);
     destructor Destroy; override;
     property Options: PEnumOptions read GetOptions;
   end;
@@ -345,6 +345,8 @@ type
     constructor Create(Scope: TIdent; const Name, Package: string);
     destructor Destroy; override;
     property WireSize: Integer read GetWireSize;
+    property Messages: TIdents<TpbMessage> read FMessages;
+    property Enums: TIdents<TpbEnum> read FEnums;
   end;
 
 {$EndRegion}
@@ -362,7 +364,8 @@ type
     FOptions: TIdents<TpbOption>;
     FCurrentPackage: string;
     FPackages: TIdents<TpbPackage>;
-    FTypes: TIdents<TpbType>;
+    FMessages: TIdents<TpbMessage>;
+    FEnums: TIdents<TpbEnum>;
     // Search the module recursively
     function FindImport(const Name: string): TpbModule;
     function FindType(const Name: string): TpbType;
@@ -385,7 +388,8 @@ type
     property Options: TIdents<TpbOption> read FOptions;
     property Packages: TIdents<TpbPackage> read FPackages;
     property CurrentPackage: string read FCurrentPackage;
-    property Types: TIdents<TpbType> read FTypes;
+    property Messages: TIdents<TpbMessage> read FMessages;
+    property Enums: TIdents<TpbEnum> read FEnums;
   end;
 
 {$EndRegion}
@@ -671,7 +675,7 @@ end;
 
 {$Region 'TpbType'}
 
-constructor TpbEnum.Create(Scope: TpbMessage; const Name: string);
+constructor TpbEnum.Create(Scope: TIdent; const Name: string);
 begin
   inherited Create(Scope, Name, TTypeMode.tmEnum);
   FEnums := TIdents<TEnumValue>.Create;
@@ -729,14 +733,16 @@ begin
   inherited Create(Scope, Name, TMode.mModule);
   FImport := TIdents<TpbModule>.Create;
   FPackages := TIdents<TpbPackage>.Create;
-  FTypes := TIdents<TpbType>.Create;
+  FMessages := TIdents<TpbMessage>.Create;
+  FEnums := TIdents<TpbEnum>.Create;
 end;
 
 destructor TpbModule.Destroy;
 begin
   FImport.Free;
   FPackages.Free;
-  FTypes.Free;
+  FMessages.Free;
+  FEnums.Free;
   inherited;
 end;
 
@@ -781,14 +787,10 @@ begin
 end;
 
 function TpbModule.FindType(const Name: string): TpbType;
-var
-  i: Integer;
 begin
-  for i := 0 to FTypes.Count - 1 do
-  begin
-    Result := FTypes.Items[i];
-    if Result.Name = Name then exit;
-  end;
+  Result := FMessages.Find(Name);
+  if Result <> nil then exit;
+  Result := FEnums.Find(Name);
 end;
 
 {$EndRegion}

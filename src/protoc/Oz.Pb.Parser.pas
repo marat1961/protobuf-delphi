@@ -55,7 +55,7 @@ type
     procedure _Syntax(Scope: TpbModule);
     procedure _Import(Scope: TpbModule);
     procedure _Package(Scope: TpbModule);
-    procedure _Option(Scope: TpbModule);
+    procedure _Option(Scope: TIdent);
     procedure _TopLevelDef(Scope: TpbModule);
     procedure _EmptyStatement;
     procedure _Message(Scope: TIdent);
@@ -234,18 +234,20 @@ var Name: string;
 begin
   Expect(18);
   _FullIdent(Name);
-  Tab.AddPackage(Name);
+  Tab.Module.AddPackage(Name);
   Expect(14);
 end;
 
-procedure TpbParser._Option(Scope: TpbModule);
-var Name: string; Cv: TConst;
+procedure TpbParser._Option(Scope: TIdent);
+var
+  Name: string;
+  Cv: TConst;
 begin
   Expect(19);
-  _OptionName(option.Name);
+  _OptionName(Name);
   Expect(13);
   _Constant(Cv);
-  Tab.Module.AddOption(Name, Cv);
+  Scope.AddOption(Name, Cv);
   Expect(14);
 end;
 
@@ -276,26 +278,39 @@ procedure TpbParser._Message(Scope: TIdent);
 var
  msg: TpbMessage;
  name: string;
+ list: TIdents<TpbMessage>;
 begin
   Expect(9);
   _Ident(name);
-  msg := Tab.AddMessage(Scope, name, '');
+  case Scope.Mode of
+    TMode.mModule: list := TpbModule(Scope).messages;
+    TMode.mRecord: list := TpbMessage(Scope).messages;
+    else raise FatalError.Create('Message: invalid scope');
+  end;
+  msg := TpbMessage.Create(Scope, name, tab.Module.CurrentPackage);
+  list.Add(msg);
   _MessageBody(msg);
 end;
 
 procedure TpbParser._Enum(Scope: TIdent);
-var e: TPbEnum;
+var
+  name: string;
+  e: TPbEnum;
 begin
   Expect(59);
   _Ident(name);
+  e := TPbEnum.Create(Scope, name);
   _EnumBody(e);
 end;
 
 procedure TpbParser._Service(Scope: TpbModule);
-var service: TpbService;
+var
+  name: string;
+  service: TpbService;
 begin
   Expect(23);
-  _Ident(ServiceName);
+  _Ident(name);
+  service := TpbService.Create(Scope, name);
   Expect(10);
   while (la.kind = 14) or (la.kind = 19) or (la.kind = 24) do
   begin
@@ -305,7 +320,7 @@ begin
     end
     else if la.kind = 24 then
     begin
-      _Rpc(service.Rpc);
+      _Rpc(service);
     end
     else
     begin

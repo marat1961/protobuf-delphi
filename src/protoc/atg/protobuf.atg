@@ -61,9 +61,17 @@ TopLevelDef<Scope: TpbModule>
 
 Message<Scope: TIdent>       (. var
                                  msg: TpbMessage;
-                                 name: string; .)
+                                 name: string;
+                                 list: TIdents<TpbMessage>; .)
 =
-"message" Ident<name>        (. msg := Tab.AddMessage(Scope, name, ''); .)
+
+"message" Ident<name>        (. case Scope.Mode of
+                                  TMode.mModule: list := TpbModule(Scope).messages;
+                                  TMode.mRecord: list := TpbMessage(Scope).messages;
+                                  else raise FatalError.Create('Message: invalid scope');
+                                end;
+                                msg := TpbMessage.Create(Scope, name, tab.Module.CurrentPackage);
+                                list.Add(msg); .)
 MessageBody<msg>
 .
 
@@ -110,17 +118,19 @@ strLit                       (. tab.Module.LookupImport(t.val, weak); .)
 Package<Scope: TpbModule>    (. var Name: string; .)
 =
 "package"
-FullIdent<Name>              (. Tab.AddPackage(Name); .)
+FullIdent<Name>              (. Tab.Module.AddPackage(Name); .)
 ";"
 .
 
 // Option
 
-Option<Scope: TpbModule>     (. var Name: string; Cv: TConst;  .)
+Option<Scope: TIdent>        (. var
+                                  Name: string;
+                                  Cv: TConst;  .)
 =
 "option"
-OptionName<option.Name>
-"=" Constant<Cv>             (. Tab.Module.AddOption(Name, Cv); .)
+OptionName<Name>
+"=" Constant<Cv>             (. Scope.AddOption(Name, Cv); .)
 ";"
 .
 
@@ -135,12 +145,14 @@ ident                        (. name := t.val; .)
 }
 .
 
-Service<Scope: TpbModule>    (. var service: TpbService; .)
+Service<Scope: TpbModule>    (. var
+                                  name: string;
+                                  service: TpbService; .)
 =
-"service" Ident<ServiceName>
+"service" Ident<name>        (. service := TpbService.Create(Scope, name); .)
 "{" {
   Option<service>
-| Rpc<service.Rpc>
+| Rpc<service>
 | EmptyStatement
 } "}"
 .
@@ -372,10 +384,12 @@ Ident<fieldName>
 }
 .
 
-Enum<Scope: TIdent>          (. var e: TPbEnum; .)
+Enum<Scope: TIdent>          (. var
+                                  name: string;
+                                  e: TPbEnum; .)
 =
 "enum"
-Ident<name>
+Ident<name>                  (. e := TPbEnum.Create(Scope, name); .)
 EnumBody<e>
 .
 
