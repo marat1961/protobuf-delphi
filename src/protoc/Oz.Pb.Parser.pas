@@ -63,7 +63,7 @@ type
     procedure _Service(Scope: TpbModule);
     procedure _Ident(var name: string);
     procedure _Field(msg: TpbMessage);
-    procedure _MapField;
+    procedure _MapField(msg: TpbMessage);
     procedure _OneOf(msg: TpbMessage);
     procedure _Reserved(msg: TpbMessage);
     procedure _strLit;
@@ -72,11 +72,11 @@ type
     procedure _Constant(var c: TConst);
     procedure _Rpc(service: TpbService);
     procedure _UserType(var typ: TUserType);
-    procedure _intLit(var s: string);
-    procedure _floatLit(var s: string);
+    procedure _intLit(var n: Integer);
+    procedure _floatLit(var n: Double);
     procedure _boolLit;
     procedure _Type(var ft: TpbType);
-    procedure _FieldNumber(var fn: string);
+    procedure _FieldNumber(var tag: Integer);
     procedure _FieldOptions(f: TPbField);
     procedure _OneOfField(oneOf: TPbOneOf);
     procedure _FieldOption(f: TPbField);
@@ -84,7 +84,6 @@ type
     procedure _Ranges;
     procedure _FieldNames;
     procedure _Range(var lo, hi: string);
-    procedure _EnumBody(enum: TPbEnum);
     procedure _EnumField(e: TPbEnum);
     procedure _EnumValueOption(e: TPbEnum);
   protected
@@ -229,24 +228,24 @@ begin
 end;
 
 procedure TpbParser._Package(Scope: TpbModule);
-var Name: string;
+var name: string;
 begin
   Expect(18);
-  _FullIdent(Name);
-  Tab.Module.AddPackage(Name);
+  _FullIdent(name);
+  Tab.Module.AddPackage(name);
   Expect(14);
 end;
 
 procedure TpbParser._Option(Scope: TIdent);
 var
-  Name: string;
+  name: string;
   Cv: TConst;
 begin
   Expect(19);
-  _OptionName(Name);
+  _OptionName(name);
   Expect(13);
   _Constant(Cv);
-  Scope.AddOption(Name, Cv);
+  Scope.AddOption(name, Cv);
   Expect(14);
 end;
 
@@ -280,7 +279,7 @@ var
 begin
   Expect(9);
   _Ident(name);
-  msg := Scope.em.AddMessage(name);
+  msg := Scope.em.AddMessage(Scope, name);
   Expect(10);
   while StartOf(2) do
   begin
@@ -291,7 +290,7 @@ begin
       end;
       38:
       begin
-        _MapField;
+        _MapField(msg);
       end;
       59:
       begin
@@ -324,13 +323,29 @@ end;
 
 procedure TpbParser._Enum(Scope: TIdent);
 var
-  name: string;
-  enum: TPbEnum;
+   name: string;
+   enum: TPbEnum;
 begin
   Expect(59);
   _Ident(name);
-  enum := Scope.em.AddEnum(name);
-  _EnumBody(enum);
+  enum := Scope.em.AddEnum(Scope, name);
+  Expect(10);
+  while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
+  begin
+    if la.kind = 19 then
+    begin
+      _Option(enum);
+    end
+    else if la.kind = 1 then
+    begin
+      _EnumField(enum);
+    end
+    else
+    begin
+      _EmptyStatement;
+    end;
+  end;
+  Expect(11);
 end;
 
 procedure TpbParser._Service(Scope: TpbModule);
@@ -369,28 +384,36 @@ end;
 procedure TpbParser._Field(msg: TpbMessage);
 var
   f: TPbField;
+  name: string;
+  tag: Integer;
+  rule: TFieldRule;
   ft: TpbType;
 begin
+  rule := TFieldRule.Singular;
   if la.kind = 33 then
   begin
     Get;
+    rule := TFieldRule.Repeated;
   end;
   _Type(ft);
-  _Ident(fieldName);
+  _Ident(name);
   Expect(13);
-  _FieldNumber(f.FieldNumber);
+  _FieldNumber(tag);
   if la.kind = 34 then
   begin
     Get;
     _FieldOptions(f);
     Expect(35);
   end;
+  msg.em.AddField(msg, name, ft, tag, rule);
   Expect(14);
 end;
 
-procedure TpbParser._MapField;
+procedure TpbParser._MapField(msg: TpbMessage);
 var
   f: TPbField;
+  name: string;
+  tag: Integer;
   kt, ft: TpbType;
 begin
   Expect(38);
@@ -399,9 +422,9 @@ begin
   Expect(37);
   _Type(ft);
   Expect(40);
-  _Ident(mapName);
+  _Ident(name);
   Expect(13);
-  _FieldNumber(f.FieldNumber);
+  _FieldNumber(tag);
   if la.kind = 34 then
   begin
     Get;
@@ -412,7 +435,8 @@ begin
 end;
 
 procedure TpbParser._OneOf(msg: TpbMessage);
-var oneOf: TPbOneOf;
+var
+  oneOf: TPbOneOf;
 begin
   Expect(36);
   _Ident(oneofName);
@@ -594,7 +618,7 @@ begin
     typ.OutermostScope := True;
   end;
   Expect(1);
-  typ.Name := t.val;
+  typ.name := t.val;
   while la.kind = 22 do
   begin
     Get;
@@ -606,43 +630,44 @@ begin
   end;
 end;
 
-procedure TpbParser._intLit(var s: string);
+procedure TpbParser._intLit(var n: Integer);
 begin
   if la.kind = 2 then
   begin
     Get;
-    s := t.val;
+    s := tab.ParseInt(t.val, 10);
   end
   else if la.kind = 3 then
   begin
     Get;
-    s := t.val;
+    s := tab.ParseInt(t.val, 8);
   end
   else if la.kind = 4 then
   begin
     Get;
-    s := t.val;
+    s := tab.ParseInt(t.val, 16);
   end
   else
     SynErr(67);
 end;
 
-procedure TpbParser._floatLit(var s: string);
+procedure TpbParser._floatLit(var n: Double);
+var code: Integer;
 begin
   if la.kind = 5 then
   begin
     Get;
-    s  := t.val;
+    Val(t.val, n, code);
   end
   else if la.kind = 27 then
   begin
     Get;
-    s := 'Infinity';
+    n := Infinity;
   end
   else if la.kind = 28 then
   begin
     Get;
-    s := 'NaN';
+    n := NaN;
   end
   else
     SynErr(68);
@@ -693,9 +718,9 @@ begin
     SynErr(70);
 end;
 
-procedure TpbParser._FieldNumber(var fn: string);
+procedure TpbParser._FieldNumber(var tag: Integer);
 begin
-  _intLit(fn);
+  _intLit(tag);
 end;
 
 procedure TpbParser._FieldOptions(f: TPbField);
@@ -711,12 +736,13 @@ end;
 procedure TpbParser._OneOfField(oneOf: TPbOneOf);
 var
   f: TPbField;
+  tag: Integer;
   ft: TpbType;
 begin
   _Type(ft);
   _Ident(f.fieldName);
   Expect(13);
-  _FieldNumber(f.FieldNumber);
+  _FieldNumber(tag);
   if la.kind = 34 then
   begin
     Get;
@@ -727,12 +753,12 @@ begin
 end;
 
 procedure TpbParser._FieldOption(f: TPbField);
-var Name: string; Cv: TConst;
+var name: string; Cv: TConst;
 begin
-  _OptionName(option.Name);
+  _OptionName(name);
   Expect(13);
   _Constant(Cv);
-  f.AddOption(Name, Cv);
+  f.AddOption(name, Cv);
 end;
 
 procedure TpbParser._KeyType(var ft: TpbType);
@@ -842,27 +868,6 @@ begin
     else
       SynErr(72);
   end;
-end;
-
-procedure TpbParser._EnumBody(enum: TPbEnum);
-begin
-  Expect(10);
-  while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
-  begin
-    if la.kind = 19 then
-    begin
-      _Option(enum);
-    end
-    else if la.kind = 1 then
-    begin
-      _EnumField(enum);
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
-  end;
-  Expect(11);
 end;
 
 procedure TpbParser._EnumField(e: TPbEnum);

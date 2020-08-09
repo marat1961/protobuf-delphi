@@ -3,7 +3,7 @@ unit Oz.Pb.Tab;
 interface
 
 uses
-  System.Classes, System.SysUtils, Oz.Cocor.Lib, pbPublic;
+  System.Classes, System.SysUtils, Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic;
 
 {$SCOPEDENUMS on}
 
@@ -375,15 +375,19 @@ type
   Tem = class
   private
     FTab: TpbTable;
-    FScope: TIdent;
     FMessages: TIdents<TpbMessage>;
     FEnums: TIdents<TpbEnum>;
   public
-    constructor Create(Tab: TpbTable; Scope: TIdent);
+    constructor Create(Tab: TpbTable);
     destructor Destroy; override;
     function FindType(const Name: string): TpbType;
-    function AddMessage(const Name: string): TpbMessage;
-    function AddEnum(const Name: string): TpbEnum;
+    // Add message to module or meassge
+    function AddMessage(Scope: TIdent; const Name: string): TpbMessage;
+    // Add enum to module or meassge
+    function AddEnum(Scope: TIdent; const Name: string): TpbEnum;
+    // Add field to message
+    function AddField(Scope: TpbMessage; const Name: string; Typ: TpbType;
+      Tag: Integer; Rule: TFieldRule): TpbField;
     property Messages: TIdents<TpbMessage> read FMessages;
     property Enums: TIdents<TpbEnum> read FEnums;
   end;
@@ -455,6 +459,8 @@ type
     function GetUserType(const typ: TUserType): TpbType;
     // Open and read module from file
     function OpenModule(Scope: TpbModule; const Name: string; Weak: Boolean): TpbModule;
+    // Convert string to Integer
+    function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
     function GenScript: string;
     property Module: TpbModule read FModule write FModule;
@@ -735,7 +741,7 @@ constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent; const Name, Package:
 begin
   inherited Create(Scope, Name, TTypeMode.tmMessage);
   FFields := TIdents<TpbField>.Create;
-  Fem := Tem.Create(Tab, Scope);
+  Fem := Tem.Create(Tab);
 end;
 
 destructor TpbMessage.Destroy;
@@ -760,11 +766,10 @@ end;
 
 {$Region 'Tem'}
 
-constructor Tem.Create(Tab: TpbTable; Scope: TIdent);
+constructor Tem.Create(Tab: TpbTable);
 begin
   inherited Create;
   FTab := Tab;
-  FScope := Scope;
   FMessages := TIdents<TpbMessage>.Create;
   FEnums := TIdents<TpbEnum>.Create;
 end;
@@ -783,16 +788,23 @@ begin
   Result := FEnums.Find(Name);
 end;
 
-function Tem.AddMessage(const Name: string): TpbMessage;
+function Tem.AddMessage(Scope: TIdent; const Name: string): TpbMessage;
 begin
-  Result := TpbMessage.Create(FTab, FScope, Name, FTab.Module.CurrentPackage);
+  Result := TpbMessage.Create(FTab, Scope, Name, FTab.Module.CurrentPackage);
   FMessages.Add(Result);
 end;
 
-function Tem.AddEnum(const Name: string): TpbEnum;
+function Tem.AddEnum(Scope: TIdent; const Name: string): TpbEnum;
 begin
-  Result := TpbEnum.Create(FScope, Name, FTab.Module.CurrentPackage);
+  Result := TpbEnum.Create(Scope, Name, FTab.Module.CurrentPackage);
   FEnums.Add(Result);
+end;
+
+function Tem.AddField(Scope: TpbMessage; const Name: string; Typ: TpbType;
+  Tag: Integer; Rule: TFieldRule): TpbField;
+begin
+  Result := TpbField.Create(Scope, Name, Typ, Tag, Rule);
+  Scope.FFields.Add(Result);
 end;
 
 {$EndRegion}
@@ -805,7 +817,7 @@ begin
   inherited Create(Scope, Name, TMode.mModule);
   FImport := TIdents<TpbModule>.Create;
   FPackages := TIdents<TpbPackage>.Create;
-  Fem := Tem.Create(Tab, Scope);
+  Fem := Tem.Create(Tab);
 end;
 
 destructor TpbModule.Destroy;
@@ -902,6 +914,37 @@ function TpbTable.OpenModule(Scope: TpbModule; const Name: string;
   Weak: Boolean): TpbModule;
 begin
   Result := TpbModule.Create(Self, Scope, Name, Weak);
+end;
+
+function TpbTable.ParseInt(const s: string; base: Integer): Integer;
+var
+  sign: Integer;
+  p: PChar;
+  c: Char;
+begin
+  sign := 1;
+  p := PChar(s);
+  if p^ = '+' then
+    Inc(p)
+  else if p^ = '-' then
+  begin
+    sign := -1;
+    Inc(p);
+  end;
+  Result := 0;
+  repeat
+    c := p^;
+    if Between(c, '0', '9') then
+      Result := Result * base + Ord(c) - Ord('0')
+    else if Between(c, 'a', 'f') then
+      Result := Result * base + Ord(c) - Ord('a') + 10
+    else if Between(c, 'A', 'F') then
+      Result := Result * base + Ord(c) - Ord('A') + 10
+    else
+      break;
+    Inc(p);
+  until False;
+  Result := Result * sign;
 end;
 
 function TpbTable.Dump: string;

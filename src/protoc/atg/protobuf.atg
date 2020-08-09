@@ -67,7 +67,7 @@ Message<Scope: TIdent>       (. var
 "message" Ident<name>        (. msg := Scope.em.AddMessage(name); .)
 "{" {
   Field<msg>
-| MapField
+| MapField<msg>
 | Enum<msg>
 | Message<msg>
 | Option<msg>
@@ -103,22 +103,22 @@ strLit                       (. tab.Module.LookupImport(t.val, weak); .)
 
 // Package
 
-Package<Scope: TpbModule>    (. var Name: string; .)
+Package<Scope: TpbModule>    (. var name: string; .)
 =
 "package"
-FullIdent<Name>              (. Tab.Module.AddPackage(Name); .)
+FullIdent<name>              (. Tab.Module.AddPackage(name); .)
 ";"
 .
 
 // Option
 
 Option<Scope: TIdent>        (. var
-                                  Name: string;
+                                  name: string;
                                   Cv: TConst;  .)
 =
 "option"
-OptionName<Name>
-"=" Constant<Cv>             (. Scope.AddOption(Name, Cv); .)
+OptionName<name>
+"=" Constant<Cv>             (. Scope.AddOption(name, Cv); .)
 ";"
 .
 
@@ -165,20 +165,20 @@ Option<rpc>
 
 // Integer literals
 
-intLit<var s: string>
+intLit<var n: Integer>
 =
-decimalLit                   (. s := t.val; .)
-| octalLit                   (. s := t.val; .)
-| hexLit                     (. s := t.val; .)
+decimalLit                   (. s := tab.ParseInt(t.val, 10); .)
+| octalLit                   (. s := tab.ParseInt(t.val, 8); .)
+| hexLit                     (. s := tab.ParseInt(t.val, 16); .)
 .
 
 // Floating-point literals
 
-floatLit<var s: string>
+floatLit<var n: Double>      (. var code: Integer; .)
 =
-real                         (. s  := t.val; .)
-| "inf"                      (. s := 'Infinity'; .)
-| "nan"                      (. s := 'NaN'; .)
+real                         (. Val(t.val, n, code); .)
+| "inf"                      (. n := Infinity; .)
+| "nan"                      (. n := NaN; .)
 .
 
 // Identifiers
@@ -201,7 +201,7 @@ UserType<var typ: TUserType>
 =                            (. typ := Default(TUserType); .)
 [ "."                        (. typ.OutermostScope := True; .)
 ]
-ident                        (. typ.Name := t.val; .)
+ident                        (. typ.name := t.val; .)
 { "."                        (. if typ.Package <> '' then
                                   typ.Package := typ.Package + '.';
                                 typ.Package := typ.Package + typ.Name; .)
@@ -246,19 +246,24 @@ FullIdent<cval>              (. c.Init(cval, TConstType.cIdent); .)
 
 Field<msg: TpbMessage>       (. var
                                   f: TPbField;
+                                  name: string;
+                                  tag: Integer;
+                                  rule: TFieldRule;
                                   ft: TpbType; .)
-=
-[ "repeated"
+=                            (. rule := TFieldRule.Singular; .)
+[ "repeated"                 (. rule := TFieldRule.Repeated; .)
 ]
 Type<ft>
-Ident<fieldName>
+Ident<name>
 "="
-FieldNumber<f.FieldNumber>
+FieldNumber<tag>
 [ "[" FieldOptions<f>
-"]" ] ";"
+"]" ]                        (. msg.em.AddField(msg, name, ft, tag, rule); .)
+";"
 .
 
-OneOf<msg: TpbMessage>       (. var oneOf: TPbOneOf; .)
+OneOf<msg: TpbMessage>       (. var
+                                  oneOf: TPbOneOf; .)
 =
 "oneof"
 Ident<oneofName>
@@ -271,12 +276,13 @@ Ident<oneofName>
 
 OneOfField<oneOf: TPbOneOf>  (. var
                                   f: TPbField;
+                                  tag: Integer;
                                   ft: TpbType; .)
 =
 Type<ft>
 Ident<f.fieldName>
 "="
-FieldNumber<f.FieldNumber>
+FieldNumber<tag>
 [ "[" FieldOptions<f>
 "]" ] ";"
 .
@@ -288,30 +294,33 @@ FieldOption<f>
 }
 .
 
-FieldOption<f: TPbField>     (. var Name: string; Cv: TConst; .)
+FieldOption<f: TPbField>     (. var name: string; Cv: TConst; .)
 =
-OptionName<option.Name>
+OptionName<name>
 "="
-Constant<Cv>                 (. f.AddOption(Name, Cv); .)
+Constant<Cv>                 (. f.AddOption(name, Cv); .)
 .
 
-MapField                     (. var
+MapField<msg: TpbMessage>    (. var
                                   f: TPbField;
+                                  name: string;
+                                  tag: Integer;
                                   kt, ft: TpbType; .)
 =
 "map" "<" KeyType<kt>
 "," Type<ft>
 ">"
-Ident<mapName>
+Ident<name>
 "="
-FieldNumber<f.FieldNumber>
+FieldNumber<tag>
 [ "[" FieldOptions<f>
-"]" ] ";"
+"]" ]
+";"
 .
 
-FieldNumber<var fn: string>
+FieldNumber<var tag: Integer>
 =
-intLit<fn>
+intLit<tag>
 .
 
 // Types
@@ -372,17 +381,12 @@ Ident<fieldName>
 }
 .
 
-Enum<Scope: TIdent>          (. var
+Enum<Scope: TIdent>         (. var
                                   name: string;
                                   enum: TPbEnum; .)
 =
 "enum"
-Ident<name>                  (. enum := Scope.em.AddEnum(name); .)
-EnumBody<enum>
-.
-
-EnumBody<enum: TPbEnum>
-=
+Ident<name>                  (. enum := Scope.em.AddEnum(Scope, name); .)
 "{" {
 Option<enum>
 | EnumField<enum>
