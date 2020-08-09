@@ -64,7 +64,7 @@ Message<Scope: TIdent>       (. var
                                   msg: TpbMessage; .)
 =
 
-"message" Ident<name>        (. msg := Scope.em.AddMessage(name); .)
+"message" Ident<name>        (. msg := Scope.em.AddMessage(Scope, name); .)
 "{" {
   Field<msg>
 | MapField<msg>
@@ -145,17 +145,20 @@ Service<Scope: TpbModule>    (. var
 } "}"
 .
 
-Rpc<service: TpbService>
+Rpc<service: TpbService>     (. var
+                                  name: string;
+                                  typ: TUserType;
+                                  rpc: TIdent; .)
 =
 "rpc" Ident<name>
 "("
 [ "stream"
 ]
-UserType<messageType>
+UserType<typ>
 ")"
 "returns"
 "(" [ "stream" ]
-UserType<messageType>
+UserType<typ>
 ")"
 (( "{" {
 Option<rpc>
@@ -167,9 +170,9 @@ Option<rpc>
 
 intLit<var n: Integer>
 =
-decimalLit                   (. s := tab.ParseInt(t.val, 10); .)
-| octalLit                   (. s := tab.ParseInt(t.val, 8); .)
-| hexLit                     (. s := tab.ParseInt(t.val, 16); .)
+decimalLit                   (. n := tab.ParseInt(t.val, 10); .)
+| octalLit                   (. n := tab.ParseInt(t.val, 8); .)
+| hexLit                     (. n := tab.ParseInt(t.val, 16); .)
 .
 
 // Floating-point literals
@@ -227,19 +230,21 @@ EmptyStatement = ";"
 
 // Constant
 
-Constant<var c: TConst>      (. var cval: string; .)
+Constant<var c: TConst>      (. var
+                                  s: string; i, sign: Integer;
+                                  d: Double; b: Boolean; .)
 =
-FullIdent<cval>              (. c.Init(cval, TConstType.cIdent); .)
-| (
-  [ "-"                      (. c.sign := -1; .)
+FullIdent<s>                 (. c.AsIdent(s); .)
+| (                          (. sign := 1; .)
+  [ "-"                      (. sign := -sign; .)
   | "+"
   ]
   (
-  intLit<cval>               (. c.Init(cval, TpbConstant.cInt); .)
-  | floatLit<cval>           (. c.Init(cval, TpbConstant.cFloat); .)
+  intLit<i>                  (. c.AsInt(i); .)
+  | floatLit<d>              (. c.AsFloat(d); .)
   ))
-| strLit                     (. c.Init(t.val, TpbConstant.cStr); .)
-| boolLit                    (. c.Init(t.val, TpbConstant.cBool); .)
+| strLit                     (. c.AsStr(t.val); .)
+| boolLit                    (. c.AsBool(t.val); .)
 .
 
 // Fields
@@ -263,10 +268,11 @@ FieldNumber<tag>
 .
 
 OneOf<msg: TpbMessage>       (. var
-                                  oneOf: TPbOneOf; .)
+                                  oneOf: TPbOneOf;
+                                  name: string; .)
 =
 "oneof"
-Ident<oneofName>
+Ident<name>                  (. oneOf := TPbOneOf.Create(msg, name); .)
 "{" {
   Option<oneOf>
 | OneOfField<oneOf>
@@ -276,11 +282,12 @@ Ident<oneofName>
 
 OneOfField<oneOf: TPbOneOf>  (. var
                                   f: TPbField;
+                                  name: string;
                                   tag: Integer;
                                   ft: TpbType; .)
 =
 Type<ft>
-Ident<f.fieldName>
+Ident<name>
 "="
 FieldNumber<tag>
 [ "[" FieldOptions<f>
@@ -331,7 +338,7 @@ Type<var ft: TpbType>        (. var typ: TUserType; .)
 | "float"                    (. ft := tab.GetBasisType(TTypeMode.tmFloat); .)
 | "bytes"                    (. ft := tab.GetBasisType(TTypeMode.tmBytes); .)
 | KeyType<ft>
-| UserType<typ>              (. ft := tab.GetserType(typ); .)
+| UserType<typ>              (. ft := tab.GetUserType(typ); .)
 .
 
 KeyType<var ft: TpbType>
@@ -353,35 +360,36 @@ KeyType<var ft: TpbType>
 Reserved<msg: TpbMessage>
 =
 "reserved"
-( Ranges
+( Ranges<msg.Reserved>
 | FieldNames
 ) ";"
 .
 
-Ranges                       (. var lo, hi: string; .)
+Ranges<Reserved: TIntSet>
+                             (. var lo, hi: Integer; .)
 =
-Range<lo, ho>
-{ "," Range<lo, hi>
+Range<lo, hi>                (. Reserved.AddRange(lo, hi); .)
+{ "," Range<lo, hi>          (. Reserved.AddRange(lo, hi); .)
 }
 .
 
-Range<var lo, hi: string>
+Range<var lo, hi: Integer>
 =
 intLit<lo>
 [ "to" (
 intLit<hi>
-| "max"                      (. hi := 'max'; .)
+| "max"                      (. hi := 65535; .)
 ) ]
 .
 
-FieldNames
+FieldNames                   (. var name: string; .)
 =
-Ident<fieldName>
-{ "," Ident<fieldName>
+Ident<name>
+{ "," Ident<name>
 }
 .
 
-Enum<Scope: TIdent>         (. var
+Enum<Scope: TIdent>          (. var
                                   name: string;
                                   enum: TPbEnum; .)
 =
@@ -394,7 +402,7 @@ Option<enum>
 } "}"
 .
 
-EnumField<e: TPbEnum>        (. var n: string; .)
+EnumField<e: TPbEnum>        (. var n: Integer; .)
 =
 ident
 "="

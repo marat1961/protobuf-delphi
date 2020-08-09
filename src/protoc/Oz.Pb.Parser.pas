@@ -7,8 +7,8 @@ unit Oz.Pb.Parser;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Character, System.IOUtils,
-  Oz.Cocor.Lib, Oz.Pb.Scanner, Oz.Pb.Options, Oz.Pb.Tab;
+  System.Classes, System.SysUtils, System.Character, System.IOUtils, System.Math,
+  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Scanner, Oz.Pb.Options, Oz.Pb.Tab;
 
 type
 
@@ -81,9 +81,9 @@ type
     procedure _OneOfField(oneOf: TPbOneOf);
     procedure _FieldOption(f: TPbField);
     procedure _KeyType(var ft: TpbType);
-    procedure _Ranges;
+    procedure _Ranges(Reserved: TIntSet);
     procedure _FieldNames;
-    procedure _Range(var lo, hi: string);
+    procedure _Range(var lo, hi: Integer);
     procedure _EnumField(e: TPbEnum);
     procedure _EnumValueOption(e: TPbEnum);
   protected
@@ -323,8 +323,8 @@ end;
 
 procedure TpbParser._Enum(Scope: TIdent);
 var
-   name: string;
-   enum: TPbEnum;
+  name: string;
+  enum: TPbEnum;
 begin
   Expect(59);
   _Ident(name);
@@ -437,9 +437,11 @@ end;
 procedure TpbParser._OneOf(msg: TpbMessage);
 var
   oneOf: TPbOneOf;
+  name: string;
 begin
   Expect(36);
-  _Ident(oneofName);
+  _Ident(name);
+  oneOf := TPbOneOf.Create(msg, name);
   Expect(10);
   while StartOf(3) do
   begin
@@ -464,7 +466,7 @@ begin
   Expect(56);
   if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
   begin
-    _Ranges;
+    _Ranges(msg.Reserved);
   end
   else if la.kind = 1 then
   begin
@@ -518,21 +520,24 @@ begin
 end;
 
 procedure TpbParser._Constant(var c: TConst);
-var cval: string;
+var
+  s: string; i, sign: Integer;
+  d: Double; b: Boolean;
 begin
   if la.kind = 1 then
   begin
-    _FullIdent(cval);
-    c.Init(cval, TConstType.cIdent);
+    _FullIdent(s);
+    c.AsIdent(s);
   end
   else if StartOf(5) then
   begin
+    sign := 1;
     if (la.kind = 31) or (la.kind = 32) then
     begin
       if la.kind = 31 then
       begin
         Get;
-        c.sign := -1;
+        sign := -sign;
       end
       else
       begin
@@ -541,13 +546,13 @@ begin
     end;
     if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
     begin
-      _intLit(cval);
-      c.Init(cval, TpbConstant.cInt);
+      _intLit(i);
+      c.AsInt(i);
     end
     else if (la.kind = 5) or (la.kind = 27) or (la.kind = 28) then
     begin
-      _floatLit(cval);
-      c.Init(cval, TpbConstant.cFloat);
+      _floatLit(d);
+      c.AsFloat(d);
     end
     else
       SynErr(64);
@@ -555,18 +560,22 @@ begin
   else if la.kind = 6 then
   begin
     _strLit;
-    c.Init(t.val, TpbConstant.cStr);
+    c.AsStr(t.val);
   end
   else if (la.kind = 29) or (la.kind = 30) then
   begin
     _boolLit;
-    c.Init(t.val, TpbConstant.cBool);
+    c.AsBool(t.val);
   end
   else
     SynErr(65);
 end;
 
 procedure TpbParser._Rpc(service: TpbService);
+var
+  name: string;
+  typ: TUserType;
+  rpc: TIdent;
 begin
   Expect(24);
   _Ident(name);
@@ -575,7 +584,7 @@ begin
   begin
     Get;
   end;
-  _UserType(messageType);
+  _UserType(typ);
   Expect(21);
   Expect(26);
   Expect(20);
@@ -583,7 +592,7 @@ begin
   begin
     Get;
   end;
-  _UserType(messageType);
+  _UserType(typ);
   Expect(21);
   if la.kind = 10 then
   begin
@@ -635,17 +644,17 @@ begin
   if la.kind = 2 then
   begin
     Get;
-    s := tab.ParseInt(t.val, 10);
+    n := tab.ParseInt(t.val, 10);
   end
   else if la.kind = 3 then
   begin
     Get;
-    s := tab.ParseInt(t.val, 8);
+    n := tab.ParseInt(t.val, 8);
   end
   else if la.kind = 4 then
   begin
     Get;
-    s := tab.ParseInt(t.val, 16);
+    n := tab.ParseInt(t.val, 16);
   end
   else
     SynErr(67);
@@ -712,7 +721,7 @@ begin
   else if (la.kind = 1) or (la.kind = 22) then
   begin
     _UserType(typ);
-    ft := tab.GetserType(typ);
+    ft := tab.GetUserType(typ);
   end
   else
     SynErr(70);
@@ -736,11 +745,12 @@ end;
 procedure TpbParser._OneOfField(oneOf: TPbOneOf);
 var
   f: TPbField;
+  name: string;
   tag: Integer;
   ft: TpbType;
 begin
   _Type(ft);
-  _Ident(f.fieldName);
+  _Ident(name);
   Expect(13);
   _FieldNumber(tag);
   if la.kind = 34 then
@@ -829,28 +839,31 @@ begin
   end;
 end;
 
-procedure TpbParser._Ranges;
-var lo, hi: string;
+procedure TpbParser._Ranges(Reserved: TIntSet);
+var lo, hi: Integer;
 begin
-  _Range(lo, ho);
+  _Range(lo, hi);
+  Reserved.AddRange(lo, hi);
   while la.kind = 37 do
   begin
     Get;
     _Range(lo, hi);
+    Reserved.AddRange(lo, hi);
   end;
 end;
 
 procedure TpbParser._FieldNames;
+var name: string;
 begin
-  _Ident(fieldName);
+  _Ident(name);
   while la.kind = 37 do
   begin
     Get;
-    _Ident(fieldName);
+    _Ident(name);
   end;
 end;
 
-procedure TpbParser._Range(var lo, hi: string);
+procedure TpbParser._Range(var lo, hi: Integer);
 begin
   _intLit(lo);
   if la.kind = 57 then
@@ -863,7 +876,7 @@ begin
     else if la.kind = 58 then
     begin
       Get;
-      hi := 'max';
+      hi := 65535;
     end
     else
       SynErr(72);
@@ -871,7 +884,7 @@ begin
 end;
 
 procedure TpbParser._EnumField(e: TPbEnum);
-var n: string;
+var n: Integer;
 begin
   Expect(1);
   Expect(13);

@@ -82,35 +82,54 @@ type
 
 {$EndRegion}
 
-{$Region 'TCharSet'}
+{$Region 'TCustomSet'}
 
-  TCharSet = class
-  type
-    PRange = ^TRange;
-    TRange = record
-      lo, hi: Integer;
-      next: PRange;
-      procedure Init(lo, hi: Integer);
-    end;
-    // scan items until the function is false
-    TScanFunction = reference to function(const r: TRange): Boolean;
-  private
+  PRange = ^TRange;
+  TRange = record
+    lo, hi: Integer;
+    next: PRange;
+    procedure Init(lo, hi: Integer);
+  end;
+
+  // scan items until the function is false
+  TScanFunction = reference to function(const r: TRange): Boolean;
+
+  TCustomSet = class
+  protected
     head: PRange;
     procedure FreeList(var head: PRange);
     function Get(i: Integer): Boolean;
   public
     destructor Destroy; override;
-    procedure Incl(ch: Char); overload;
-    procedure Incl(i: Integer); overload;
-    function Equals(s: TCharSet): Boolean; reintroduce;
+    procedure Incl(i: Integer);
     function Elements: Integer;
     function First: Integer;
+    procedure Fill;
+  end;
+
+{$EndRegion}
+
+{$Region 'TIntSet'}
+
+  // todo: Implement an integer set using a tree or list
+  TIntSet = class(TCustomSet)
+  public
+    procedure AddRange(lo, hi: Integer);
+  end;
+
+{$EndRegion}
+
+{$Region 'TCharSet'}
+
+  TCharSet = class(TCustomSet)
+  public
+    procedure Incl(ch: Char); overload;
+    function Equals(s: TCharSet): Boolean; reintroduce;
     procedure Unite(s: TCharSet);
     procedure Intersect(s: TCharSet);
     function Subtract(s: TCharSet): TCharSet;
     function Includes(s: TCharSet): Boolean;
     function Intersects(s: TCharSet): Boolean;
-    procedure Fill;
     function Clone: TCharSet;
     function ToString: string; override;
     procedure Scan(f: TScanFunction);
@@ -384,18 +403,18 @@ end;
 
 {$EndRegion}
 
-{$Region 'TCharSet'}
+{$Region 'TCustomSet'}
 
-procedure TCharSet.TRange.Init(lo, hi: Integer);
+procedure TRange.Init(lo, hi: Integer);
 begin
   Self.lo := lo;
   Self.hi := hi;
   Self.next := nil;
 end;
 
-procedure Include(var head: TCharSet.PRange; i: Integer);
+procedure Include(var head: PRange; i: Integer);
 var
-  p, q, cn, nr: TCharSet.PRange;
+  p, q, cn, nr: PRange;
 begin
   p := head;
   q := nil;
@@ -430,13 +449,13 @@ begin
     q.next := nr;
 end;
 
-destructor TCharSet.Destroy;
+destructor TCustomSet.Destroy;
 begin
   FreeList(head);
   inherited;
 end;
 
-procedure TCharSet.FreeList(var head: PRange);
+procedure TCustomSet.FreeList(var head: PRange);
 var
   p, q: PRange;
 begin
@@ -449,7 +468,7 @@ begin
   head := nil;
 end;
 
-function TCharSet.Get(i: Integer): Boolean;
+function TCustomSet.Get(i: Integer): Boolean;
 var
   p: PRange;
 begin
@@ -466,14 +485,54 @@ begin
   Result := false;
 end;
 
+procedure TCustomSet.Incl(i: Integer);
+begin
+  Include(head, i);
+end;
+
+function TCustomSet.Elements: Integer;
+var
+  n: Integer;
+  p: PRange;
+begin
+  n := 0;
+  p := head;
+  while p <> nil do
+  begin
+    n := n + p.hi - p.lo + 1;
+    p := p.next;
+  end;
+  Result := n;
+end;
+
+function TCustomSet.First: Integer;
+begin
+  if head <> nil then
+    exit(head.lo);
+  Result := -1;
+end;
+
+procedure TCustomSet.Fill;
+begin
+  New(head); head.Init(0, Ord(high(Char)));
+end;
+
+{$EndRegion}
+
+{$Region 'TIntSet'}
+
+procedure TIntSet.AddRange(lo, hi: Integer);
+begin
+
+end;
+
+{$EndRegion}
+
+{$Region 'TCharSet'}
+
 procedure TCharSet.Incl(ch: Char);
 begin
   Include(head, Ord(ch));
-end;
-
-procedure TCharSet.Incl(i: Integer);
-begin
-  Include(head, i);
 end;
 
 function TCharSet.Clone: TCharSet;
@@ -511,28 +570,6 @@ begin
     q := q.next;
   end;
   Result := p = q;
-end;
-
-function TCharSet.Elements: Integer;
-var
-  n: Integer;
-  p: PRange;
-begin
-  n := 0;
-  p := head;
-  while p <> nil do
-  begin
-    n := n + p.hi - p.lo + 1;
-    p := p.next;
-  end;
-  Result := n;
-end;
-
-function TCharSet.First: Integer;
-begin
-  if head <> nil then
-    exit(head.lo);
-  Result := -1;
 end;
 
 procedure TCharSet.Unite(s: TCharSet);
@@ -646,11 +683,6 @@ begin
     p := p.next;
   end;
   Result := false;
-end;
-
-procedure TCharSet.Fill;
-begin
-  New(head); head.Init(0, Ord(high(Char)));
 end;
 
 {$EndRegion}

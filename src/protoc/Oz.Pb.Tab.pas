@@ -3,7 +3,8 @@ unit Oz.Pb.Tab;
 interface
 
 uses
-  System.Classes, System.SysUtils, Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic;
+  System.Classes, System.SysUtils, System.Rtti,
+  Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic;
 
 {$SCOPEDENUMS on}
 
@@ -15,18 +16,6 @@ type
   TpbOption = class;
   Tem = class;
 
-{$Region 'TStringValue'}
-
-  TStringValue = type string;
-  TStringValueHelper = record helper for TStringValue
-    function AsFloat: Double;
-    function AsInteger: Integer;
-    function AsString: string;
-    function AsBoolean: Boolean;
-  end;
-
-{$EndRegion}
-
 {$Region 'TConst: constant identifier, integer, float, string or boolean value'}
 
   TConstType = (
@@ -37,10 +26,15 @@ type
     cBool = 4);
 
   TConst = record
+  var
     typ: TConstType;
-    sign: Integer;
-    value: TStringValue;
-    procedure Init(const Value: string; Typ: TConstType);
+    val: TValue;
+  public
+    procedure AsIdent(const Value: string);
+    procedure AsInt(const Value: Integer);
+    procedure AsFloat(const Value: Double);
+    procedure AsStr(const Value: string);
+    function AsBool(const Value: string): Boolean;
   end;
 
 {$EndRegion}
@@ -166,8 +160,8 @@ type
     FCval: TConst;
   public
     constructor Create(Scope: TIdent; const Name: string; const Value: TConst);
-    property Value: TStringValue read FCval.Value;
-    property Typ: TConstType read FCval.Typ;
+    property Value: TValue read FCval.val;
+    property Typ: TConstType read FCval.typ;
   end;
 
 {$EndRegion}
@@ -358,10 +352,13 @@ type
   private
     FFields: TIdents<TpbField>;
     Fem: Tem;
+    FReserved: TIntSet;
     function GetWireSize: Integer;
   public
     constructor Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
     destructor Destroy; override;
+    // Reserved Fields
+    property Reserved: TIntSet read FReserved;
     // Enum & message list
     property em: Tem read Fem;
     // If all fields are constant then this message is constant too
@@ -490,39 +487,45 @@ begin
   end;
 end;
 
-{$Region 'TStringValueHelper'}
-
-function TStringValueHelper.AsFloat: Double;
-var code: Integer;
-begin
-  Val(Self, Result, code);
-end;
-
-function TStringValueHelper.AsInteger: Integer;
-var code: Integer;
-begin
-  Val(Self, Result, code);
-end;
-
-function TStringValueHelper.AsString: string;
-begin
-  Result := Self;
-end;
-
-function TStringValueHelper.AsBoolean: Boolean;
-begin
-  Result := LowerCase(Self) = 'true';
-end;
-
-{$EndRegion}
-
 {$Region 'TConst'}
 
-procedure TConst.Init(const Value: string; Typ: TConstType);
+procedure TConst.AsIdent(const Value: string);
 begin
-  sign := 1;
-  Self.value := Value;
-  Self.typ := Typ;
+  val := Value;
+  typ := TConstType.cIdent;
+end;
+
+procedure TConst.AsInt(const Value: Integer);
+begin
+  val := Value;
+  typ := TConstType.cInt;
+end;
+
+procedure TConst.AsFloat(const Value: Double);
+begin
+  val := Value;
+  typ := TConstType.cFloat;
+end;
+
+procedure TConst.AsStr(const Value: string);
+begin
+  val := Value;
+  typ := TConstType.cStr;
+end;
+
+function TConst.AsBool(const Value: string): Boolean;
+var
+  s: string;
+begin
+  s := LowerCase(Value);
+  Result := True;
+  if s = 'false' then
+    val := False
+  else if s = 'true' then
+    val := True
+  else
+    Result := False;
+  typ := TConstType.cBool;
 end;
 
 {$EndRegion}
