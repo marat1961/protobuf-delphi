@@ -197,42 +197,42 @@ begin
     t.kind := 29
   else if t.val = 'false' then
     t.kind := 30
-  else if t.val = 'double' then
-    t.kind := 33
-  else if t.val = 'float' then
-    t.kind := 34
-  else if t.val = 'int32' then
-    t.kind := 35
-  else if t.val = 'int64' then
-    t.kind := 36
-  else if t.val = 'uint32' then
-    t.kind := 37
-  else if t.val = 'uint64' then
-    t.kind := 38
-  else if t.val = 'sint32' then
-    t.kind := 39
-  else if t.val = 'sint64' then
-    t.kind := 40
-  else if t.val = 'fixed32' then
-    t.kind := 41
-  else if t.val = 'fixed64' then
-    t.kind := 42
-  else if t.val = 'sfixed32' then
-    t.kind := 43
-  else if t.val = 'sfixed64' then
-    t.kind := 44
-  else if t.val = 'bool' then
-    t.kind := 45
-  else if t.val = 'string' then
-    t.kind := 46
-  else if t.val = 'bytes' then
-    t.kind := 47
   else if t.val = 'repeated' then
-    t.kind := 48
+    t.kind := 33
   else if t.val = 'oneof' then
-    t.kind := 51
+    t.kind := 36
   else if t.val = 'map' then
+    t.kind := 38
+  else if t.val = 'double' then
+    t.kind := 41
+  else if t.val = 'float' then
+    t.kind := 42
+  else if t.val = 'bytes' then
+    t.kind := 43
+  else if t.val = 'int32' then
+    t.kind := 44
+  else if t.val = 'int64' then
+    t.kind := 45
+  else if t.val = 'uint32' then
+    t.kind := 46
+  else if t.val = 'uint64' then
+    t.kind := 47
+  else if t.val = 'sint32' then
+    t.kind := 48
+  else if t.val = 'sint64' then
+    t.kind := 49
+  else if t.val = 'fixed32' then
+    t.kind := 50
+  else if t.val = 'fixed64' then
+    t.kind := 51
+  else if t.val = 'sfixed32' then
+    t.kind := 52
+  else if t.val = 'sfixed64' then
     t.kind := 53
+  else if t.val = 'bool' then
+    t.kind := 54
+  else if t.val = 'string' then
+    t.kind := 55
   else if t.val = 'reserved' then
     t.kind := 56
   else if t.val = 'to' then
@@ -678,23 +678,23 @@ begin
       end;
       35:
       begin
-        t.kind := 49; break;
+        t.kind := 34; break;
       end;
       36:
       begin
-        t.kind := 50; break;
+        t.kind := 35; break;
       end;
       37:
       begin
-        t.kind := 52; break;
+        t.kind := 37; break;
       end;
       38:
       begin
-        t.kind := 54; break;
+        t.kind := 39; break;
       end;
       39:
       begin
-        t.kind := 55; break;
+        t.kind := 40; break;
       end;
     end;
   until false;

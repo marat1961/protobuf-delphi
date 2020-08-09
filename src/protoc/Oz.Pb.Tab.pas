@@ -3,9 +3,7 @@ unit Oz.Pb.Tab;
 interface
 
 uses
-  System.Classes, System.SysUtils,
-//  Generics.Collections,
-  Oz.Cocor.Lib, pbPublic;
+  System.Classes, System.SysUtils, Oz.Cocor.Lib, pbPublic;
 
 {$SCOPEDENUMS on}
 
@@ -47,7 +45,17 @@ type
 
 {$EndRegion}
 
-{$Region 'Enums: TSyntaxVersion, TAccessModifier, TPackageKind'}
+{$Region 'TUserType: messageType or enumType'}
+
+  TUserType = record
+    OutermostScope: Boolean;
+    Package: string;
+    Name: string;
+  end;
+
+{$EndRegion}
+
+{$Region 'TSyntaxVersion, TAccessModifier, TPackageKind'}
 
   // The first line of the file specifies that you're using proto3 syntax:
   // if you don't do this the protocol buffer compiler will assume
@@ -236,25 +244,30 @@ type
 
 {$Region 'TpbType: Base class for all data types'}
 
-  // Type mode
+  // Field type mode
   TTypeMode = (
+    tmUnknown,  // Unknown
+    // Embedded types
     tmDouble,   // Double
     tmFloat,    // Single
-    tmInt32,    // Integer
     tmInt64,    // Int64
-    tmUint32,   // UInt32
     tmUint64,   // UIint64
-    tmSint32,   // Integer
-    tmSint64,   // Int64
-    tmFixed32,  // UInt32
+    tmInt32,    // Integer
     tmFixed64,  // UInt64
-    tmSfixed32, // UInt32
-    tmSfixed64, // Int64
+    tmFixed32,  // UInt32
     tmBool,     // Boolean
     tmString,   // string
     tmBytes,    // bytes
+    tmUint32,   // UInt32
+    tmSfixed32, // UInt32
+    tmSfixed64, // Int64
+    tmSint32,   // Integer
+    tmSint64,   // Int64
+    // Proto2 syntax only, and deprecated.
+    tmGroup,    // Field type group.
+    // User defined types
     tmEnum,     // Integer
-    tmRecord,   // Message
+    tmMessage,  // message
     tmMap);     // Map
 
   TEmbeddedTypes = TTypeMode.tmDouble .. TTypeMode.tmBytes;
@@ -273,8 +286,7 @@ type
 
   TpbEmbeddedType = class(TpbType)
   public
-    constructor Create(Scope: TpbMessage; const Name: string;
-      TypMode: TEmbeddedTypes);
+    constructor Create(TypMode: TEmbeddedTypes);
   end;
 
 {$EndRegion}
@@ -424,6 +436,7 @@ type
   // Uses the singleton pattern for its creation.
   TpbTable = class(TCocoPart)
   private
+    FEmbeddedTypes: array [TTypeMode.tmDouble .. TTypeMode.tmSint64] of TpbEmbeddedType;
     // root node for the .proto file
     FModule: TpbModule;
     // root node for predefined elements
@@ -436,6 +449,10 @@ type
     destructor Destroy; override;
     // Search object by id
     function Find(const id: string): TIdent;
+    // Get embedded type by kind
+    function GetBasisType(kind: TTypeMode): TpbEmbeddedType;
+    // Get message or enum type
+    function GetUserType(const typ: TUserType): TpbType;
     // Open and read module from file
     function OpenModule(Scope: TpbModule; const Name: string; Weak: Boolean): TpbModule;
     function Dump: string;
@@ -462,7 +479,7 @@ begin
     TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
       Result := TWire.FIXED32;
     // string, bytes, embedded messages, !packed repeated fields
-    TTypeMode.tmString, TTypeMode.tmBytes, TTypeMode.tmRecord, TTypeMode.tmMap:
+    TTypeMode.tmString, TTypeMode.tmBytes, TTypeMode.tmMessage, TTypeMode.tmMap:
       Result := TWire.LENGTH_DELIMITED;
   end;
 end;
@@ -651,8 +668,7 @@ begin
   FDesc := Desc;
 end;
 
-constructor TpbEmbeddedType.Create(Scope: TpbMessage; const Name: string;
-  TypMode: TEmbeddedTypes);
+constructor TpbEmbeddedType.Create(TypMode: TEmbeddedTypes);
 begin
   inherited Create(Scope, Name, TypMode, '');
 end;
@@ -717,7 +733,7 @@ end;
 
 constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
 begin
-  inherited Create(Scope, Name, TTypeMode.tmRecord);
+  inherited Create(Scope, Name, TTypeMode.tmMessage);
   FFields := TIdents<TpbField>.Create;
   Fem := Tem.Create(Tab, Scope);
 end;
@@ -859,8 +875,15 @@ begin
 end;
 
 procedure TpbTable.InitSystem;
+var i: TTypeMode;
 begin
+  for i := Low(FEmbeddedTypes) to High(FEmbeddedTypes) do
+    FEmbeddedTypes[i] := TpbEmbeddedType.Create(i);
+end;
 
+function TpbTable.GetBasisType(kind: TTypeMode): TpbEmbeddedType;
+begin
+  Result := FEmbeddedTypes[kind];
 end;
 
 function TpbTable.Find(const id: string): TIdent;
@@ -868,6 +891,11 @@ begin
   Result := FSystem.Find(id);
   if Result = nil then
     Result := FModule.Find(id);
+end;
+
+function TpbTable.GetUserType(const typ: TUserType): TpbType;
+begin
+  Result := nil;
 end;
 
 function TpbTable.OpenModule(Scope: TpbModule; const Name: string;
@@ -878,17 +906,17 @@ end;
 
 function TpbTable.Dump: string;
 begin
-
+  Result := '';
 end;
 
 function TpbTable.FindImport(const id: string): TpbMessage;
 begin
-
+  Result := nil;
 end;
 
 function TpbTable.GenScript: string;
 begin
-
+  Result := '';
 end;
 
 {$EndRegion}

@@ -62,26 +62,25 @@ type
     procedure _Enum(Scope: TIdent);
     procedure _Service(Scope: TpbModule);
     procedure _Ident(var name: string);
-    procedure _MessageBody(msg: TpbMessage);
     procedure _Field(msg: TpbMessage);
     procedure _MapField;
     procedure _OneOf(msg: TpbMessage);
-    procedure _Reserved;
+    procedure _Reserved(msg: TpbMessage);
     procedure _strLit;
     procedure _FullIdent(var name: string);
     procedure _OptionName(var s: string);
     procedure _Constant(var c: TConst);
     procedure _Rpc(service: TpbService);
-    procedure _UserType(var typ: string);
+    procedure _UserType(var typ: TUserType);
     procedure _intLit(var s: string);
     procedure _floatLit(var s: string);
     procedure _boolLit;
-    procedure _Type(f: TPbField);
+    procedure _Type(var ft: TpbType);
     procedure _FieldNumber(var fn: string);
     procedure _FieldOptions(f: TPbField);
     procedure _OneOfField(oneOf: TPbOneOf);
     procedure _FieldOption(f: TPbField);
-    procedure _keyType;
+    procedure _KeyType(var ft: TpbType);
     procedure _Ranges;
     procedure _FieldNames;
     procedure _Range(var lo, hi: string);
@@ -276,13 +275,51 @@ end;
 
 procedure TpbParser._Message(Scope: TIdent);
 var
- name: string;
- msg: TpbMessage;
+  name: string;
+  msg: TpbMessage;
 begin
   Expect(9);
   _Ident(name);
   msg := Scope.em.AddMessage(name);
-  _MessageBody(msg);
+  Expect(10);
+  while StartOf(2) do
+  begin
+    case la.kind of
+      1, 22, 33, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55:
+      begin
+        _Field(msg);
+      end;
+      38:
+      begin
+        _MapField;
+      end;
+      59:
+      begin
+        _Enum(msg);
+      end;
+      9:
+      begin
+        _Message(msg);
+      end;
+      19:
+      begin
+        _Option(msg);
+      end;
+      36:
+      begin
+        _OneOf(msg);
+      end;
+      56:
+      begin
+        _Reserved(msg);
+      end;
+      14:
+      begin
+        _EmptyStatement;
+      end;
+      end;
+  end;
+  Expect(11);
 end;
 
 procedure TpbParser._Enum(Scope: TIdent);
@@ -329,86 +366,47 @@ begin
   name := t.val;
 end;
 
-procedure TpbParser._MessageBody(msg: TpbMessage);
-begin
-  Expect(10);
-  while StartOf(2) do
-  begin
-    case la.kind of
-      1, 22, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48:
-      begin
-        _Field(msg);
-      end;
-      53:
-      begin
-        _MapField;
-      end;
-      59:
-      begin
-        _Enum(msg);
-      end;
-      9:
-      begin
-        _Message(msg);
-      end;
-      19:
-      begin
-        _Option(msg);
-      end;
-      51:
-      begin
-        _OneOf(msg);
-      end;
-      56:
-      begin
-        _Reserved;
-      end;
-      14:
-      begin
-        _EmptyStatement;
-      end;
-      end;
-  end;
-  Expect(11);
-end;
-
 procedure TpbParser._Field(msg: TpbMessage);
-var f: TPbField;
+var
+  f: TPbField;
+  ft: TpbType;
 begin
-  if la.kind = 48 then
+  if la.kind = 33 then
   begin
     Get;
   end;
-  _Type(f);
+  _Type(ft);
   _Ident(fieldName);
   Expect(13);
   _FieldNumber(f.FieldNumber);
-  if la.kind = 49 then
+  if la.kind = 34 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(50);
+    Expect(35);
   end;
   Expect(14);
 end;
 
 procedure TpbParser._MapField;
-var f: TPbField;
+var
+  f: TPbField;
+  kt, ft: TpbType;
 begin
-  Expect(53);
-  Expect(54);
-  _keyType;
-  Expect(52);
-  _Type(f);
-  Expect(55);
+  Expect(38);
+  Expect(39);
+  _KeyType(kt);
+  Expect(37);
+  _Type(ft);
+  Expect(40);
   _Ident(mapName);
   Expect(13);
   _FieldNumber(f.FieldNumber);
-  if la.kind = 49 then
+  if la.kind = 34 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(50);
+    Expect(35);
   end;
   Expect(14);
 end;
@@ -416,7 +414,7 @@ end;
 procedure TpbParser._OneOf(msg: TpbMessage);
 var oneOf: TPbOneOf;
 begin
-  Expect(51);
+  Expect(36);
   _Ident(oneofName);
   Expect(10);
   while StartOf(3) do
@@ -437,7 +435,7 @@ begin
   Expect(11);
 end;
 
-procedure TpbParser._Reserved;
+procedure TpbParser._Reserved(msg: TpbMessage);
 begin
   Expect(56);
   if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
@@ -587,17 +585,24 @@ begin
     SynErr(66);
 end;
 
-procedure TpbParser._UserType(var typ: string);
+procedure TpbParser._UserType(var typ: TUserType);
 begin
+  typ := Default(TUserType);
   if la.kind = 22 then
   begin
     Get;
+    typ.OutermostScope := True;
   end;
   Expect(1);
+  typ.Name := t.val;
   while la.kind = 22 do
   begin
     Get;
+    if typ.Package <> '' then
+      typ.Package := typ.Package + '.';
+    typ.Package := typ.Package + typ.Name;
     Expect(1);
+    typ.Name := t.val;
   end;
 end;
 
@@ -657,76 +662,35 @@ begin
     SynErr(69);
 end;
 
-procedure TpbParser._Type(f: TPbField);
+procedure TpbParser._Type(var ft: TpbType);
+var typ: TUserType;
 begin
-  case la.kind of
-    33:
-    begin
-      Get;
-    end;
-    34:
-    begin
-      Get;
-    end;
-    35:
-    begin
-      Get;
-    end;
-    36:
-    begin
-      Get;
-    end;
-    37:
-    begin
-      Get;
-    end;
-    38:
-    begin
-      Get;
-    end;
-    39:
-    begin
-      Get;
-    end;
-    40:
-    begin
-      Get;
-    end;
-    41:
-    begin
-      Get;
-    end;
-    42:
-    begin
-      Get;
-    end;
-    43:
-    begin
-      Get;
-    end;
-    44:
-    begin
-      Get;
-    end;
-    45:
-    begin
-      Get;
-    end;
-    46:
-    begin
-      Get;
-    end;
-    47:
-    begin
-      Get;
-    end;
-    1, 22:
-    begin
-      _UserType(typ);
-    end;
-    else
-      SynErr(70);
-  end;
+  if la.kind = 41 then
+  begin
+    Get;
+    ft := tab.GetBasisType(TTypeMode.tmDouble);
+  end
+  else if la.kind = 42 then
+  begin
+    Get;
+    ft := tab.GetBasisType(TTypeMode.tmFloat);
+  end
+  else if la.kind = 43 then
+  begin
+    Get;
+    ft := tab.GetBasisType(TTypeMode.tmBytes);
+  end
+  else if StartOf(6) then
+  begin
+    _KeyType(ft);
+  end
+  else if (la.kind = 1) or (la.kind = 22) then
+  begin
+    _UserType(typ);
+    ft := tab.GetserType(typ);
+  end
+  else
+    SynErr(70);
 end;
 
 procedure TpbParser._FieldNumber(var fn: string);
@@ -737,7 +701,7 @@ end;
 procedure TpbParser._FieldOptions(f: TPbField);
 begin
   _FieldOption(f);
-  while la.kind = 52 do
+  while la.kind = 37 do
   begin
     Get;
     _FieldOption(f);
@@ -745,17 +709,19 @@ begin
 end;
 
 procedure TpbParser._OneOfField(oneOf: TPbOneOf);
-var f: TPbField;
+var
+  f: TPbField;
+  ft: TpbType;
 begin
-  _Type(f);
+  _Type(ft);
   _Ident(f.fieldName);
   Expect(13);
   _FieldNumber(f.FieldNumber);
-  if la.kind = 49 then
+  if la.kind = 34 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(50);
+    Expect(35);
   end;
   Expect(14);
 end;
@@ -769,56 +735,68 @@ begin
   f.AddOption(Name, Cv);
 end;
 
-procedure TpbParser._keyType;
+procedure TpbParser._KeyType(var ft: TpbType);
 begin
   case la.kind of
-    35:
-    begin
-      Get;
-    end;
-    36:
-    begin
-      Get;
-    end;
-    37:
-    begin
-      Get;
-    end;
-    38:
-    begin
-      Get;
-    end;
-    39:
-    begin
-      Get;
-    end;
-    40:
-    begin
-      Get;
-    end;
-    41:
-    begin
-      Get;
-    end;
-    42:
-    begin
-      Get;
-    end;
-    43:
-    begin
-      Get;
-    end;
     44:
     begin
       Get;
+      ft := tab.GetBasisType(TTypeMode.tmInt32);
     end;
     45:
     begin
       Get;
+      ft := tab.GetBasisType(TTypeMode.tmInt64);
     end;
     46:
     begin
       Get;
+      ft := tab.GetBasisType(TTypeMode.tmUint32);
+    end;
+    47:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmUint64);
+    end;
+    48:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmSint32);
+    end;
+    49:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmSint64);
+    end;
+    50:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmFixed32);
+    end;
+    51:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmFixed64);
+    end;
+    52:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmSfixed32);
+    end;
+    53:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmSfixed64);
+    end;
+    54:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmBool);
+    end;
+    55:
+    begin
+      Get;
+      ft := tab.GetBasisType(TTypeMode.tmString);
     end;
     else
       SynErr(71);
@@ -829,7 +807,7 @@ procedure TpbParser._Ranges;
 var lo, hi: string;
 begin
   _Range(lo, ho);
-  while la.kind = 52 do
+  while la.kind = 37 do
   begin
     Get;
     _Range(lo, hi);
@@ -839,7 +817,7 @@ end;
 procedure TpbParser._FieldNames;
 begin
   _Ident(fieldName);
-  while la.kind = 52 do
+  while la.kind = 37 do
   begin
     Get;
     _Ident(fieldName);
@@ -897,16 +875,16 @@ begin
     Get;
   end;
   _intLit(n);
-  if la.kind = 49 then
+  if la.kind = 34 then
   begin
     Get;
     _EnumValueOption(e);
-    while la.kind = 52 do
+    while la.kind = 37 do
     begin
       Get;
       _EnumValueOption(e);
     end;
-    Expect(50);
+    Expect(35);
   end;
   Expect(14);
 end;
@@ -933,13 +911,14 @@ function TpbParser.Starts(s, kind: Integer): Boolean;
 const
   x = false;
   T = true;
-  sets: array [0..5] of array [0..61] of Boolean = (
+  sets: array [0..6] of array [0..61] of Boolean = (
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x),
     (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x),
-    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,x,x,T, x,T,x,x, T,x,x,T, x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x),
-    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x));
+    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,x,x, T,x,T,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,x,x,T, x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x),
+    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x),
+    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x));
 begin
   Result := sets[s, kind];
 end;
@@ -981,29 +960,29 @@ const
     {30} '"false" expected',
     {31} '"-" expected',
     {32} '"+" expected',
-    {33} '"double" expected',
-    {34} '"float" expected',
-    {35} '"int32" expected',
-    {36} '"int64" expected',
-    {37} '"uint32" expected',
-    {38} '"uint64" expected',
-    {39} '"sint32" expected',
-    {40} '"sint64" expected',
-    {41} '"fixed32" expected',
-    {42} '"fixed64" expected',
-    {43} '"sfixed32" expected',
-    {44} '"sfixed64" expected',
-    {45} '"bool" expected',
-    {46} '"string" expected',
-    {47} '"bytes" expected',
-    {48} '"repeated" expected',
-    {49} '"[" expected',
-    {50} '"]" expected',
-    {51} '"oneof" expected',
-    {52} '"," expected',
-    {53} '"map" expected',
-    {54} '"<" expected',
-    {55} '">" expected',
+    {33} '"repeated" expected',
+    {34} '"[" expected',
+    {35} '"]" expected',
+    {36} '"oneof" expected',
+    {37} '"," expected',
+    {38} '"map" expected',
+    {39} '"<" expected',
+    {40} '">" expected',
+    {41} '"double" expected',
+    {42} '"float" expected',
+    {43} '"bytes" expected',
+    {44} '"int32" expected',
+    {45} '"int64" expected',
+    {46} '"uint32" expected',
+    {47} '"uint64" expected',
+    {48} '"sint32" expected',
+    {49} '"sint64" expected',
+    {50} '"fixed32" expected',
+    {51} '"fixed64" expected',
+    {52} '"sfixed32" expected',
+    {53} '"sfixed64" expected',
+    {54} '"bool" expected',
+    {55} '"string" expected',
     {56} '"reserved" expected',
     {57} '"to" expected',
     {58} '"max" expected',
@@ -1019,7 +998,7 @@ const
     {68} 'invalid floatLit',
     {69} 'invalid boolLit',
     {70} 'invalid Type',
-    {71} 'invalid keyType',
+    {71} 'invalid KeyType',
     {72} 'invalid Range');
 begin
   if nr <= MaxErr then

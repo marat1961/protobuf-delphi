@@ -65,11 +65,6 @@ Message<Scope: TIdent>       (. var
 =
 
 "message" Ident<name>        (. msg := Scope.em.AddMessage(name); .)
-MessageBody<msg>
-.
-
-MessageBody<msg: TpbMessage>
-=
 "{" {
   Field<msg>
 | MapField
@@ -77,7 +72,7 @@ MessageBody<msg: TpbMessage>
 | Message<msg>
 | Option<msg>
 | OneOf<msg>
-| Reserved
+| Reserved<msg>
 | EmptyStatement
 } "}"
 .
@@ -202,12 +197,15 @@ ident                        (. name := t.val; .)
 
 // messageType or enumType
 
-UserType<var typ: string>    (. .)
-=
-[ "."
+UserType<var typ: TUserType>
+=                            (. typ := Default(TUserType); .)
+[ "."                        (. typ.OutermostScope := True; .)
 ]
-ident
-{ "." ident
+ident                        (. typ.Name := t.val; .)
+{ "."                        (. if typ.Package <> '' then
+                                  typ.Package := typ.Package + '.';
+                                typ.Package := typ.Package + typ.Name; .)
+ident                        (. typ.Name := t.val; .)
 }
 .
 
@@ -246,36 +244,13 @@ FullIdent<cval>              (. c.Init(cval, TConstType.cIdent); .)
 
 // Fields
 
-Type<f: TPbField>
-=
-  "double"
-| "float"
-| "int32"
-| "int64"
-| "uint32"
-| "uint64"
-| "sint32"
-| "sint64"
-| "fixed32"
-| "fixed64"
-| "sfixed32"
-| "sfixed64"
-| "bool"
-| "string"
-| "bytes"
-| UserType<typ>
-.
-
-FieldNumber<var fn: string>
-=
-intLit<fn>
-.
-
-Field<msg: TpbMessage>       (. var f: TPbField; .)
+Field<msg: TpbMessage>       (. var
+                                  f: TPbField;
+                                  ft: TpbType; .)
 =
 [ "repeated"
 ]
-Type<f>
+Type<ft>
 Ident<fieldName>
 "="
 FieldNumber<f.FieldNumber>
@@ -294,9 +269,11 @@ Ident<oneofName>
 } "}"
 .
 
-OneOfField<oneOf: TPbOneOf>  (. var f: TPbField; .)
+OneOfField<oneOf: TPbOneOf>  (. var
+                                  f: TPbField;
+                                  ft: TpbType; .)
 =
-Type<f>
+Type<ft>
 Ident<f.fieldName>
 "="
 FieldNumber<f.FieldNumber>
@@ -315,13 +292,15 @@ FieldOption<f: TPbField>     (. var Name: string; Cv: TConst; .)
 =
 OptionName<option.Name>
 "="
-Constant<Cv>                  (. f.AddOption(Name, Cv); .)
+Constant<Cv>                 (. f.AddOption(Name, Cv); .)
 .
 
-MapField                     (. var f: TPbField; .)
+MapField                     (. var
+                                  f: TPbField;
+                                  kt, ft: TpbType; .)
 =
-"map" "<" keyType
-"," Type<f>
+"map" "<" KeyType<kt>
+"," Type<ft>
 ">"
 Ident<mapName>
 "="
@@ -330,23 +309,39 @@ FieldNumber<f.FieldNumber>
 "]" ] ";"
 .
 
-keyType
+FieldNumber<var fn: string>
 =
-"int32"
-| "int64"
-| "uint32"
-| "uint64"
-| "sint32"
-| "sint64"
-| "fixed32"
-| "fixed64"
-| "sfixed32"
-| "sfixed64"
-| "bool"
-| "string"
+intLit<fn>
 .
 
-Reserved
+// Types
+
+Type<var ft: TpbType>        (. var typ: TUserType; .)
+=
+  "double"                   (. ft := tab.GetBasisType(TTypeMode.tmDouble); .)
+| "float"                    (. ft := tab.GetBasisType(TTypeMode.tmFloat); .)
+| "bytes"                    (. ft := tab.GetBasisType(TTypeMode.tmBytes); .)
+| KeyType<ft>
+| UserType<typ>              (. ft := tab.GetserType(typ); .)
+.
+
+KeyType<var ft: TpbType>
+=
+  "int32"                    (. ft := tab.GetBasisType(TTypeMode.tmInt32); .)
+| "int64"                    (. ft := tab.GetBasisType(TTypeMode.tmInt64); .)
+| "uint32"                   (. ft := tab.GetBasisType(TTypeMode.tmUint32); .)
+| "uint64"                   (. ft := tab.GetBasisType(TTypeMode.tmUint64); .)
+| "sint32"                   (. ft := tab.GetBasisType(TTypeMode.tmSint32); .)
+| "sint64"                   (. ft := tab.GetBasisType(TTypeMode.tmSint64); .)
+| "fixed32"                  (. ft := tab.GetBasisType(TTypeMode.tmFixed32); .)
+| "fixed64"                  (. ft := tab.GetBasisType(TTypeMode.tmFixed64); .)
+| "sfixed32"                 (. ft := tab.GetBasisType(TTypeMode.tmSfixed32); .)
+| "sfixed64"                 (. ft := tab.GetBasisType(TTypeMode.tmSfixed64); .)
+| "bool"                     (. ft := tab.GetBasisType(TTypeMode.tmBool); .)
+| "string"                   (. ft := tab.GetBasisType(TTypeMode.tmString); .)
+.
+
+Reserved<msg: TpbMessage>
 =
 "reserved"
 ( Ranges
