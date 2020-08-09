@@ -16,29 +16,10 @@ type
 
   TpbParser= class(TBaseParser)
   const
-    ErrorMessages: array [1..20] of string = (
+    ErrorMessages: array [1..3] of string = (
       {1} 'multiple declaration',
       {2} 'undefined ident',
-      {3} 'not found this module',
-      {4} 'type is not "record" type',
-      {5} 'property redeclared',
-      {6} 'collection redeclared',
-      {7} 'illegal length declaration',
-      {8} 'missing length declaration',
-      {9} 'base type of set must be enumerated type',
-     {10} 'too many members of enumerated base type (> 32)',
-     {11} 'expected SUBCOLLECTION declarataion',
-     {12} 'not match SUBCOLLECTION type',
-     {13} 'invalid collection',
-     {14} 'unsatisfied FORWARD declaration',
-     {15} 'clause "ASC" or "DESC" may be used only for indexes',
-     {16} 'illegal "GEN" declarataion for collection based on inherited type',
-     {17} 'expected "GEN" declarataion',
-     {18} 'undefined property',
-     {19} 'unsatisfied "Foreign key" declaration',
-     {20} 'it is not necessary to specify base type for the FORWARD declaration');
-
-
+      {3} 'not found this module');
     _EOFSym = 0;
     _identSym = 1;
     _decimalLitSym = 2;
@@ -49,7 +30,6 @@ type
     _badStringSym = 7;
     _charSym = 8;
   private
-    procedure LexName(var s: string);
     procedure SemError(n: Integer);
     procedure _Pb;
     procedure _Syntax(Scope: TpbModule);
@@ -135,11 +115,6 @@ destructor TpbParser.Destroy;
 begin
   tab.Free;
   inherited;
-end;
-
-procedure TpbParser.LexName(var s: string);
-begin
-  s := t.val;
 end;
 
 procedure TpbParser.SemError(n: Integer);
@@ -908,7 +883,9 @@ begin
 end;
 
 procedure TpbParser._EnumValueOption(e: TPbEnum);
-var Name: string; Cv: TConst;
+var
+  Name: string;
+  Cv: TConst;
 begin
   _OptionName(Name);
   Expect(13);

@@ -296,10 +296,7 @@ FieldNumber<tag>
 
 FieldOptions<f: TPbField>
 =
-FieldOption<f>
-{ ","  FieldOption<f>
-}
-.
+FieldOption<f> { ","  FieldOption<f> } .
 
 FieldOption<f: TPbField>     (. var name: string; Cv: TConst; .)
 =
@@ -365,8 +362,7 @@ Reserved<msg: TpbMessage>
 ) ";"
 .
 
-Ranges<Reserved: TIntSet>
-                             (. var lo, hi: Integer; .)
+Ranges<Reserved: TIntSet>    (. var lo, hi: Integer; .)
 =
 Range<lo, hi>                (. Reserved.AddRange(lo, hi); .)
 { "," Range<lo, hi>          (. Reserved.AddRange(lo, hi); .)
@@ -414,7 +410,9 @@ intLit<n>
 } "]" ]";"
 .
 
-EnumValueOption<e: TPbEnum>  (. var Name: string; Cv: TConst; .)
+EnumValueOption<e: TPbEnum>  (. var
+                                  Name: string;
+                                  Cv: TConst; .)
 =
 OptionName<Name>
 "="
