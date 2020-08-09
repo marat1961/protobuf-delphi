@@ -14,6 +14,8 @@ type
   TpbTable = class;          // Parsing context
   TpbModule = class;         // .proto file
   TpbMessage = class;
+  TpbOption = class;
+  Tem = class;
 
 {$Region 'TStringValue'}
 
@@ -88,16 +90,19 @@ type
     FName: string;
     FMode: TMode;
     FScope: TIdent;
+    function GetEm: Tem;
   protected
     function GenScript: string; virtual;
     constructor Create(Scope: TIdent; const Name: string; Mode: TMode);
   public
     function Dump: string; virtual;
+    function AddOption(const Name: string; const Value: TConst): TpbOption; virtual;
     property Name: string read FName;
     // Type of object
     property Mode: TMode read FMode;
     // The scope where this object can be found.
     property Scope: TIdent read FScope;
+    property em: Tem read GetEm;
   end;
 
 {$EndRegion}
@@ -128,6 +133,25 @@ type
 {$EndRegion}
 
 {$Region 'TpbOption: can be used in proto files, messages, enums and services'}
+
+  PFieldOptions = ^TFieldOptions;
+  TFieldOptions = record
+  type
+    TOptionKind = (
+      foAccess, foPacked, foDeprecated, foTransient, foReadOnly, foDefault);
+  const
+    KindNames: array [TOptionKind] of string = (
+      'access', 'packed', 'deprecated', 'transient', 'readonly', 'default');
+  var
+    Access: TAccessModifier;
+    &Packed: Boolean;
+    &Deprecated: Boolean;
+    ReadOnly: Boolean;
+    // Code will not be generated for this field
+    Transient: Boolean;
+    // The default value for field
+    Default: string;
+  end;
 
   TpbOption = class(TIdent)
   private
@@ -192,6 +216,7 @@ type
     FService: TpbService;
   public
     constructor Create(Scope: TpbService; const Name: string);
+    function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     property Service: TpbService read FService;
   end;
 
@@ -256,22 +281,6 @@ type
 
 {$Region 'TpbField'}
 
-  // Field options kind
-  TFieldOptionKind = (foAccess, foPacked, foDeprecated, foTransient,
-    foReadOnly, foDefault);
-
-  PFieldOptions = ^TFieldOptions;
-  TFieldOptions = record
-    Access: TAccessModifier;
-    &Packed: Boolean;
-    &Deprecated: Boolean;
-    ReadOnly: Boolean;
-    // Code will not be generated for this field
-    Transient: Boolean;
-    // The default value for field
-    Default: string;
-  end;
-
   // Rules for fields in .proto files
   TFieldRule = (Singular, Optional, Repeated);
 
@@ -287,8 +296,7 @@ type
   public
     constructor Create(Scope: TpbMessage; const Name: string; Typ: TpbType;
       Tag: Integer; Rule: TFieldRule);
-    // Add field option
-    function AddOption(option: TpbOption; fo: TFieldOptionKind): Boolean;
+    function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     function ToString: string; override;
     property Typ: TpbType read FType;
     property Tag: Integer read FTag;
@@ -318,11 +326,12 @@ type
 
   TpbEnum = class(TpbType)
   private
+    FPackage: string;
     FEnums: TIdents<TEnumValue>;
     FOptions: TEnumOptions;
     function GetOptions: PEnumOptions;
   public
-    constructor Create(Scope: TIdent; const Name: string);
+    constructor Create(Scope: TIdent; const Name, Package: string);
     destructor Destroy; override;
     property Options: PEnumOptions read GetOptions;
   end;
@@ -331,20 +340,38 @@ type
 
 {$Region 'TpbMessage'}
 
-  // —ообщение - единица компил€ции и описани€ модели данных
   TpbMessage = class(TpbType)
   public const
     WireType = TWire.LENGTH_DELIMITED;
   private
     FFields: TIdents<TpbField>;
-    FMessages: TIdents<TpbMessage>;
-    FEnums: TIdents<TpbEnum>;
-    // If all fields are constant then this message is constant too
+    Fem: Tem;
     function GetWireSize: Integer;
   public
-    constructor Create(Scope: TIdent; const Name, Package: string);
+    constructor Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
     destructor Destroy; override;
+    // Enum & message list
+    property em: Tem read Fem;
+    // If all fields are constant then this message is constant too
     property WireSize: Integer read GetWireSize;
+  end;
+
+{$EndRegion}
+
+{$Region 'Tem: Enum & message list '}
+
+  Tem = class
+  private
+    FTab: TpbTable;
+    FScope: TIdent;
+    FMessages: TIdents<TpbMessage>;
+    FEnums: TIdents<TpbEnum>;
+  public
+    constructor Create(Tab: TpbTable; Scope: TIdent);
+    destructor Destroy; override;
+    function FindType(const Name: string): TpbType;
+    function AddMessage(const Name: string): TpbMessage;
+    function AddEnum(const Name: string): TpbEnum;
     property Messages: TIdents<TpbMessage> read FMessages;
     property Enums: TIdents<TpbEnum> read FEnums;
   end;
@@ -364,11 +391,9 @@ type
     FOptions: TIdents<TpbOption>;
     FCurrentPackage: string;
     FPackages: TIdents<TpbPackage>;
-    FMessages: TIdents<TpbMessage>;
-    FEnums: TIdents<TpbEnum>;
+    Fem: Tem;
     // Search the module recursively
     function FindImport(const Name: string): TpbModule;
-    function FindType(const Name: string): TpbType;
   protected
     constructor Create(Tab: TpbTable; Scope: TIdent; const Name: string; Weak: Boolean);
   public
@@ -380,7 +405,7 @@ type
     // Add package and update its current value
     function AddPackage(const Name: string): TpbPackage;
     // Add module option
-    function AddOption(const Name: string; const Value: TConst): TpbOption;
+    function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     // Properties
     property Weak: Boolean read FWeak;
     property Syntax: TSyntaxVersion read FSyntax write FSyntax;
@@ -388,8 +413,8 @@ type
     property Options: TIdents<TpbOption> read FOptions;
     property Packages: TIdents<TpbPackage> read FPackages;
     property CurrentPackage: string read FCurrentPackage;
-    property Messages: TIdents<TpbMessage> read FMessages;
-    property Enums: TIdents<TpbEnum> read FEnums;
+    // Enum & message list
+    property Em: Tem read FEM;
   end;
 
 {$EndRegion}
@@ -493,7 +518,20 @@ function TIdent.GenScript: string;
 begin
 end;
 
+function TIdent.GetEm: Tem;
+begin
+  case Scope.Mode of
+    TMode.mModule: Result := TpbModule(Scope).Em;
+    TMode.mRecord: Result := TpbMessage(Scope).Em;
+    else raise FatalError.Create('Message: invalid scope');
+  end;
+end;
+
 function TIdent.Dump: string;
+begin
+end;
+
+function TIdent.AddOption(const Name: string; const Value: TConst): TpbOption;
 begin
 end;
 
@@ -587,6 +625,11 @@ begin
   inherited Create(Scope, Name, TMode.mRpc);
 end;
 
+function TpbRpc.AddOption(const Name: string; const Value: TConst): TpbOption;
+begin
+
+end;
+
 {$EndRegion}
 
 {$Region 'TpbRpc'}
@@ -627,33 +670,8 @@ begin
   FRule := Rule;
 end;
 
-function TpbField.AddOption(option: TpbOption; fo: TFieldOptionKind): Boolean;
-var
-  s: string;
+function TpbField.AddOption(const Name: string; const Value: TConst): TpbOption;
 begin
-  // Field options kind
-  case fo of
-    TFieldOptionKind.foAccess:
-      begin
-        s := LowerCase(option.Value);
-        if s = 'public' then
-          FOptions.Access := TAccessModifier.acsPublic
-        else if s = 'protected' then
-          FOptions.Access := TAccessModifier.acsProtected
-        else if s = 'private' then
-          FOptions.Access := TAccessModifier.acsPrivate;
-      end;
-    TFieldOptionKind.foPacked:
-      FOptions.&Packed := option.Value.AsBoolean;
-    TFieldOptionKind.foDeprecated:
-      FOptions.Deprecated := option.Value.AsBoolean;
-    TFieldOptionKind.foTransient:
-      FOptions.Transient := option.Value.AsBoolean;
-    TFieldOptionKind.foReadOnly:
-      FOptions.ReadOnly := option.Value.AsBoolean;
-    TFieldOptionKind.foDefault:
-      FOptions.Default := option.Value;
-  end;
 end;
 
 function TpbField.ToString: string;
@@ -675,9 +693,10 @@ end;
 
 {$Region 'TpbType'}
 
-constructor TpbEnum.Create(Scope: TIdent; const Name: string);
+constructor TpbEnum.Create(Scope: TIdent; const Name, Package: string);
 begin
   inherited Create(Scope, Name, TTypeMode.tmEnum);
+  FPackage := Package;
   FEnums := TIdents<TEnumValue>.Create;
 end;
 
@@ -696,19 +715,17 @@ end;
 
 {$Region 'TpbMessage'}
 
-constructor TpbMessage.Create(Scope: TIdent; const Name, Package: string);
+constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
 begin
   inherited Create(Scope, Name, TTypeMode.tmRecord);
   FFields := TIdents<TpbField>.Create;
-  FMessages := TIdents<TpbMessage>.Create;
-  FEnums := TIdents<TpbEnum>.Create;
+  Fem := Tem.Create(Tab, Scope);
 end;
 
 destructor TpbMessage.Destroy;
 begin
   FFields.Free;
-  FMessages.Free;
-  FEnums.Free;
+  Fem.Free;
   inherited;
 end;
 
@@ -725,6 +742,45 @@ end;
 
 {$EndRegion}
 
+{$Region 'Tem'}
+
+constructor Tem.Create(Tab: TpbTable; Scope: TIdent);
+begin
+  inherited Create;
+  FTab := Tab;
+  FScope := Scope;
+  FMessages := TIdents<TpbMessage>.Create;
+  FEnums := TIdents<TpbEnum>.Create;
+end;
+
+destructor Tem.Destroy;
+begin
+  FMessages.Free;
+  FEnums.Free;
+  inherited;
+end;
+
+function Tem.FindType(const Name: string): TpbType;
+begin
+  Result := FMessages.Find(Name);
+  if Result <> nil then exit;
+  Result := FEnums.Find(Name);
+end;
+
+function Tem.AddMessage(const Name: string): TpbMessage;
+begin
+  Result := TpbMessage.Create(FTab, FScope, Name, FTab.Module.CurrentPackage);
+  FMessages.Add(Result);
+end;
+
+function Tem.AddEnum(const Name: string): TpbEnum;
+begin
+  Result := TpbEnum.Create(FScope, Name, FTab.Module.CurrentPackage);
+  FEnums.Add(Result);
+end;
+
+{$EndRegion}
+
 {$Region 'TpbModule'}
 
 constructor TpbModule.Create(Tab: TpbTable; Scope: TIdent; const Name: string;
@@ -733,16 +789,14 @@ begin
   inherited Create(Scope, Name, TMode.mModule);
   FImport := TIdents<TpbModule>.Create;
   FPackages := TIdents<TpbPackage>.Create;
-  FMessages := TIdents<TpbMessage>.Create;
-  FEnums := TIdents<TpbEnum>.Create;
+  Fem := Tem.Create(Tab, Scope);
 end;
 
 destructor TpbModule.Destroy;
 begin
   FImport.Free;
   FPackages.Free;
-  FMessages.Free;
-  FEnums.Free;
+  Fem.Free;
   inherited;
 end;
 
@@ -759,7 +813,7 @@ function TpbModule.Find(const Name: string): TIdent;
 begin
   Result := FindImport(Name);
   if Result <> nil then exit;
-  Result := FindType(Name);
+  Result := em.FindType(Name);
 end;
 
 function TpbModule.AddPackage(const Name: string): TpbPackage;
@@ -784,13 +838,6 @@ begin
     Result := FImport[i].FindImport(Name);
     if Result <> nil then exit;
   end;
-end;
-
-function TpbModule.FindType(const Name: string): TpbType;
-begin
-  Result := FMessages.Find(Name);
-  if Result <> nil then exit;
-  Result := FEnums.Find(Name);
 end;
 
 {$EndRegion}

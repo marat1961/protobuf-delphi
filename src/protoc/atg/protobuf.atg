@@ -60,18 +60,11 @@ TopLevelDef<Scope: TpbModule>
 .
 
 Message<Scope: TIdent>       (. var
-                                 msg: TpbMessage;
-                                 name: string;
-                                 list: TIdents<TpbMessage>; .)
+                                  name: string;
+                                  msg: TpbMessage; .)
 =
 
-"message" Ident<name>        (. case Scope.Mode of
-                                  TMode.mModule: list := TpbModule(Scope).messages;
-                                  TMode.mRecord: list := TpbMessage(Scope).messages;
-                                  else raise FatalError.Create('Message: invalid scope');
-                                end;
-                                msg := TpbMessage.Create(Scope, name, tab.Module.CurrentPackage);
-                                list.Add(msg); .)
+"message" Ident<name>        (. msg := Scope.em.AddMessage(name); .)
 MessageBody<msg>
 .
 
@@ -386,18 +379,18 @@ Ident<fieldName>
 
 Enum<Scope: TIdent>          (. var
                                   name: string;
-                                  e: TPbEnum; .)
+                                  enum: TPbEnum; .)
 =
 "enum"
-Ident<name>                  (. e := TPbEnum.Create(Scope, name); .)
-EnumBody<e>
+Ident<name>                  (. enum := Scope.em.AddEnum(name); .)
+EnumBody<enum>
 .
 
-EnumBody<e: TPbEnum>
+EnumBody<enum: TPbEnum>
 =
 "{" {
-Option<e>
-| EnumField<e>
+Option<enum>
+| EnumField<enum>
 | EmptyStatement
 } "}"
 .

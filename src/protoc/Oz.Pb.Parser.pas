@@ -85,7 +85,7 @@ type
     procedure _Ranges;
     procedure _FieldNames;
     procedure _Range(var lo, hi: string);
-    procedure _EnumBody(e: TPbEnum);
+    procedure _EnumBody(enum: TPbEnum);
     procedure _EnumField(e: TPbEnum);
     procedure _EnumValueOption(e: TPbEnum);
   protected
@@ -276,31 +276,24 @@ end;
 
 procedure TpbParser._Message(Scope: TIdent);
 var
- msg: TpbMessage;
  name: string;
- list: TIdents<TpbMessage>;
+ msg: TpbMessage;
 begin
   Expect(9);
   _Ident(name);
-  case Scope.Mode of
-    TMode.mModule: list := TpbModule(Scope).messages;
-    TMode.mRecord: list := TpbMessage(Scope).messages;
-    else raise FatalError.Create('Message: invalid scope');
-  end;
-  msg := TpbMessage.Create(Scope, name, tab.Module.CurrentPackage);
-  list.Add(msg);
+  msg := Scope.em.AddMessage(name);
   _MessageBody(msg);
 end;
 
 procedure TpbParser._Enum(Scope: TIdent);
 var
   name: string;
-  e: TPbEnum;
+  enum: TPbEnum;
 begin
   Expect(59);
   _Ident(name);
-  e := TPbEnum.Create(Scope, name);
-  _EnumBody(e);
+  enum := Scope.em.AddEnum(name);
+  _EnumBody(enum);
 end;
 
 procedure TpbParser._Service(Scope: TpbModule);
@@ -873,18 +866,18 @@ begin
   end;
 end;
 
-procedure TpbParser._EnumBody(e: TPbEnum);
+procedure TpbParser._EnumBody(enum: TPbEnum);
 begin
   Expect(10);
   while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
   begin
     if la.kind = 19 then
     begin
-      _Option(e);
+      _Option(enum);
     end
     else if la.kind = 1 then
     begin
-      _EnumField(e);
+      _EnumField(enum);
     end
     else
     begin
