@@ -224,18 +224,6 @@ type
 
 {$EndRegion}
 
-{$Region 'TPbOneOf'}
-
-  TPbOneOf = class(TIdent)
-  private
-    FMsg: TpbMessage;
-  public
-    constructor Create(Scope: TpbMessage; const Name: string);
-    property Msg: TpbMessage read FMsg;
-  end;
-
-{$EndRegion}
-
 {$Region 'TpbType: Base class for all data types'}
 
   // Field type mode
@@ -313,6 +301,22 @@ type
 
 {$EndRegion}
 
+{$Region 'TPbOneOf'}
+
+  TPbOneOf = class(TIdent)
+  private
+    FMsg: TpbMessage;
+    FVariantFields: TIdents<TpbField>;
+  public
+    constructor Create(Scope: TpbMessage; const Name: string);
+    destructor Destroy; override;
+    // Add variant field
+    function AddField(const Name: string; Typ: TpbType; Tag: Integer): TpbField;
+    property Msg: TpbMessage read FMsg;
+  end;
+
+{$EndRegion}
+
 {$Region 'TpbEnum'}
 
   // Enum options kind
@@ -351,12 +355,15 @@ type
     WireType = TWire.LENGTH_DELIMITED;
   private
     FFields: TIdents<TpbField>;
+    FOneOfs: TIdents<TPbOneOf>;
     Fem: Tem;
     FReserved: TIntSet;
     function GetWireSize: Integer;
   public
     constructor Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
     destructor Destroy; override;
+    // Add Oneof to message
+    function AddOneOf(const Name: string): TPbOneOf;
     // Reserved Fields
     property Reserved: TIntSet read FReserved;
     // Enum & message list
@@ -388,6 +395,7 @@ type
     // Add map field to message
     function AddMapField(Scope: TpbMessage; const Name: string;
       KeyTyp, FieldType: TpbType; Tag: Integer): TpbField;
+    // properties
     property Messages: TIdents<TpbMessage> read FMessages;
     property Enums: TIdents<TpbEnum> read FEnums;
   end;
@@ -489,6 +497,8 @@ begin
     // string, bytes, embedded messages, !packed repeated fields
     TTypeMode.tmString, TTypeMode.tmBytes, TTypeMode.tmMessage, TTypeMode.tmMap:
       Result := TWire.LENGTH_DELIMITED;
+    else
+      Result := TWire.LENGTH_DELIMITED;
   end;
 end;
 
@@ -564,6 +574,7 @@ end;
 
 function TIdent.AddOption(const Name: string; const Value: TConst): TpbOption;
 begin
+  Result := nil;
 end;
 
 {$EndRegion}
@@ -658,16 +669,7 @@ end;
 
 function TpbRpc.AddOption(const Name: string; const Value: TConst): TpbOption;
 begin
-
-end;
-
-{$EndRegion}
-
-{$Region 'TpbRpc'}
-
-constructor TPbOneOf.Create(Scope: TpbMessage; const Name: string);
-begin
-  inherited Create(Scope, Name, TMode.mOneOf);
+  Result := nil;
 end;
 
 {$EndRegion}
@@ -702,6 +704,7 @@ end;
 
 function TpbField.AddOption(const Name: string; const Value: TConst): TpbOption;
 begin
+  Result := nil;
 end;
 
 function TpbField.ToString: string;
@@ -717,6 +720,28 @@ end;
 function TpbField.GetOptions: PFieldOptions;
 begin
   Result := @FOptions;
+end;
+
+{$EndRegion}
+
+{$Region 'TPbOneOf'}
+
+constructor TPbOneOf.Create(Scope: TpbMessage; const Name: string);
+begin
+  inherited Create(Scope, Name, TMode.mOneOf);
+  FVariantFields := TIdents<TpbField>.Create;
+end;
+
+destructor TPbOneOf.Destroy;
+begin
+  FVariantFields.Free;
+  inherited;
+end;
+
+function TPbOneOf.AddField(const Name: string; Typ: TpbType; Tag: Integer): TpbField;
+begin
+  Result := TpbField.Create(Msg, Name, Typ, Tag, TFieldRule.Singular);
+  FVariantFields.Add(Result);
 end;
 
 {$EndRegion}
@@ -757,6 +782,12 @@ begin
   FFields.Free;
   Fem.Free;
   inherited;
+end;
+
+function TpbMessage.AddOneOf(const Name: string): TPbOneOf;
+begin
+  Result := TPbOneOf.Create(Self, Name);
+  FOneOfs.Add(Result);
 end;
 
 function TpbMessage.GetWireSize: Integer;

@@ -417,7 +417,7 @@ var
 begin
   Expect(36);
   _Ident(name);
-  oneOf := TPbOneOf.Create(msg, name);
+  oneOf := msg.AddOneOf(name);
   Expect(10);
   while StartOf(3) do
   begin
@@ -730,6 +730,7 @@ begin
   _Ident(name);
   Expect(13);
   _FieldNumber(tag);
+  f := oneOf.AddField(name, ft, tag);
   if la.kind = 34 then
   begin
     Get;

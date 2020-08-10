@@ -273,7 +273,7 @@ OneOf<msg: TpbMessage>       (. var
                                   name: string; .)
 =
 "oneof"
-Ident<name>                  (. oneOf := TPbOneOf.Create(msg, name); .)
+Ident<name>                  (. oneOf := msg.AddOneOf(name); .)
 "{" {
   Option<oneOf>
 | OneOfField<oneOf>
@@ -290,7 +290,7 @@ OneOfField<oneOf: TPbOneOf>  (. var
 Type<ft>
 Ident<name>
 "="
-FieldNumber<tag>
+FieldNumber<tag>             (. f := oneOf.AddField(name, ft, tag); .)
 [ "[" FieldOptions<f>
 "]" ] ";"
 .
