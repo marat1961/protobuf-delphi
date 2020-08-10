@@ -148,18 +148,31 @@ Service<Scope: TpbModule>    (. var
 Rpc<service: TpbService>     (. var
                                   name: string;
                                   typ: TUserType;
-                                  rpc: TIdent; .)
+                                  request, response: TpbType;
+                                  rpc: TpbRpc; .)
 =
 "rpc" Ident<name>
-"("
-[ "stream"
-]
-UserType<typ>
+"(" [ "stream" ]
+UserType<typ>                (. request := service.Module.FindType(typ);
+                                if request = nil then
+                                  SemError(4)
+                                else if request.Mode <> TMode.mRecord then
+                                begin
+                                  SemError(5);
+                                  request := nil;
+                                end; .)
 ")"
 "returns"
 "(" [ "stream" ]
-UserType<typ>
-")"
+UserType<typ>                (. response := service.Module.FindType(typ);
+                                if request = nil then
+                                  SemError(4)
+                                else if request.Mode <> TMode.mRecord then
+                                begin
+                                  SemError(5);
+                                  request := nil;
+                                end; .)
+")"                          (. rpc := service.AddRpc(name, TpbMessage(request), TpbMessage(response)); .)
 (( "{" {
 Option<rpc>
 | EmptyStatement

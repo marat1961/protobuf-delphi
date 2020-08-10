@@ -16,10 +16,13 @@ type
 
   TpbParser= class(TBaseParser)
   const
-    ErrorMessages: array [1..3] of string = (
+    ErrorMessages: array [1..5] of string = (
       {1} 'multiple declaration',
       {2} 'undefined ident',
-      {3} 'not found this module');
+      {3} 'not found this module',
+      {4} 'message type not found',
+      {5} 'message type expected'
+      );
     _EOFSym = 0;
     _identSym = 1;
     _decimalLitSym = 2;
@@ -552,7 +555,8 @@ procedure TpbParser._Rpc(service: TpbService);
 var
   name: string;
   typ: TUserType;
-  rpc: TIdent;
+  request, response: TpbType;
+  rpc: TpbRpc;
 begin
   Expect(24);
   _Ident(name);
@@ -562,6 +566,14 @@ begin
     Get;
   end;
   _UserType(typ);
+  request := service.Module.FindType(typ);
+  if request = nil then
+    SemError(4)
+  else if request.Mode <> TMode.mRecord then
+  begin
+    SemError(5);
+    request := nil;
+  end;
   Expect(21);
   Expect(26);
   Expect(20);
@@ -570,7 +582,16 @@ begin
     Get;
   end;
   _UserType(typ);
+  response := service.Module.FindType(typ);
+  if request = nil then
+    SemError(4)
+  else if request.Mode <> TMode.mRecord then
+  begin
+    SemError(5);
+    request := nil;
+  end;
   Expect(21);
+  rpc := service.AddRpc(name, TpbMessage(request), TpbMessage(response));
   if la.kind = 10 then
   begin
     Get;

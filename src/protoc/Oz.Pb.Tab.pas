@@ -14,6 +14,8 @@ type
   TpbModule = class;         // .proto file
   TpbMessage = class;
   TpbOption = class;
+  TpbService = class;
+  TpbPackage = class;
   Tem = class;
 
 {$Region 'TConst: constant identifier, integer, float, string or boolean value'}
@@ -166,64 +168,6 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbPackage: Package specifier'}
-
-(*  Package Definition
-    ------------------
-    Within a single module, the Package Definition may occur from 0 to n.
-    Some names of declarations may coincide in different modules.
-    In principle, the names of declarations can coincide even within a single file.
-    No one prohibits using the same name in nested messages.
-
-    You can distinguish two different definitions by using a composite name
-    (package name + definition name).
-    By default, the package name is empty.
-
-    Interpretation of the package value
-    -----------------------------------
-    The package definition can be placed several times anywhere in the module.
-    If a package definition is encountered, the current package will be added
-    when parsing the declaration. This is a side effect.
-    Package is placed in each declared entity of the top-level module
-    (message, enumerated type or service).
-    All this means that there are two types of access to declarations in the module:
-     - by short name;
-     - by a composite name. *)
-  TpbPackage = class(TIdent)
-  private
-    FModule: TpbModule;
-  public
-    constructor Create(Scope: TpbModule; const Name: string);
-    property Module: TpbModule read FModule;
-  end;
-
-{$EndRegion}
-
-{$Region 'TpbService'}
-
-  TpbService = class(TIdent)
-  private
-    FModule: TpbModule;
-  public
-    constructor Create(Scope: TpbModule; const Name: string);
-    property Module: TpbModule read FModule;
-  end;
-
-{$EndRegion}
-
-{$Region 'TpbRpc'}
-
-  TpbRpc = class(TIdent)
-  private
-    FService: TpbService;
-  public
-    constructor Create(Scope: TpbService; const Name: string);
-    function AddOption(const Name: string; const Value: TConst): TpbOption; override;
-    property Service: TpbService read FService;
-  end;
-
-{$EndRegion}
-
 {$Region 'TpbType: Base class for all data types'}
 
   // Field type mode
@@ -269,6 +213,41 @@ type
   TpbEmbeddedType = class(TpbType)
   public
     constructor Create(TypMode: TEmbeddedTypes);
+  end;
+
+{$EndRegion}
+
+{$Region 'TpbPackage: Package specifier'}
+
+(*  Package Definition
+    ------------------
+    Within a single module, the Package Definition may occur from 0 to n.
+    Some names of declarations may coincide in different modules.
+    In principle, the names of declarations can coincide even within a single file.
+    No one prohibits using the same name in nested messages.
+
+    You can distinguish two different definitions by using a composite name
+    (package name + definition name).
+    By default, the package name is empty.
+
+    Interpretation of the package value
+    -----------------------------------
+    The package definition can be placed several times anywhere in the module.
+    If a package definition is encountered, the current package will be added
+    when parsing the declaration. This is a side effect.
+    Package is placed in each declared entity of the top-level module
+    (message, enumerated type or service).
+    All this means that there are two types of access to declarations in the module:
+     - by short name;
+     - by a composite name. *)
+  TpbPackage = class(TIdent)
+  private
+    FModule: TpbModule;
+    FTypes: TIdents<TpbType>;
+  public
+    constructor Create(Scope: TpbModule; const Name: string);
+    property Module: TpbModule read FModule;
+    property Types: TIdents<TpbType> read FTypes;
   end;
 
 {$EndRegion}
@@ -336,12 +315,12 @@ type
 
   TpbEnum = class(TpbType)
   private
-    FPackage: string;
+    FPackage: TpbPackage;
     FEnums: TIdents<TEnumValue>;
     FOptions: TEnumOptions;
     function GetOptions: PEnumOptions;
   public
-    constructor Create(Scope: TIdent; const Name, Package: string);
+    constructor Create(Scope: TIdent; const Name: string; Package: TpbPackage);
     destructor Destroy; override;
     property Options: PEnumOptions read GetOptions;
   end;
@@ -354,13 +333,15 @@ type
   public const
     WireType = TWire.LENGTH_DELIMITED;
   private
+    FPackage: TpbPackage;
     FFields: TIdents<TpbField>;
     FOneOfs: TIdents<TPbOneOf>;
     Fem: Tem;
     FReserved: TIntSet;
     function GetWireSize: Integer;
   public
-    constructor Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
+    constructor Create(Tab: TpbTable; Scope: TIdent;
+      const Name: string; Package: TpbPackage);
     destructor Destroy; override;
     // Add Oneof to message
     function AddOneOf(const Name: string): TPbOneOf;
@@ -379,12 +360,13 @@ type
   Tem = class
   private
     FTab: TpbTable;
+    FScope: TIdent;
     FMessages: TIdents<TpbMessage>;
     FEnums: TIdents<TpbEnum>;
   public
-    constructor Create(Tab: TpbTable);
+    constructor Create(Tab: TpbTable; Scope: TIdent);
     destructor Destroy; override;
-    function FindType(const Name: string): TpbType;
+    function FindType(const Typ: TUserType): TpbType;
     // Add message to module or meassge
     function AddMessage(Scope: TIdent; const Name: string): TpbMessage;
     // Add enum to module or meassge
@@ -402,6 +384,41 @@ type
 
 {$EndRegion}
 
+{$Region 'TpbRpc'}
+
+  TpbRpc = class(TIdent)
+  private
+    FService: TpbService;
+    FRequest: TpbMessage;
+    FResponse: TpbMessage;
+  public
+    constructor Create(Scope: TpbService; const Name: string;
+      Request, Response: TpbMessage);
+    function AddOption(const Name: string; const Value: TConst): TpbOption; override;
+    property Service: TpbService read FService;
+    property Request: TpbMessage read FRequest;
+    property Response: TpbMessage read FResponse;
+  end;
+
+{$EndRegion}
+
+{$Region 'TpbService'}
+
+  TpbService = class(TIdent)
+  private
+    FModule: TpbModule;
+    FRpcSystem: TIdents<TpbRpc>;
+  public
+    constructor Create(Scope: TpbModule; const Name: string);
+    // Add Rpc (Remote procedure call) to service
+    function AddRpc(const Name: string; Request, Response: TpbMessage): TpbRpc;
+    property Module: TpbModule read FModule;
+    // Remote procedure ñall system
+    property RpcSystem: TIdents<TpbRpc> read FRpcSystem;
+  end;
+
+{$EndRegion}
+
 {$Region 'TpbModule: translation unit'}
 
   // Importing definition
@@ -413,7 +430,7 @@ type
     FSyntax: TSyntaxVersion;
     FImport: TIdents<TpbModule>;
     FOptions: TIdents<TpbOption>;
-    FCurrentPackage: string;
+    FCurrentPackage: TpbPackage;
     FPackages: TIdents<TpbPackage>;
     Fem: Tem;
     // Search the module recursively
@@ -424,10 +441,10 @@ type
     destructor Destroy; override;
     // Search the module recursively and if not found then open the file
     function LookupImport(const Name: string; Weak: Boolean): TpbModule;
-    // Search the map type and if not found then create
+    // Search the pair <KeyTyp, FieldType> and if not found then create it
     function LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
-    // Search by name recursively
-    function Find(const Name: string): TIdent;
+    // Search type recursively
+    function FindType(const typ: TUserType): TpbType;
     // Add package and update its current value
     function AddPackage(const Name: string): TpbPackage;
     // Add module option
@@ -438,7 +455,7 @@ type
     property Import: TIdents<TpbModule> read FImport;
     property Options: TIdents<TpbOption> read FOptions;
     property Packages: TIdents<TpbPackage> read FPackages;
-    property CurrentPackage: string read FCurrentPackage;
+    property CurrentPackage: TpbPackage read FCurrentPackage;
     // Enum & message list
     property Em: Tem read FEM;
   end;
@@ -455,14 +472,11 @@ type
     FModule: TpbModule;
     // root node for predefined elements
     FSystem: TpbModule;
-    function FindImport(const id: string): TpbMessage;
     // Fill predefined elements
     procedure InitSystem;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
-    // Search object by id
-    function Find(const id: string): TIdent;
     // Get embedded type by kind
     function GetBasisType(kind: TTypeMode): TpbEmbeddedType;
     // Get message or enum type
@@ -651,29 +665,6 @@ end;
 
 {$EndRegion}
 
-{$Region 'TpbPackage'}
-
-constructor TpbService.Create(Scope: TpbModule; const Name: string);
-begin
-  inherited Create(Scope, Name, TMode.mService);
-end;
-
-{$EndRegion}
-
-{$Region 'TpbRpc'}
-
-constructor TpbRpc.Create(Scope: TpbService; const Name: string);
-begin
-  inherited Create(Scope, Name, TMode.mRpc);
-end;
-
-function TpbRpc.AddOption(const Name: string; const Value: TConst): TpbOption;
-begin
-  Result := nil;
-end;
-
-{$EndRegion}
-
 {$Region 'TpbType'}
 
 constructor TpbType.Create(Scope: TIdent; const Name: string;
@@ -748,11 +739,13 @@ end;
 
 {$Region 'TpbType'}
 
-constructor TpbEnum.Create(Scope: TIdent; const Name, Package: string);
+constructor TpbEnum.Create(Scope: TIdent; const Name: string; Package: TpbPackage);
 begin
   inherited Create(Scope, Name, TTypeMode.tmEnum);
-  FPackage := Package;
   FEnums := TIdents<TEnumValue>.Create;
+  FPackage := Package;
+  if Package <> nil then
+    Package.FTypes.Add(Self);
 end;
 
 destructor TpbEnum.Destroy;
@@ -770,11 +763,15 @@ end;
 
 {$Region 'TpbMessage'}
 
-constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent; const Name, Package: string);
+constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent;
+  const Name: string; Package: TpbPackage);
 begin
   inherited Create(Scope, Name, TTypeMode.tmMessage);
   FFields := TIdents<TpbField>.Create;
-  Fem := Tem.Create(Tab);
+  Fem := Tem.Create(Tab, Self);
+  FPackage := Package;
+  if Package <> nil then
+    Package.FTypes.Add(Self);
 end;
 
 destructor TpbMessage.Destroy;
@@ -805,10 +802,11 @@ end;
 
 {$Region 'Tem'}
 
-constructor Tem.Create(Tab: TpbTable);
+constructor Tem.Create(Tab: TpbTable; Scope: TIdent);
 begin
   inherited Create;
   FTab := Tab;
+  FScope := Scope;
   FMessages := TIdents<TpbMessage>.Create;
   FEnums := TIdents<TpbEnum>.Create;
 end;
@@ -820,22 +818,49 @@ begin
   inherited;
 end;
 
-function Tem.FindType(const Name: string): TpbType;
+function Tem.FindType(const Typ: TUserType): TpbType;
+var
+  Package: TpbPackage;
 begin
-  Result := FMessages.Find(Name);
+(*
+Realize type search according to the strategy:
+ - start from the current visibility area and move to the outside;
+ - in reverse order, we can use the same algorithm...
+   without stopping for the first match.
+Adding a type in the current module:
+ - type with a short name, put in module types;
+ - type with composite name (name + package) duplicated in the list of packages.
+*)
+  if (Typ.Package <> '') and (FScope.Mode = TMode.mModule) then
+  begin
+    Package := TpbModule(FScope).Packages.Find(Typ.Package);
+    Result := Package.Types.Find(Typ.Name);
+    if Result <> nil then exit;
+  end;
+  Result := FMessages.Find(Typ.Name);
   if Result <> nil then exit;
-  Result := FEnums.Find(Name);
+  Result := FEnums.Find(Typ.Name);
 end;
 
 function Tem.AddMessage(Scope: TIdent; const Name: string): TpbMessage;
+var Package: TpbPackage;
 begin
-  Result := TpbMessage.Create(FTab, Scope, Name, FTab.Module.CurrentPackage);
+  if Scope.Mode = TMode.mModule then
+    Package := TpbModule(Scope).CurrentPackage
+  else
+    Package := nil;
+  Result := TpbMessage.Create(FTab, Scope, Name, Package);
   FMessages.Add(Result);
 end;
 
 function Tem.AddEnum(Scope: TIdent; const Name: string): TpbEnum;
+var Package: TpbPackage;
 begin
-  Result := TpbEnum.Create(Scope, Name, FTab.Module.CurrentPackage);
+  if Scope.Mode = TMode.mModule then
+    Package := TpbModule(Scope).CurrentPackage
+  else
+    Package := nil;
+  Result := TpbEnum.Create(Scope, Name, Package);
   FEnums.Add(Result);
 end;
 
@@ -858,6 +883,38 @@ end;
 
 {$EndRegion}
 
+{$Region 'TpbPackage'}
+
+constructor TpbService.Create(Scope: TpbModule; const Name: string);
+begin
+  inherited Create(Scope, Name, TMode.mService);
+end;
+
+function TpbService.AddRpc(const Name: string; Request, Response: TpbMessage): TpbRpc;
+begin
+  Result := TpbRpc.Create(Self, Name, Request, Response);
+  FRpcSystem.Add(Result);
+end;
+
+{$EndRegion}
+
+{$Region 'TpbRpc'}
+
+constructor TpbRpc.Create(Scope: TpbService; const Name: string;
+  Request, Response: TpbMessage);
+begin
+  inherited Create(Scope, Name, TMode.mRpc);
+  FRequest := Request;
+  FResponse := Response;
+end;
+
+function TpbRpc.AddOption(const Name: string; const Value: TConst): TpbOption;
+begin
+  Result := nil;
+end;
+
+{$EndRegion}
+
 {$Region 'TpbModule'}
 
 constructor TpbModule.Create(Tab: TpbTable; Scope: TIdent; const Name: string;
@@ -866,7 +923,7 @@ begin
   inherited Create(Scope, Name, TMode.mModule);
   FImport := TIdents<TpbModule>.Create;
   FPackages := TIdents<TpbPackage>.Create;
-  Fem := Tem.Create(Tab);
+  Fem := Tem.Create(Tab, Self);
 end;
 
 destructor TpbModule.Destroy;
@@ -891,17 +948,15 @@ begin
   Result := nil;
 end;
 
-function TpbModule.Find(const Name: string): TIdent;
+function TpbModule.FindType(const typ: TUserType): TpbType;
 begin
-  Result := FindImport(Name);
-  if Result <> nil then exit;
-  Result := em.FindType(Name);
+  Result := em.FindType(typ);
 end;
 
 function TpbModule.AddPackage(const Name: string): TpbPackage;
 begin
   Result := TpbPackage.Create(Self, Name);
-  FCurrentPackage := FCurrentPackage;
+  FCurrentPackage := Result;
 end;
 
 function TpbModule.AddOption(const Name: string; const Value: TConst): TpbOption;
@@ -931,6 +986,7 @@ begin
   inherited;
   FModule := TpbModule.Create(Self, nil, 'import', {weak=}True);
   FSystem := TpbModule.Create(Self, nil, 'System', {weak=}False);
+  InitSystem;
 end;
 
 destructor TpbTable.Destroy;
@@ -950,13 +1006,6 @@ end;
 function TpbTable.GetBasisType(kind: TTypeMode): TpbEmbeddedType;
 begin
   Result := FEmbeddedTypes[kind];
-end;
-
-function TpbTable.Find(const id: string): TIdent;
-begin
-  Result := FSystem.Find(id);
-  if Result = nil then
-    Result := FModule.Find(id);
 end;
 
 function TpbTable.GetUserType(const typ: TUserType): TpbType;
@@ -1004,11 +1053,6 @@ end;
 function TpbTable.Dump: string;
 begin
   Result := '';
-end;
-
-function TpbTable.FindImport(const id: string): TpbMessage;
-begin
-  Result := nil;
 end;
 
 function TpbTable.GenScript: string;

@@ -16,10 +16,13 @@ type
 
   -->parser<= class(TBaseParser)
   const
-    ErrorMessages: array [1..3] of string = (
+    ErrorMessages: array [1..5] of string = (
       {1} 'multiple declaration',
       {2} 'undefined ident',
-      {3} 'not found this module');-->declarations<
+      {3} 'not found this module',
+      {4} 'message type not found',
+      {5} 'message type expected'
+      );-->declarations<
 -->constants<  private
     procedure SemError(n: Integer);
 -->headers<  protected
