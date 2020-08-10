@@ -385,6 +385,9 @@ type
     // Add field to message
     function AddField(Scope: TpbMessage; const Name: string; Typ: TpbType;
       Tag: Integer; Rule: TFieldRule): TpbField;
+    // Add map field to message
+    function AddMapField(Scope: TpbMessage; const Name: string;
+      KeyTyp, FieldType: TpbType; Tag: Integer): TpbField;
     property Messages: TIdents<TpbMessage> read FMessages;
     property Enums: TIdents<TpbEnum> read FEnums;
   end;
@@ -413,6 +416,8 @@ type
     destructor Destroy; override;
     // Search the module recursively and if not found then open the file
     function LookupImport(const Name: string; Weak: Boolean): TpbModule;
+    // Search the map type and if not found then create
+    function LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
     // Search by name recursively
     function Find(const Name: string): TIdent;
     // Add package and update its current value
@@ -803,10 +808,20 @@ begin
   FEnums.Add(Result);
 end;
 
-function Tem.AddField(Scope: TpbMessage; const Name: string; Typ: TpbType;
-  Tag: Integer; Rule: TFieldRule): TpbField;
+function Tem.AddField(Scope: TpbMessage; const Name: string;
+  Typ: TpbType; Tag: Integer; Rule: TFieldRule): TpbField;
 begin
   Result := TpbField.Create(Scope, Name, Typ, Tag, Rule);
+  Scope.FFields.Add(Result);
+end;
+
+function Tem.AddMapField(Scope: TpbMessage; const Name: string;
+  KeyTyp, FieldType: TpbType; Tag: Integer): TpbField;
+var
+  Typ: TpbType;
+begin
+  Typ := FTab.Module.LookupMapType(KeyTyp, FieldType);
+  Result := TpbField.Create(Scope, Name, Typ, Tag, TFieldRule.Singular);
   Scope.FFields.Add(Result);
 end;
 
@@ -838,6 +853,11 @@ begin
   Result := FindImport(Name);
   if Result = nil then
     Result := FTab.OpenModule(Self, Name, Weak);
+end;
+
+function TpbModule.LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
+begin
+  Result := nil;
 end;
 
 function TpbModule.Find(const Name: string): TIdent;

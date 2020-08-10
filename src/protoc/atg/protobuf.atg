@@ -231,8 +231,9 @@ EmptyStatement = ";"
 // Constant
 
 Constant<var c: TConst>      (. var
-                                  s: string; i, sign: Integer;
-                                  d: Double; b: Boolean; .)
+                                  s: string;
+                                  i, sign: Integer;
+                                  d: Double; .)
 =
 FullIdent<s>                 (. c.AsIdent(s); .)
 | (                          (. sign := 1; .)
@@ -240,8 +241,8 @@ FullIdent<s>                 (. c.AsIdent(s); .)
   | "+"
   ]
   (
-  intLit<i>                  (. c.AsInt(i); .)
-  | floatLit<d>              (. c.AsFloat(d); .)
+  intLit<i>                  (. c.AsInt(i * sign); .)
+  | floatLit<d>              (. c.AsFloat(d * sign); .)
   ))
 | strLit                     (. c.AsStr(t.val); .)
 | boolLit                    (. c.AsBool(t.val); .)
@@ -261,9 +262,9 @@ Field<msg: TpbMessage>       (. var
 Type<ft>
 Ident<name>
 "="
-FieldNumber<tag>
+FieldNumber<tag>             (. f := msg.em.AddField(msg, name, ft, tag, rule); .)
 [ "[" FieldOptions<f>
-"]" ]                        (. msg.em.AddField(msg, name, ft, tag, rule); .)
+"]" ]
 ";"
 .
 
@@ -306,17 +307,17 @@ Constant<Cv>                 (. f.AddOption(name, Cv); .)
 .
 
 MapField<msg: TpbMessage>    (. var
-                                  f: TPbField;
                                   name: string;
                                   tag: Integer;
-                                  kt, ft: TpbType; .)
+                                  kt, ft: TpbType;
+                                  f: TPbField; .)
 =
 "map" "<" KeyType<kt>
 "," Type<ft>
 ">"
 Ident<name>
 "="
-FieldNumber<tag>
+FieldNumber<tag>             (. f := msg.em.AddMapField(msg, name, kt, ft, tag); .)
 [ "[" FieldOptions<f>
 "]" ]
 ";"

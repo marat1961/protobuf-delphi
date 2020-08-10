@@ -374,22 +374,22 @@ begin
   _Ident(name);
   Expect(13);
   _FieldNumber(tag);
+  f := msg.em.AddField(msg, name, ft, tag, rule);
   if la.kind = 34 then
   begin
     Get;
     _FieldOptions(f);
     Expect(35);
   end;
-  msg.em.AddField(msg, name, ft, tag, rule);
   Expect(14);
 end;
 
 procedure TpbParser._MapField(msg: TpbMessage);
 var
-  f: TPbField;
   name: string;
   tag: Integer;
   kt, ft: TpbType;
+  f: TPbField;
 begin
   Expect(38);
   Expect(39);
@@ -400,6 +400,7 @@ begin
   _Ident(name);
   Expect(13);
   _FieldNumber(tag);
+  f := msg.em.AddMapField(msg, name, kt, ft, tag);
   if la.kind = 34 then
   begin
     Get;
@@ -496,8 +497,9 @@ end;
 
 procedure TpbParser._Constant(var c: TConst);
 var
-  s: string; i, sign: Integer;
-  d: Double; b: Boolean;
+  s: string;
+  i, sign: Integer;
+  d: Double;
 begin
   if la.kind = 1 then
   begin
@@ -522,12 +524,12 @@ begin
     if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
     begin
       _intLit(i);
-      c.AsInt(i);
+      c.AsInt(i * sign);
     end
     else if (la.kind = 5) or (la.kind = 27) or (la.kind = 28) then
     begin
       _floatLit(d);
-      c.AsFloat(d);
+      c.AsFloat(d * sign);
     end
     else
       SynErr(64);
