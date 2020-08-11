@@ -159,7 +159,7 @@ begin
     begin
       _Option(Scope);
     end
-    else if (la.kind = 9) or (la.kind = 23) or (la.kind = 59) then
+    else if (la.kind = 9) or (la.kind = 23) or (la.kind = 61) then
     begin
       _TopLevelDef(Scope);
     end
@@ -176,9 +176,9 @@ begin
   Expect(13);
   _strLit;
   tab.Module.Syntax := TSyntaxVersion.Proto2;
-  if t.val = 'proto3' then
+  if t.val = '"' + 'proto3' + '"' then
     tab.Module.Syntax := TSyntaxVersion.Proto3
-  else if t.val <> 'proto2' then
+  else if t.val <> '"' + 'proto2' + '"' then
     SemErr('invalid syntax version');
   Expect(14);
 end;
@@ -233,7 +233,7 @@ begin
   begin
     _Message(tab.Module);
   end
-  else if la.kind = 59 then
+  else if la.kind = 61 then
   begin
     _Enum(tab.Module);
   end
@@ -242,7 +242,7 @@ begin
     _Service(tab.Module);
   end
   else
-    SynErr(61);
+    SynErr(63);
 end;
 
 procedure TpbParser._EmptyStatement;
@@ -262,15 +262,15 @@ begin
   while StartOf(2) do
   begin
     case la.kind of
-      1, 22, 33, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55:
+      1, 22, 33, 34, 35, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
       begin
         _Field(msg);
       end;
-      38:
+      40:
       begin
         _MapField(msg);
       end;
-      59:
+      61:
       begin
         _Enum(msg);
       end;
@@ -282,11 +282,11 @@ begin
       begin
         _Option(msg);
       end;
-      36:
+      38:
       begin
         _OneOf(msg);
       end;
-      56:
+      58:
       begin
         _Reserved(msg);
       end;
@@ -304,7 +304,7 @@ var
   name: string;
   enum: TPbEnum;
 begin
-  Expect(59);
+  Expect(61);
   _Ident(name);
   enum := Scope.em.AddEnum(Scope, name);
   Expect(10);
@@ -368,21 +368,33 @@ var
   ft: TpbType;
 begin
   rule := TFieldRule.Singular;
-  if la.kind = 33 then
+  if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
   begin
-    Get;
-    rule := TFieldRule.Repeated;
+    if la.kind = 33 then
+    begin
+      Get;
+      rule := TFieldRule.Repeated;
+    end
+    else if la.kind = 34 then
+    begin
+      Get;
+      rule := TFieldRule.Optional;
+    end
+    else
+    begin
+      Get;
+    end;
   end;
   _Type(ft);
   _Ident(name);
   Expect(13);
   _FieldNumber(tag);
   f := msg.em.AddField(msg, name, ft, tag, rule);
-  if la.kind = 34 then
+  if la.kind = 36 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(35);
+    Expect(37);
   end;
   Expect(14);
 end;
@@ -394,21 +406,21 @@ var
   kt, ft: TpbType;
   f: TPbField;
 begin
-  Expect(38);
-  Expect(39);
-  _KeyType(kt);
-  Expect(37);
-  _Type(ft);
   Expect(40);
+  Expect(41);
+  _KeyType(kt);
+  Expect(39);
+  _Type(ft);
+  Expect(42);
   _Ident(name);
   Expect(13);
   _FieldNumber(tag);
   f := msg.em.AddMapField(msg, name, kt, ft, tag);
-  if la.kind = 34 then
+  if la.kind = 36 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(35);
+    Expect(37);
   end;
   Expect(14);
 end;
@@ -418,7 +430,7 @@ var
   oneOf: TPbOneOf;
   name: string;
 begin
-  Expect(36);
+  Expect(38);
   _Ident(name);
   oneOf := msg.AddOneOf(name);
   Expect(10);
@@ -442,7 +454,7 @@ end;
 
 procedure TpbParser._Reserved(msg: TpbMessage);
 begin
-  Expect(56);
+  Expect(58);
   if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
   begin
     _Ranges(msg.Reserved);
@@ -452,7 +464,7 @@ begin
     _FieldNames;
   end
   else
-    SynErr(62);
+    SynErr(64);
   Expect(14);
 end;
 
@@ -489,7 +501,7 @@ begin
     Expect(21);
   end
   else
-    SynErr(63);
+    SynErr(65);
   while la.kind = 22 do
   begin
     Get;
@@ -535,7 +547,7 @@ begin
       c.AsFloat(d * sign);
     end
     else
-      SynErr(64);
+      SynErr(66);
   end
   else if la.kind = 6 then
   begin
@@ -548,7 +560,7 @@ begin
     c.AsBool(t.val);
   end
   else
-    SynErr(65);
+    SynErr(67);
 end;
 
 procedure TpbParser._Rpc(service: TpbService);
@@ -613,7 +625,7 @@ begin
     Get;
   end
   else
-    SynErr(66);
+    SynErr(68);
 end;
 
 procedure TpbParser._UserType(var typ: TUserType);
@@ -655,7 +667,7 @@ begin
     n := tab.ParseInt(t.val, 16);
   end
   else
-    SynErr(67);
+    SynErr(69);
 end;
 
 procedure TpbParser._floatLit(var n: Double);
@@ -677,7 +689,7 @@ begin
     n := NaN;
   end
   else
-    SynErr(68);
+    SynErr(70);
 end;
 
 procedure TpbParser._boolLit;
@@ -691,23 +703,23 @@ begin
     Get;
   end
   else
-    SynErr(69);
+    SynErr(71);
 end;
 
 procedure TpbParser._Type(var ft: TpbType);
 var typ: TUserType;
 begin
-  if la.kind = 41 then
+  if la.kind = 43 then
   begin
     Get;
     ft := tab.GetBasisType(TTypeMode.tmDouble);
   end
-  else if la.kind = 42 then
+  else if la.kind = 44 then
   begin
     Get;
     ft := tab.GetBasisType(TTypeMode.tmFloat);
   end
-  else if la.kind = 43 then
+  else if la.kind = 45 then
   begin
     Get;
     ft := tab.GetBasisType(TTypeMode.tmBytes);
@@ -722,7 +734,7 @@ begin
     ft := tab.GetUserType(typ);
   end
   else
-    SynErr(70);
+    SynErr(72);
 end;
 
 procedure TpbParser._FieldNumber(var tag: Integer);
@@ -733,7 +745,7 @@ end;
 procedure TpbParser._FieldOptions(f: TPbField);
 begin
   _FieldOption(f);
-  while la.kind = 37 do
+  while la.kind = 39 do
   begin
     Get;
     _FieldOption(f);
@@ -752,11 +764,11 @@ begin
   Expect(13);
   _FieldNumber(tag);
   f := oneOf.AddField(name, ft, tag);
-  if la.kind = 34 then
+  if la.kind = 36 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(35);
+    Expect(37);
   end;
   Expect(14);
 end;
@@ -773,68 +785,68 @@ end;
 procedure TpbParser._KeyType(var ft: TpbType);
 begin
   case la.kind of
-    44:
+    46:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmInt32);
     end;
-    45:
+    47:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmInt64);
     end;
-    46:
+    48:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmUint32);
     end;
-    47:
+    49:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmUint64);
     end;
-    48:
+    50:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmSint32);
     end;
-    49:
+    51:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmSint64);
     end;
-    50:
+    52:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmFixed32);
     end;
-    51:
+    53:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmFixed64);
     end;
-    52:
+    54:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmSfixed32);
     end;
-    53:
+    55:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmSfixed64);
     end;
-    54:
+    56:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmBool);
     end;
-    55:
+    57:
     begin
       Get;
       ft := tab.GetBasisType(TTypeMode.tmString);
     end;
     else
-      SynErr(71);
+      SynErr(73);
   end;
 end;
 
@@ -843,7 +855,7 @@ var lo, hi: Integer;
 begin
   _Range(lo, hi);
   Reserved.AddRange(lo, hi);
-  while la.kind = 37 do
+  while la.kind = 39 do
   begin
     Get;
     _Range(lo, hi);
@@ -855,7 +867,7 @@ procedure TpbParser._FieldNames;
 var name: string;
 begin
   _Ident(name);
-  while la.kind = 37 do
+  while la.kind = 39 do
   begin
     Get;
     _Ident(name);
@@ -865,20 +877,20 @@ end;
 procedure TpbParser._Range(var lo, hi: Integer);
 begin
   _intLit(lo);
-  if la.kind = 57 then
+  if la.kind = 59 then
   begin
     Get;
     if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
     begin
       _intLit(hi);
     end
-    else if la.kind = 58 then
+    else if la.kind = 60 then
     begin
       Get;
       hi := 65535;
     end
     else
-      SynErr(72);
+      SynErr(74);
   end;
 end;
 
@@ -892,16 +904,16 @@ begin
     Get;
   end;
   _intLit(n);
-  if la.kind = 34 then
+  if la.kind = 36 then
   begin
     Get;
     _EnumValueOption(e);
-    while la.kind = 37 do
+    while la.kind = 39 do
     begin
       Get;
       _EnumValueOption(e);
     end;
-    Expect(35);
+    Expect(37);
   end;
   Expect(14);
 end;
@@ -930,21 +942,21 @@ function TpbParser.Starts(s, kind: Integer): Boolean;
 const
   x = false;
   T = true;
-  sets: array [0..6] of array [0..61] of Boolean = (
-    (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x),
-    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x),
-    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,x,x, T,x,T,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,x,x,T, x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,T, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x),
-    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x),
-    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, T,T,T,T, T,T,T,T, T,T,T,T, x,x,x,x, x,x));
+  sets: array [0..6] of array [0..63] of Boolean = (
+    (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
+    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, T,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
+    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x));
 begin
   Result := sets[s, kind];
 end;
 
 function TpbParser.ErrorMsg(nr: Integer): string;
 const
-  MaxErr = 72;
+  MaxErr = 74;
   Errors: array [0 .. MaxErr] of string = (
     {0} 'EOF expected',
     {1} 'ident expected',
@@ -980,45 +992,47 @@ const
     {31} '"-" expected',
     {32} '"+" expected',
     {33} '"repeated" expected',
-    {34} '"[" expected',
-    {35} '"]" expected',
-    {36} '"oneof" expected',
-    {37} '"," expected',
-    {38} '"map" expected',
-    {39} '"<" expected',
-    {40} '">" expected',
-    {41} '"double" expected',
-    {42} '"float" expected',
-    {43} '"bytes" expected',
-    {44} '"int32" expected',
-    {45} '"int64" expected',
-    {46} '"uint32" expected',
-    {47} '"uint64" expected',
-    {48} '"sint32" expected',
-    {49} '"sint64" expected',
-    {50} '"fixed32" expected',
-    {51} '"fixed64" expected',
-    {52} '"sfixed32" expected',
-    {53} '"sfixed64" expected',
-    {54} '"bool" expected',
-    {55} '"string" expected',
-    {56} '"reserved" expected',
-    {57} '"to" expected',
-    {58} '"max" expected',
-    {59} '"enum" expected',
-    {60} '??? expected',
-    {61} 'invalid TopLevelDef',
-    {62} 'invalid Reserved',
-    {63} 'invalid OptionName',
-    {64} 'invalid Constant',
-    {65} 'invalid Constant',
-    {66} 'invalid Rpc',
-    {67} 'invalid intLit',
-    {68} 'invalid floatLit',
-    {69} 'invalid boolLit',
-    {70} 'invalid Type',
-    {71} 'invalid KeyType',
-    {72} 'invalid Range');
+    {34} '"optional" expected',
+    {35} '"required" expected',
+    {36} '"[" expected',
+    {37} '"]" expected',
+    {38} '"oneof" expected',
+    {39} '"," expected',
+    {40} '"map" expected',
+    {41} '"<" expected',
+    {42} '">" expected',
+    {43} '"double" expected',
+    {44} '"float" expected',
+    {45} '"bytes" expected',
+    {46} '"int32" expected',
+    {47} '"int64" expected',
+    {48} '"uint32" expected',
+    {49} '"uint64" expected',
+    {50} '"sint32" expected',
+    {51} '"sint64" expected',
+    {52} '"fixed32" expected',
+    {53} '"fixed64" expected',
+    {54} '"sfixed32" expected',
+    {55} '"sfixed64" expected',
+    {56} '"bool" expected',
+    {57} '"string" expected',
+    {58} '"reserved" expected',
+    {59} '"to" expected',
+    {60} '"max" expected',
+    {61} '"enum" expected',
+    {62} '??? expected',
+    {63} 'invalid TopLevelDef',
+    {64} 'invalid Reserved',
+    {65} 'invalid OptionName',
+    {66} 'invalid Constant',
+    {67} 'invalid Constant',
+    {68} 'invalid Rpc',
+    {69} 'invalid intLit',
+    {70} 'invalid floatLit',
+    {71} 'invalid boolLit',
+    {72} 'invalid Type',
+    {73} 'invalid KeyType',
+    {74} 'invalid Range');
 begin
   if nr <= MaxErr then
     Result := Errors[nr]

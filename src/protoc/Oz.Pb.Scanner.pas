@@ -31,8 +31,8 @@ var
   i: Integer;
 begin
   inherited;
-  MaxToken := 60;
-  NoSym := 60;
+  MaxToken := 62;
+  NoSym := 62;
   for i := 65 to 90 do start.Add(i, 1);
   for i := 97 to 122 do start.Add(i, 1);
   for i := 49 to 57 do start.Add(i, 14);
@@ -199,48 +199,52 @@ begin
     t.kind := 30
   else if t.val = 'repeated' then
     t.kind := 33
+  else if t.val = 'optional' then
+    t.kind := 34
+  else if t.val = 'required' then
+    t.kind := 35
   else if t.val = 'oneof' then
-    t.kind := 36
-  else if t.val = 'map' then
     t.kind := 38
+  else if t.val = 'map' then
+    t.kind := 40
   else if t.val = 'double' then
-    t.kind := 41
-  else if t.val = 'float' then
-    t.kind := 42
-  else if t.val = 'bytes' then
     t.kind := 43
-  else if t.val = 'int32' then
+  else if t.val = 'float' then
     t.kind := 44
-  else if t.val = 'int64' then
+  else if t.val = 'bytes' then
     t.kind := 45
-  else if t.val = 'uint32' then
+  else if t.val = 'int32' then
     t.kind := 46
-  else if t.val = 'uint64' then
+  else if t.val = 'int64' then
     t.kind := 47
-  else if t.val = 'sint32' then
+  else if t.val = 'uint32' then
     t.kind := 48
-  else if t.val = 'sint64' then
+  else if t.val = 'uint64' then
     t.kind := 49
-  else if t.val = 'fixed32' then
+  else if t.val = 'sint32' then
     t.kind := 50
-  else if t.val = 'fixed64' then
+  else if t.val = 'sint64' then
     t.kind := 51
-  else if t.val = 'sfixed32' then
+  else if t.val = 'fixed32' then
     t.kind := 52
-  else if t.val = 'sfixed64' then
+  else if t.val = 'fixed64' then
     t.kind := 53
-  else if t.val = 'bool' then
+  else if t.val = 'sfixed32' then
     t.kind := 54
-  else if t.val = 'string' then
+  else if t.val = 'sfixed64' then
     t.kind := 55
-  else if t.val = 'reserved' then
+  else if t.val = 'bool' then
     t.kind := 56
-  else if t.val = 'to' then
+  else if t.val = 'string' then
     t.kind := 57
-  else if t.val = 'max' then
+  else if t.val = 'reserved' then
     t.kind := 58
-  else if t.val = 'enum' then
+  else if t.val = 'to' then
     t.kind := 59
+  else if t.val = 'max' then
+    t.kind := 60
+  else if t.val = 'enum' then
+    t.kind := 61
 end;
 
 function TpbScanner.NextToken: TToken;
@@ -678,23 +682,23 @@ begin
       end;
       35:
       begin
-        t.kind := 34; break;
+        t.kind := 36; break;
       end;
       36:
       begin
-        t.kind := 35; break;
+        t.kind := 37; break;
       end;
       37:
       begin
-        t.kind := 37; break;
+        t.kind := 39; break;
       end;
       38:
       begin
-        t.kind := 39; break;
+        t.kind := 41; break;
       end;
       39:
       begin
-        t.kind := 40; break;
+        t.kind := 42; break;
       end;
     end;
   until false;

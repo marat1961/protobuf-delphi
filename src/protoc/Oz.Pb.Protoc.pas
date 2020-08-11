@@ -17,7 +17,6 @@ var
   options: TOptions;
   str: TStringList;
   parser: TpbParser;
-  sr: TSearchRec;
   src, filename: string;
 begin
   options := GetOptions;
@@ -40,7 +39,6 @@ begin
       parser := TpbParser.Create(TpbScanner.Create(src), str);
       try
         parser.Parse;
-        FindClose(sr);
         Writeln(parser.errors.count, ' errors detected');
         parser.PrintErrors;
         filename := TPath.Combine(options.srcDir, 'errors.lst');

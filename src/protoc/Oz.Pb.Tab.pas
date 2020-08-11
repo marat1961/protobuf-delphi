@@ -575,9 +575,9 @@ end;
 
 function TIdent.GetEm: Tem;
 begin
-  case Scope.Mode of
-    TMode.mModule: Result := TpbModule(Scope).Em;
-    TMode.mRecord: Result := TpbMessage(Scope).Em;
+  case Mode of
+    TMode.mModule: Result := TpbModule(Self).Em;
+    TMode.mRecord: Result := TpbMessage(Self).Em;
     else raise FatalError.Create('Message: invalid scope');
   end;
 end;
@@ -669,8 +669,15 @@ end;
 
 constructor TpbType.Create(Scope: TIdent; const Name: string;
   TypeMode: TTypeMode; const Desc: string = '');
+var
+  m: TMode;
 begin
-  inherited Create(Scope, Name, TMode.mType);
+  case TypeMode of
+    TTypeMode.tmMessage: m := TMode.mRecord;
+    TTypeMode.tmEnum: m := TMode.mEnum;
+    else m := TMode.mType;
+  end;
+  inherited Create(Scope, Name, m);
   FTypeMode := TypeMode;
   FDesc := Desc;
 end;
