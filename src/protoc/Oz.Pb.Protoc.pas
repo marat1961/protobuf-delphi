@@ -1,6 +1,6 @@
 unit Oz.Pb.Protoc;
-// Protocol buffer code generator, for Delphi
-// Copyright (c) 2020 Tomsk, Marat Shaimardanov
+// Protocol buffer code generator, for Delphi
+// Copyright (c) 2020 Tomsk, Marat Shaimardanov
 
 interface
 
@@ -17,7 +17,7 @@ var
   options: TOptions;
   str: TStringList;
   parser: TpbParser;
-  src, filename: string;
+  src, stem, filename: string;
 begin
   options := GetOptions;
   Writeln(options.GetVersion);
@@ -41,18 +41,17 @@ begin
         parser.Parse;
         Writeln(parser.errors.count, ' errors detected');
         parser.PrintErrors;
-        filename := TPath.Combine(options.srcDir, 'errors.lst');
+        stem := TPath.GetFilenameWithoutExtension(options.SrcName);
+        filename := TPath.Combine(options.srcDir, stem + '.lst');
         str.SaveToFile(filename);
       finally
         str.Free;
         parser.Free;
       end;
     except
-      on e: FatalError do
-        Writeln('-- ', e.Message);
+      on e: FatalError do Writeln('-- ', e.Message);
     end;
   end;
 end;
 
 end.
-
