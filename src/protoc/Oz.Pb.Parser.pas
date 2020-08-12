@@ -176,9 +176,9 @@ begin
   Expect(13);
   _strLit;
   tab.Module.Syntax := TSyntaxVersion.Proto2;
-  if t.val = '"' + 'proto3' + '"' then
+  if t.val = '"proto3"' then
     tab.Module.Syntax := TSyntaxVersion.Proto3
-  else if t.val <> '"' + 'proto2' + '"' then
+  else if t.val <> '"proto2"' then
     SemErr('invalid syntax version');
   Expect(14);
 end;
