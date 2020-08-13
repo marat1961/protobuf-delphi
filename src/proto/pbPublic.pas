@@ -21,6 +21,13 @@ type
     START_GROUP = 3;
     END_GROUP = 4;
     FIXED32 = 5;
+    Names: array [VARINT .. FIXED32] of string = (
+      'VARINT',
+      'FIXED64',
+      'LENGTH_DELIMITED',
+      'START_GROUP',
+      'END_GROUP',
+      'FIXED32');
   end;
 
   TWireType = 0..7;

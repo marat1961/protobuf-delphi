@@ -196,7 +196,7 @@ type
     tmMessage,  // message
     tmMap);     // Map
 
-  TEmbeddedTypes = TTypeMode.tmDouble .. TTypeMode.tmBytes;
+  TEmbeddedTypes = TTypeMode.tmDouble .. TTypeMode.tmSint64;
 
   TpbType = class(TIdent)
   private
@@ -206,6 +206,7 @@ type
     constructor Create(Scope: TIdent; const Name: string;
       TypeMode: TTypeMode; const Desc: string = '');
   public
+    function AsDelphi: string; virtual; abstract;
     property TypMode: TTypeMode read FTypeMode write FTypeMode;
     property Desc: string read FDesc;
   end;
@@ -213,6 +214,8 @@ type
   TpbEmbeddedType = class(TpbType)
   public
     constructor Create(TypMode: TEmbeddedTypes);
+    // As delphi type
+    function AsDelphi: string; override;
   end;
 
 {$EndRegion}
@@ -322,6 +325,9 @@ type
   public
     constructor Create(Scope: TIdent; const Name: string; Package: TpbPackage);
     destructor Destroy; override;
+    // As delphi type
+    function AsDelphi: string; override;
+    property Enums: TIdents<TEnumValue> read FEnums;
     property Options: PEnumOptions read GetOptions;
   end;
 
@@ -345,10 +351,14 @@ type
     destructor Destroy; override;
     // Add Oneof to message
     function AddOneOf(const Name: string): TPbOneOf;
+    // As delphi type
+    function AsDelphi: string; override;
     // Reserved Fields
     property Reserved: TIntSet read FReserved;
     // Enum & message list
     property em: Tem read Fem;
+    // Message fields
+    property Fields: TIdents<TpbField> read FFields;
     // If all fields are constant then this message is constant too
     property WireSize: Integer read GetWireSize;
   end;
@@ -687,6 +697,16 @@ begin
   inherited Create(Scope, Name, TypMode, '');
 end;
 
+function TpbEmbeddedType.AsDelphi: string;
+const
+  Names: array [TEmbeddedTypes] of string = (
+    'Double', 'Single', 'Int64', 'UIint64', 'Integer',
+    'UInt64', 'UInt32', 'Boolean', 'string', 'bytes',
+    'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
+begin
+  Result := Names[TypMode];
+end;
+
 {$EndRegion}
 
 {$Region 'TpbField'}
@@ -746,6 +766,11 @@ end;
 
 {$Region 'TpbType'}
 
+function TpbEnum.AsDelphi: string;
+begin
+
+end;
+
 constructor TpbEnum.Create(Scope: TIdent; const Name: string; Package: TpbPackage);
 begin
   inherited Create(Scope, Name, TTypeMode.tmEnum);
@@ -769,6 +794,11 @@ end;
 {$EndRegion}
 
 {$Region 'TpbMessage'}
+
+function TpbMessage.AsDelphi: string;
+begin
+
+end;
 
 constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent;
   const Name: string; Package: TpbPackage);

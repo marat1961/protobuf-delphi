@@ -140,6 +140,7 @@ type
 
 function Between(ch, lo, hi: Char): Boolean;
 function ToChar(i: Integer): string;
+function AsCamel(const s: string): string;
 
 implementation
 
@@ -154,6 +155,29 @@ begin
     Result := Format('''%s''', [char(i)])
   else
     Result := Format('#%d', [i]);
+end;
+
+function AsCamel(const s: string): string;
+var
+  i: Integer;
+  c: string;
+  IsUp: Boolean;
+begin
+  Result := '';
+  IsUp := True;
+  for i := 1 to Length(s) do
+  begin
+    c := s[i];
+    if not IsUp then
+      Result := Result + c.ToLowerInvariant
+    else if c = '_' then
+      IsUp := True
+    else
+    begin
+      Result := Result + c.ToUpperInvariant;
+      IsUp := False;
+    end;
+  end;
 end;
 
 {$Region 'TBitsBuffer'}
