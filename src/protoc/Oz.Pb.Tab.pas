@@ -206,7 +206,8 @@ type
     constructor Create(Scope: TIdent; const Name: string;
       TypeMode: TTypeMode; const Desc: string = '');
   public
-    function AsDelphi: string; virtual; abstract;
+    // Get as delphi type
+    function AsDelphiType: string; virtual; abstract;
     property TypMode: TTypeMode read FTypeMode write FTypeMode;
     property Desc: string read FDesc;
   end;
@@ -215,7 +216,7 @@ type
   public
     constructor Create(TypMode: TEmbeddedTypes);
     // As delphi type
-    function AsDelphi: string; override;
+    function AsDelphiType: string; override;
   end;
 
 {$EndRegion}
@@ -267,6 +268,7 @@ type
     FRule: TFieldRule;
     FPos: TPosition;
     FOptions: TFieldOptions;
+    function GetMsg: TpbMessage;
     function GetPos: PPosition;
     function GetOptions: PFieldOptions;
   public
@@ -274,6 +276,7 @@ type
       Tag: Integer; Rule: TFieldRule);
     function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     function ToString: string; override;
+    property Msg: TpbMessage read GetMsg;
     property Typ: TpbType read FType;
     property Tag: Integer read FTag;
     property Rule: TFieldRule read FRule;
@@ -326,7 +329,7 @@ type
     constructor Create(Scope: TIdent; const Name: string; Package: TpbPackage);
     destructor Destroy; override;
     // As delphi type
-    function AsDelphi: string; override;
+    function AsDelphiType: string; override;
     property Enums: TIdents<TEnumValue> read FEnums;
     property Options: PEnumOptions read GetOptions;
   end;
@@ -352,7 +355,7 @@ type
     // Add Oneof to message
     function AddOneOf(const Name: string): TPbOneOf;
     // As delphi type
-    function AsDelphi: string; override;
+    function AsDelphiType: string; override;
     // Reserved Fields
     property Reserved: TIntSet read FReserved;
     // Enum & message list
@@ -451,7 +454,8 @@ type
     destructor Destroy; override;
     // Search the module recursively and if not found then open the file
     function LookupImport(const Name: string; Weak: Boolean): TpbModule;
-    // Search the pair <KeyTyp, FieldType> and if not found then create it
+    // Search the anonymous pair <KeyTyp, FieldType>
+    // and if not found then create it
     function LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
     // Search type recursively
     function FindType(const typ: TUserType): TpbType;
@@ -697,7 +701,7 @@ begin
   inherited Create(Scope, Name, TypMode, '');
 end;
 
-function TpbEmbeddedType.AsDelphi: string;
+function TpbEmbeddedType.AsDelphiType: string;
 const
   Names: array [TEmbeddedTypes] of string = (
     'Double', 'Single', 'Int64', 'UIint64', 'Integer',
@@ -728,6 +732,11 @@ end;
 function TpbField.ToString: string;
 begin
   Result := Format('%s %s = %d;', [Typ.Name, Name, Tag]);
+end;
+
+function TpbField.GetMsg: TpbMessage;
+begin
+  Result := TpbMessage(Scope);
 end;
 
 function TpbField.GetPos: PPosition;
@@ -766,11 +775,6 @@ end;
 
 {$Region 'TpbType'}
 
-function TpbEnum.AsDelphi: string;
-begin
-
-end;
-
 constructor TpbEnum.Create(Scope: TIdent; const Name: string; Package: TpbPackage);
 begin
   inherited Create(Scope, Name, TTypeMode.tmEnum);
@@ -791,14 +795,14 @@ begin
   Result := @FOptions;
 end;
 
+function TpbEnum.AsDelphiType: string;
+begin
+  Result := 'T' + AsCamel(Name);
+end;
+
 {$EndRegion}
 
 {$Region 'TpbMessage'}
-
-function TpbMessage.AsDelphi: string;
-begin
-
-end;
 
 constructor TpbMessage.Create(Tab: TpbTable; Scope: TIdent;
   const Name: string; Package: TpbPackage);
@@ -822,6 +826,11 @@ function TpbMessage.AddOneOf(const Name: string): TPbOneOf;
 begin
   Result := TPbOneOf.Create(Self, Name);
   FOneOfs.Add(Result);
+end;
+
+function TpbMessage.AsDelphiType: string;
+begin
+  Result := 'T' + AsCamel(Name);
 end;
 
 function TpbMessage.GetWireSize: Integer;
