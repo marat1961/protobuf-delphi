@@ -46,6 +46,7 @@ begin
         str.SaveToFile(filename);
         if parser.errors.count = 0 then
         begin
+          parser.gen.GenerateCode;
           str.Text := parser.gen.Code;
           filename := TPath.Combine(options.srcDir, stem + '.pas');
           str.SaveToFile(filename);

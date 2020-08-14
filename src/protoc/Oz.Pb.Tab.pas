@@ -448,6 +448,7 @@ type
     Fem: Tem;
     // Search the module recursively
     function FindImport(const Name: string): TpbModule;
+    function GetNameSpace: string;
   protected
     constructor Create(Tab: TpbTable; Scope: TIdent; const Name: string; Weak: Boolean);
   public
@@ -470,6 +471,7 @@ type
     property Options: TIdents<TpbOption> read FOptions;
     property Packages: TIdents<TpbPackage> read FPackages;
     property CurrentPackage: TpbPackage read FCurrentPackage;
+    property NameSpace: string read GetNameSpace;
     // Enum & message list
     property Em: Tem read FEM;
   end;
@@ -1021,6 +1023,11 @@ begin
     Result := FImport[i].FindImport(Name);
     if Result <> nil then exit;
   end;
+end;
+
+function TpbModule.GetNameSpace: string;
+begin
+  Result := 'Example1';
 end;
 
 {$EndRegion}

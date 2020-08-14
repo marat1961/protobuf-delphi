@@ -75,8 +75,8 @@ type
   public
     options: TOptions;
     tab: TpbTable;
-    gen: TpbGen;
     listing: TStrings;
+    gen: TGen;
     constructor Create(scanner: TBaseScanner; listing: TStrings);
     destructor Destroy; override;
     function ErrorMsg(nr: Integer): string; override;
@@ -101,6 +101,7 @@ type
     property options: TOptions read GetOptions;
     property tab: TpbTable read GetTab;
     property errors: TErrors read GetErrors;
+    property gen: TGen read GetGen;
  end;
 
 {$EndRegion}
@@ -114,6 +115,7 @@ begin
   inherited Create(scanner, listing);
   options := GetOptions;
   tab := TpbTable.Create(Self);
+  gen := TGen.Create(Self);
 end;
 
 destructor TpbParser.Destroy;

@@ -10,18 +10,18 @@ type
 
 {$Region 'TGen: code generator for delphi'}
 
-  TGen = class(TBaseParser)
+  TGen = class(TCocoPart)
   private
     IndentLevel: Integer;
     sb: TStringBuilder;
     function GetCode: string;
-
+    // Wrappers for TStringBuilder
     procedure Wr(const s: string); overload;
     procedure Wr(const f: string; const Args: array of const); overload;
     procedure Wrln; overload;
     procedure Wrln(const s: string); overload;
     procedure Wrln(const f: string; const Args: array of const); overload;
-
+    // Indent control
     procedure Indent;
     procedure Dedent;
 
@@ -34,8 +34,9 @@ type
     procedure WriterImplementation(msg: TpbMessage);
     procedure ReaderImplementation(msg: TpbMessage);
   public
-    constructor Create;
+    constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
+    procedure GenerateCode;
     // Generated code
     property Code: string read GetCode;
   end;
@@ -148,21 +149,26 @@ begin
 end;
 
 procedure TpbFieldHelper.AsInit(gen: TGen);
+var
+  n, k, v: string;
 begin
+  n := AsCamel(Name);
   if options.Default <> '' then
-    gen.Wrln('F%s := %s;',
-      [AsCamel(Name), options.Default])
+    gen.Wrln('F%s := %s;', [n, options.Default])
   else if Rule = TFieldRule.Repeated then
-    gen.Wrln('F%s := TList<%s>.Create;',
-      [AsCamel(Name), Typ.AsDelphiType])
+    gen.Wrln('F%s := TList<%s>.Create;', [n, Typ.AsDelphiType])
   else if typ.TypMode = TTypeMode.tmMap then
-    gen.Wrln('F%s := TDictionary<%s, %s>.Create;',
-      [AsCamel(Name), 'keyType', 'valueType'])
+  begin
+    k := 'keyType';
+    v := 'valueType';
+    gen.Wrln('F%s := TDictionary<%s, %s>.Create;', [n, k, v]);
+  end;
 end;
 
 procedure TpbFieldHelper.AsFree(gen: TGen);
 begin
-
+  if (Rule = TFieldRule.Repeated) or (typ.TypMode = TTypeMode.tmMap) then
+    gen.Wrln('F%s.Free;', AsCamel(Name));
 end;
 
 procedure TpbFieldHelper.AsRead(gen: TGen);
@@ -178,7 +184,7 @@ begin
     gen.Indent;
     try
       gen.Wrln('Assert(wireType = WIRETYPE_LENGTH_DELIMITED);');
-      gen.Wrln('person.Name := pb.readString;');
+      gen.Wrln('person.Name := pb.readString;', []);
     finally
       gen.Dedent;
     end;
@@ -310,8 +316,9 @@ end;
 
 {$Region 'TGen'}
 
-constructor TGen.Create;
+constructor TGen.Create(Parser: TBaseParser);
 begin
+  inherited;
   sb := TStringBuilder.Create;
 end;
 
@@ -319,6 +326,19 @@ destructor TGen.Destroy;
 begin
   sb.Free;
   inherited;
+end;
+
+procedure TGen.GenerateCode;
+var
+  s: string;
+begin
+  s := Tab.Module.NameSpace;
+  Wrln('unit %s;', [s]);
+end;
+
+function TGen.GetCode: string;
+begin
+  Result := sb.ToString
 end;
 
 procedure TGen.Wr(const s: string);
@@ -516,11 +536,6 @@ begin
   Dedent;
   Wrln('end;');
   Wrln('');
-end;
-
-function TGen.GetCode: string;
-begin
-  Result := sb.ToString
 end;
 
 {$EndRegion}
