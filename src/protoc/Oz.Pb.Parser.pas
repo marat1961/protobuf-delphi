@@ -8,7 +8,7 @@ interface
 
 uses
   System.Classes, System.SysUtils, System.Character, System.IOUtils, System.Math,
-  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Scanner, Oz.Pb.Options, Oz.Pb.Tab;
+  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Scanner, Oz.Pb.Options, Oz.Pb.Tab, Oz.Pb.Gen;
 
 type
 
@@ -75,6 +75,7 @@ type
   public
     options: TOptions;
     tab: TpbTable;
+    gen: TpbGen;
     listing: TStrings;
     constructor Create(scanner: TBaseScanner; listing: TStrings);
     destructor Destroy; override;
@@ -93,6 +94,7 @@ type
     function GetOptions: TOptions;
     function GetTab: TpbTable;
     function GetErrors: TErrors;
+    function GetGen: TGen;
   public
     property parser: TpbParser read GetParser;
     property scanner: TpbScanner read GetScanner;
@@ -1067,6 +1069,11 @@ end;
 function TCocoPartHelper.GetErrors: TErrors;
 begin
   Result := parser.errors;
+end;
+
+function TCocoPartHelper.GetGen: TGen;
+begin
+  Result := parser.gen;
 end;
 
 {$EndRegion}

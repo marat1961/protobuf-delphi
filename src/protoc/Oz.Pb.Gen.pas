@@ -3,13 +3,14 @@ unit Oz.Pb.Gen;
 interface
 
 uses
-  SysUtils, Math, pbPublic, Oz.Cocor.Utils, Oz.Pb.Tab;
+  System.Classes, System.SysUtils, System.Math,
+  Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic, Oz.Pb.Tab;
 
 type
 
 {$Region 'TGen: code generator for delphi'}
 
-  TGen = class
+  TGen = class(TBaseParser)
   private
     IndentLevel: Integer;
     sb: TStringBuilder;
@@ -21,7 +22,6 @@ type
     procedure Wrln(const s: string); overload;
     procedure Wrln(const f: string; const Args: array of const); overload;
 
-    function IndentStr: string;
     procedure Indent;
     procedure Dedent;
 
@@ -44,10 +44,14 @@ type
 
 implementation
 
-{$Region 'TpbFieldHelper'}
-type
-  TpbFieldHelper = class helper for TpbField
+uses
+  Oz.Pb.Parser;
 
+{$Region 'TpbFieldHelper'}
+
+type
+
+  TpbFieldHelper = class helper for TpbField
     (* constant declarations for field tags
        ftId = 1;
     *)
@@ -339,18 +343,13 @@ end;
 
 procedure TGen.Wrln(const f: string; const Args: array of const);
 begin
-  sb.AppendFormat(IndentStr + f, Args);
+  sb.AppendFormat(''.PadRight(IndentLevel * 2, ' ') + f, Args);
   sb.AppendLine;
-end;
-
-function TGen.IndentStr: string;
-begin
-  Result := Result.PadRight(IndentLevel * 2, ' ');
 end;
 
 procedure TGen.Indent;
 begin
-  inc(IndentLevel);
+  Inc(IndentLevel);
 end;
 
 procedure TGen.Dedent;
@@ -377,7 +376,7 @@ begin
   for i := 0 to msg.Fields.Count - 1 do
   begin
     f := msg.Fields[i];
-    Wrln('  FPb.Wr%s(%s.ft%s, %s.%s);',
+    Wrln('  FPb.Write%s(%s.ft%s, %s.%s);',
       [AsCamel(f.Typ.Name), msg.AsDelphiType, f.Name, msg.Name, f.Name]);
   end;
 end;

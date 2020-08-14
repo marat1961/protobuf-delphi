@@ -49,12 +49,14 @@ type
     function GetOptions: TOptions;
     function GetTab: TpbTable;
     function GetErrors: TErrors;
+    function GetGen: TGen;
   public
     property parser: -->parser< read GetParser;
     property scanner: -->scanner< read GetScanner;
     property options: TOptions read GetOptions;
     property tab: TpbTable read GetTab;
     property errors: TErrors read GetErrors;
+    property gen: TGen read GetGen;
  end;
 
 {$EndRegion}
@@ -146,6 +148,11 @@ end;
 function TCocoPartHelper.GetErrors: TErrors;
 begin
   Result := parser.errors;
+end;
+
+function TCocoPartHelper.GetGen: TGen;
+begin
+  Result := parser.gen;
 end;
 
 {$EndRegion}

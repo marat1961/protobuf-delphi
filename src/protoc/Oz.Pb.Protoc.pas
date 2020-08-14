@@ -44,6 +44,12 @@ begin
         stem := TPath.GetFilenameWithoutExtension(options.SrcName);
         filename := TPath.Combine(options.srcDir, stem + '.lst');
         str.SaveToFile(filename);
+        if parser.errors.count = 0 then
+        begin
+          str.Text := parser.gen.Code;
+          filename := TPath.Combine(options.srcDir, stem + '.pas');
+          str.SaveToFile(filename);
+        end;
       finally
         str.Free;
         parser.Free;
