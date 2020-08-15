@@ -63,8 +63,9 @@ Message<Scope: TIdent>       (. var
                                   name: string;
                                   msg: TpbMessage; .)
 =
-
-"message" Ident<name>        (. msg := Scope.em.AddMessage(Scope, name); .)
+"message" Ident<name>        (. if Scope.em.Messages.Find(name) <> nil then
+                                  SemError(1);
+                                msg := Scope.em.AddMessage(Scope, name); .)
 "{" {
   Field<msg>
 | MapField<msg>
@@ -133,11 +134,14 @@ ident                        (. name := t.val; .)
 }
 .
 
-Service<Scope: TpbModule>    (. var
-                                  name: string;
-                                  service: TpbService; .)
+Service<module: TpbModule>    (. var
+                                   name: string;
+                                   service: TpbService; .)
 =
-"service" Ident<name>        (. service := TpbService.Create(Scope, name); .)
+"service" Ident<name>        (. if module.Services.Find(name) <> nil then
+                                  SemError(1);
+                                service := TpbService.Create(module, name);
+                                module.Services.Add(service); .)
 "{" {
   Option<service>
 | Rpc<service>
@@ -151,7 +155,8 @@ Rpc<service: TpbService>     (. var
                                   request, response: TpbType;
                                   rpc: TpbRpc; .)
 =
-"rpc" Ident<name>
+"rpc" Ident<name>           (. if service.RpcSystem.Find(name) <> nil then
+                                  SemError(1); .)
 "(" [ "stream" ]
 UserType<typ>                (. request := service.Module.FindType(typ);
                                 if request = nil then
@@ -275,7 +280,8 @@ Field<msg: TpbMessage>       (. var
 | "required"
 ]
 Type<ft>
-Ident<name>
+Ident<name>                  (. if msg.Fields.Find(name) <> nil then
+                                  SemError(1); .)
 "="
 FieldNumber<tag>             (. f := msg.em.AddField(msg, name, ft, tag, rule); .)
 [ "[" FieldOptions<f>

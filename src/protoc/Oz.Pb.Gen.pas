@@ -26,9 +26,7 @@ type
     procedure Dedent;
 
     procedure GenComment(const ñ: string);
-    procedure GenMessage(msg: TpbMessage);
     procedure LoadMessage(msg: TpbMessage);
-    procedure GenEnum(e: TpbEnum);
     procedure WriterInterface(msg: TpbMessage);
     procedure ReaderInterface(msg: TpbMessage);
     procedure WriterImplementation(msg: TpbMessage);
@@ -110,6 +108,16 @@ type
   TpbMessageHelper = class helper for TpbMessage
     procedure AsDeclaration(gen: TGen);
     procedure AsImplementation(gen: TGen);
+    procedure AsWrite(gen: TGen);
+    procedure AsRead(gen: TGen);
+  end;
+
+{$EndRegion}
+
+{$Region 'TpbEnumHelper'}
+
+  TpbEnumHelper = class helper for TpbEnum
+    procedure AsDeclaration(gen: TGen);
   end;
 
 {$EndRegion}
@@ -125,9 +133,9 @@ procedure TpbFieldHelper.AsDeclaration(gen: TGen);
 var n, t: string;
 begin
   n := AsCamel(Name);
-  t := Typ.AsDelphiType;
+  t := Typ.DelphiName;
   if Rule = TFieldRule.Repeated then
-    gen.Wr('%ss: TList<%s>;', [n, t])
+    gen.Wr('%ss: TList<T%s>;', [n, t])
   else
     gen.Wr('%s: %s;', [n, t]);
 end;
@@ -136,9 +144,9 @@ procedure TpbFieldHelper.AsProperty(gen: TGen);
 var n, t: string;
 begin
   n := AsCamel(Name);
-  t := Typ.AsDelphiType;
+  t := Typ.DelphiName;
   if Rule = TFieldRule.Repeated then
-    gen.Wr('%ss: TList<%s> read F%s;', [n, t, n])
+    gen.Wr('%ss: TList<T%s> read F%s;', [n, t, n])
   else
     gen.Wr('%s: %s read F%s write F%s;', [n, t, n, n]);
 end;
@@ -150,13 +158,14 @@ end;
 
 procedure TpbFieldHelper.AsInit(gen: TGen);
 var
-  n, k, v: string;
+  n, t, k, v: string;
 begin
   n := AsCamel(Name);
+  t := Typ.DelphiName;
   if options.Default <> '' then
     gen.Wrln('F%s := %s;', [n, options.Default])
   else if Rule = TFieldRule.Repeated then
-    gen.Wrln('F%s := TList<%s>.Create;', [n, Typ.AsDelphiType])
+    gen.Wrln('F%s := TList<%Ts>.Create;', [n, t])
   else if typ.TypMode = TTypeMode.tmMap then
   begin
     k := 'keyType';
@@ -168,14 +177,14 @@ end;
 procedure TpbFieldHelper.AsFree(gen: TGen);
 begin
   if (Rule = TFieldRule.Repeated) or (typ.TypMode = TTypeMode.tmMap) then
-    gen.Wrln('F%s.Free;', AsCamel(Name));
+    gen.Wrln('F%s.Free;', [AsCamel(Name)]);
 end;
 
 procedure TpbFieldHelper.AsRead(gen: TGen);
 var
   m, n, s: string;
 begin
-  m := Msg.AsDelphiType;
+  m := Msg.DelphiName;
   n := AsCamel(Typ.Name);
   gen.Wrln('%s.ft%s:', [m, n]);
   gen.Indent;
@@ -195,8 +204,43 @@ begin
 end;
 
 procedure TpbFieldHelper.AsWrite(gen: TGen);
-begin
+var
+  m, f, def: string;
 
+  procedure Process;
+  begin
+    case Typ.TypMode of
+      TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
+        gen.Wrln('FPb.Write%s(%s.ft%s, %s.%s);',
+          [Typ.name, m, Name, msg.Name, Name]);
+      TTypeMode.tmEnum:
+        gen.Wrln('FPb.Write Enum');
+      TTypeMode.tmMessage:
+        gen.Wrln('FPb.Write Message');
+      TTypeMode.tmMap:
+        gen.Wrln('FPb.Write Map');
+      else
+        raise Exception.Create('unsupported field type');
+    end;
+  end;
+
+begin
+  m := AsCamel(Self.Msg.Name);
+  f := Self.Typ.DelphiName;
+  def := Self.Options.Default;
+  if def = '' then
+    Process
+  else
+  begin
+    // if Phone.FTyp <> ptHOME then
+    gen.Wrln('if %s.F%s <> %s then', [m, f]);
+    gen.Indent;
+    try
+      Process;
+    finally
+      gen.Dedent;
+    end;
+  end;
 end;
 
 {$EndRegion}
@@ -219,7 +263,7 @@ begin
     end;
   end;
 
-  gen.Wrln('%s = class', [AsDelphiType]);
+  gen.Wrln('%s = class', [DelphiName]);
 
   // generate field tag definitions
   gen.Wrln('const');
@@ -272,7 +316,7 @@ var
   f: TpbField;
 begin
   // parameterless constructor
-  t := AsDelphiType;
+  t := DelphiName;
   gen.Wrln;
   gen.Wrln('constructor %s.Create;', [t]);
   gen.Wrln('begin');
@@ -287,7 +331,7 @@ begin
   gen.Wrln('end;');
   gen.Wrln;
 
-  gen.Wr('destructor %s.Destroy;', [AsDelphiType]);
+  gen.Wr('destructor %s.Destroy;', [DelphiName]);
   gen.Wrln('begin');
   gen.Indent;
   try
@@ -312,6 +356,45 @@ begin
   gen.ReaderImplementation(Self);
 end;
 
+procedure TpbMessageHelper.AsRead(gen: TGen);
+begin
+
+end;
+
+procedure TpbMessageHelper.AsWrite(gen: TGen);
+var
+  i: Integer;
+  f: TpbField;
+  m: TpbMessage;
+begin
+  for i := 0 to Fields.Count - 1 do
+  begin
+    f := Fields[i];
+    f.AsWrite(gen);
+  end;
+end;
+
+{$EndRegion}
+
+{$Region 'TpbEnumHelper'}
+
+procedure TpbEnumHelper.AsDeclaration(gen: TGen);
+var
+  i: Integer;
+  ev: TEnumValue;
+begin
+  gen.Wrln('T%s = (', [Name]);
+  for i := 0 to Enums.Count - 1 do
+  begin
+    ev := Enums[i];
+    gen.Wr('  %s=%d', [ev.Name, ev.IntVal]);
+    if i < Enums.Count - 1 then
+      gen.Wrln(',')
+    else
+      gen.Wrln(');');
+  end;
+end;
+
 {$EndRegion}
 
 {$Region 'TGen'}
@@ -331,9 +414,42 @@ end;
 procedure TGen.GenerateCode;
 var
   s: string;
+  i: Integer;
+  em: Tem;
+  e: TpbEnum;
+  m: TpbMessage;
 begin
+  em := Tab.Module.Em;
   s := Tab.Module.NameSpace;
   Wrln('unit %s;', [s]);
+  Wrln;
+  Wrln('interface');
+  Wrln;
+  Wrln('uses');
+  Wrln('  System.Classes, System.SysUtils, Generics.Collections,');
+  Wrln('  pbPublic, pbInput, pbOutput;');
+  Wrln;
+  Wrln('type');
+  Wrln;
+  for i := 0 to em.Enums.Count - 1 do
+  begin
+    e := em.Enums[i];
+    e.AsDeclaration(Self);
+  end;
+  for i := 0 to em.Messages.Count - 1 do
+  begin
+    m := em.Messages[i];
+    m.AsDeclaration(Self);
+  end;
+  Wrln;
+  Wrln('implementation');
+  Wrln;
+  for i := 0 to em.Messages.Count - 1 do
+  begin
+    m := em.Messages[i];
+    m.AsImplementation(Self);
+  end;
+  Wrln('end;');
 end;
 
 function TGen.GetCode: string;
@@ -387,20 +503,6 @@ begin
     Wrln('// ' + s)
 end;
 
-procedure TGen.GenMessage(msg: TpbMessage);
-var
-  i: Integer;
-  f: TpbField;
-  m: TpbMessage;
-begin
-  for i := 0 to msg.Fields.Count - 1 do
-  begin
-    f := msg.Fields[i];
-    Wrln('  FPb.Write%s(%s.ft%s, %s.%s);',
-      [AsCamel(f.Typ.Name), msg.AsDelphiType, f.Name, msg.Name, f.Name]);
-  end;
-end;
-
 procedure TGen.LoadMessage(msg: TpbMessage);
 var
   i: Integer;
@@ -414,46 +516,28 @@ begin
   end;
 end;
 
-procedure TGen.GenEnum(e: TpbEnum);
-var
-  i: Integer;
-  ev: TEnumValue;
-  s: string;
-begin
-  Wrln('T%s = (', [e.Name]);
-  for i := 0 to e.Enums.Count - 1 do
-  begin
-    ev := e.Enums[i];
-    Wr('  %s=%d', [ev.Name, ev.IntVal]);
-    if i < e.Enums.Count - 1 then
-      Wrln(',')
-    else
-      Wrln(');');
-  end;
-end;
-
 procedure TGen.WriterInterface(msg: TpbMessage);
 begin
-  Wrln(msg.AsDelphiType + 'Writer = class');
+  Wrln(msg.DelphiName + 'Writer = class');
   Wrln('private');
   Wrln('  FPb: TProtoBufOutput;');
   Wrln('public');
   Wrln('  constructor Create;');
   Wrln('  destructor Destroy; override;');
   Wrln('  function GetPb: TProtoBufOutput;');
-  Wrln('  procedure Write(' + AsCamel(msg.Name) + ': ' + msg.AsDelphiType + ');');
+  Wrln('  procedure Write(' + AsCamel(msg.Name) + ': ' + msg.DelphiName + ');');
   Wrln('end;');
   Wrln;
 end;
 
 procedure TGen.WriterImplementation(msg: TpbMessage);
 begin
-  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [msg.AsDelphiType]);
+  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [msg.DelphiName]);
   Wrln('begin');
   Wrln('  Result := FPb;');
   Wrln('end');
   Wrln;
-  Wrln('procedure %sWriter.Wra%s: %s);', [msg.AsDelphiType, msg.Name, msg.AsDelphiType]);
+  Wrln('procedure %sWriter.Wra%s: %s);', [msg.DelphiName, msg.Name, msg.DelphiName]);
   Wrln('var');
   Wrln('  i: Integer;');
   Wrln('begin');
@@ -473,7 +557,7 @@ var
   m: TpbMessage;
   msgType, s, t: string;
 begin
-  msgType := msg.AsDelphiType;
+  msgType := msg.DelphiName;
   Wrln('%sReader = class', [msgType]);
   Wrln('private');
   Wrln('  FPb: TProtoBufInput;');
@@ -481,7 +565,7 @@ begin
   begin
     m := msg.em.Messages[i];
     s := AsCamel(m.Name);
-    t := m.AsDelphiType;
+    t := m.DelphiName;
     Wrln('  procedure Load%s(%s: %s);', [s, m.Name, t]);
   end;
   Wrln('public');
@@ -489,7 +573,7 @@ begin
   Wrln('  destructor Destroy; override;');
   Wrln('  function GetPb: TProtoBufInput;');
   s := AsCamel(msg.Name);
-  t := msg.AsDelphiType;
+  t := msg.DelphiName;
   Wrln('  procedure Load(%s: %s);', [s, t]);
   Wrln('end;');
   Wrln;
@@ -500,13 +584,13 @@ var
   i: Integer;
   f: TpbField;
 begin
-  Wrln('function %Reader.GetPb: TProtoBufOutput;', [msg.AsDelphiType]);
+  Wrln('function %Reader.GetPb: TProtoBufOutput;', [msg.DelphiName]);
   Wrln('begin');
   Wrln('  Result := FPb;');
   Wrln('end;');
   Wrln;
   Wrln('procedure %sReader.Load(%s: %s);',
-    [msg.AsDelphiType, AsCamel(msg.Name), msg.AsDelphiType]);
+    [msg.DelphiName, AsCamel(msg.Name), msg.DelphiName]);
   Wrln('var');
   Wrln('  tag, fieldNumber, wireType: integer;');
   Wrln('begin');
@@ -523,10 +607,10 @@ begin
   for i := 0 to msg.Fields.Count - 1 do
   begin
     f := msg.Fields[i];
-    Wrln('%s.ft%s:', [msg.AsDelphiType, AsCamel(f.Name)]);
+    Wrln('%s.ft%s:', [msg.DelphiName, AsCamel(f.Name)]);
     Indent;
     Wrln('  %s.%s := FPb.read%s;', [AsCamel(f.Name), AsCamel(f.Name),
-      f.Typ.AsDelphiType]);
+      f.Typ.DelphiName]);
     Dedent;
   end;
   Wrln('else');

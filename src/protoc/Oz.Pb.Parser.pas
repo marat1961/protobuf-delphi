@@ -43,7 +43,7 @@ type
     procedure _EmptyStatement;
     procedure _Message(Scope: TIdent);
     procedure _Enum(Scope: TIdent);
-    procedure _Service(Scope: TpbModule);
+    procedure _Service(module: TpbModule);
     procedure _Ident(var name: string);
     procedure _Field(msg: TpbMessage);
     procedure _MapField(msg: TpbMessage);
@@ -261,6 +261,8 @@ var
 begin
   Expect(9);
   _Ident(name);
+  if Scope.em.Messages.Find(name) <> nil then
+    SemError(1);
   msg := Scope.em.AddMessage(Scope, name);
   Expect(10);
   while StartOf(2) do
@@ -330,14 +332,17 @@ begin
   Expect(11);
 end;
 
-procedure TpbParser._Service(Scope: TpbModule);
+procedure TpbParser._Service(module: TpbModule);
 var
   name: string;
   service: TpbService;
 begin
   Expect(23);
   _Ident(name);
-  service := TpbService.Create(Scope, name);
+  if module.Services.Find(name) <> nil then
+    SemError(1);
+  service := TpbService.Create(module, name);
+  module.Services.Add(service);
   Expect(10);
   while (la.kind = 14) or (la.kind = 19) or (la.kind = 24) do
   begin
@@ -391,6 +396,8 @@ begin
   end;
   _Type(ft);
   _Ident(name);
+  if msg.Fields.Find(name) <> nil then
+    SemError(1);
   Expect(13);
   _FieldNumber(tag);
   f := msg.em.AddField(msg, name, ft, tag, rule);
@@ -576,6 +583,8 @@ var
 begin
   Expect(24);
   _Ident(name);
+  if service.RpcSystem.Find(name) <> nil then
+     SemError(1);
   Expect(20);
   if la.kind = 25 then
   begin

@@ -71,6 +71,7 @@ begin
   inherited Create(scanner, listing);
   options := GetOptions;
   tab := TpbTable.Create(Self);
+  gen := TGen.Create(Self);
 end;
 
 destructor -->parser<.Destroy;

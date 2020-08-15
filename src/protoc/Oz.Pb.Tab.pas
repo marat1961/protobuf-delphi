@@ -206,17 +206,17 @@ type
     constructor Create(Scope: TIdent; const Name: string;
       TypeMode: TTypeMode; const Desc: string = '');
   public
-    // Get as delphi type
-    function AsDelphiType: string; virtual; abstract;
+    // Get delphi name
+    function DelphiName: string; virtual; abstract;
     property TypMode: TTypeMode read FTypeMode write FTypeMode;
     property Desc: string read FDesc;
   end;
 
   TpbEmbeddedType = class(TpbType)
   public
-    constructor Create(TypMode: TEmbeddedTypes);
-    // As delphi type
-    function AsDelphiType: string; override;
+    constructor Create(Scope: TpbModule; TypMode: TEmbeddedTypes);
+    // Get delphi name
+    function DelphiName: string; override;
   end;
 
 {$EndRegion}
@@ -328,8 +328,8 @@ type
   public
     constructor Create(Scope: TIdent; const Name: string; Package: TpbPackage);
     destructor Destroy; override;
-    // As delphi type
-    function AsDelphiType: string; override;
+    // Get delphi name
+    function DelphiName: string; override;
     property Enums: TIdents<TEnumValue> read FEnums;
     property Options: PEnumOptions read GetOptions;
   end;
@@ -354,8 +354,8 @@ type
     destructor Destroy; override;
     // Add Oneof to message
     function AddOneOf(const Name: string): TPbOneOf;
-    // As delphi type
-    function AsDelphiType: string; override;
+    // Get delphi name
+    function DelphiName: string; override;
     // Reserved Fields
     property Reserved: TIntSet read FReserved;
     // Enum & message list
@@ -446,6 +446,7 @@ type
     FCurrentPackage: TpbPackage;
     FPackages: TIdents<TpbPackage>;
     Fem: Tem;
+    FServices: TIdents<TpbService>;
     // Search the module recursively
     function FindImport(const Name: string): TpbModule;
     function GetNameSpace: string;
@@ -472,8 +473,10 @@ type
     property Packages: TIdents<TpbPackage> read FPackages;
     property CurrentPackage: TpbPackage read FCurrentPackage;
     property NameSpace: string read GetNameSpace;
-    // Enum & message list
+    // Declared enumerates and messages
     property Em: Tem read FEM;
+    // Declared service
+    property Services: TIdents<TpbService> read FServices;
   end;
 
 {$EndRegion}
@@ -698,12 +701,17 @@ begin
   FDesc := Desc;
 end;
 
-constructor TpbEmbeddedType.Create(TypMode: TEmbeddedTypes);
+constructor TpbEmbeddedType.Create(Scope: TpbModule; TypMode: TEmbeddedTypes);
+const
+  Names: array [TEmbeddedTypes] of string = (
+    'double', 'float', 'int64', 'uint64', 'int32',
+    'fixed64', 'fixed32', 'bool', 'string', 'bytes',
+    'uint32', 'sfixed32', 'sfixed64', 'sint32', 'sint64');
 begin
-  inherited Create(Scope, Name, TypMode, '');
+  inherited Create(Scope, Names[TypMode], TypMode, '');
 end;
 
-function TpbEmbeddedType.AsDelphiType: string;
+function TpbEmbeddedType.DelphiName: string;
 const
   Names: array [TEmbeddedTypes] of string = (
     'Double', 'Single', 'Int64', 'UIint64', 'Integer',
@@ -797,9 +805,9 @@ begin
   Result := @FOptions;
 end;
 
-function TpbEnum.AsDelphiType: string;
+function TpbEnum.DelphiName: string;
 begin
-  Result := 'T' + AsCamel(Name);
+  Result := AsCamel(Name);
 end;
 
 {$EndRegion}
@@ -830,9 +838,9 @@ begin
   FOneOfs.Add(Result);
 end;
 
-function TpbMessage.AsDelphiType: string;
+function TpbMessage.DelphiName: string;
 begin
-  Result := 'T' + AsCamel(Name);
+  Result := AsCamel(Name);
 end;
 
 function TpbMessage.GetWireSize: Integer;
@@ -1053,7 +1061,7 @@ procedure TpbTable.InitSystem;
 var i: TTypeMode;
 begin
   for i := Low(FEmbeddedTypes) to High(FEmbeddedTypes) do
-    FEmbeddedTypes[i] := TpbEmbeddedType.Create(i);
+    FEmbeddedTypes[i] := TpbEmbeddedType.Create(FSystem, i);
 end;
 
 function TpbTable.GetBasisType(kind: TTypeMode): TpbEmbeddedType;
