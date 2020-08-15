@@ -152,32 +152,26 @@ Service<module: TpbModule>    (. var
 Rpc<service: TpbService>     (. var
                                   name: string;
                                   typ: TUserType;
-                                  request, response: TpbType;
                                   rpc: TpbRpc; .)
 =
-"rpc" Ident<name>           (. if service.RpcSystem.Find(name) <> nil then
-                                  SemError(1); .)
+"rpc" Ident<name>            (. if service.RpcSystem.Find(name) <> nil then
+                                 SemError(1);
+                                 rpc := service.AddRpc(name); .)
 "(" [ "stream" ]
-UserType<typ>                (. request := service.Module.FindType(typ);
-                                if request = nil then
+UserType<typ>                (. rpc.Request := service.Module.em.FindMessageType(rpc, typ);
+                                if rpc.Request.TypMode = TTypeMode.tmUnknown then
                                   SemError(4)
-                                else if request.Mode <> TMode.mRecord then
-                                begin
-                                  SemError(5);
-                                  request := nil;
-                                end; .)
+                                else if rpc.Request.Mode <> TMode.mRecord then
+                                  SemError(5); .)
 ")"
 "returns"
 "(" [ "stream" ]
-UserType<typ>                (. response := service.Module.FindType(typ);
-                                if request = nil then
+UserType<typ>                (. rpc.Response := service.Module.em.FindMessageType(rpc, typ);
+                                if rpc.Response.TypMode = TTypeMode.tmUnknown then
                                   SemError(4)
-                                else if request.Mode <> TMode.mRecord then
-                                begin
-                                  SemError(5);
-                                  request := nil;
-                                end; .)
-")"                          (. rpc := service.AddRpc(name, TpbMessage(request), TpbMessage(response)); .)
+                                else if rpc.Response.Mode <> TMode.mRecord then
+                                  SemError(5); .)
+")"
 (( "{" {
 Option<rpc>
 | EmptyStatement
@@ -279,7 +273,7 @@ Field<msg: TpbMessage>       (. var
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-Type<ft>
+Type<msg, ft>
 Ident<name>                  (. if msg.Fields.Find(name) <> nil then
                                   SemError(1); .)
 "="
@@ -308,7 +302,7 @@ OneOfField<oneOf: TPbOneOf>  (. var
                                   tag: Integer;
                                   ft: TpbType; .)
 =
-Type<ft>
+Type<oneOf.msg, ft>
 Ident<name>
 "="
 FieldNumber<tag>             (. f := oneOf.AddField(name, ft, tag); .)
@@ -334,7 +328,7 @@ MapField<msg: TpbMessage>    (. var
                                   f: TPbField; .)
 =
 "map" "<" KeyType<kt>
-"," Type<ft>
+"," Type<msg, ft>
 ">"
 Ident<name>
 "="
@@ -351,13 +345,16 @@ intLit<tag>
 
 // Types
 
-Type<var ft: TpbType>        (. var typ: TUserType; .)
+Type<msg: TpbMessage; var ft: TpbType>
+                             (. var typ: TUserType; .)
 =
   "double"                   (. ft := tab.GetBasisType(TTypeMode.tmDouble); .)
 | "float"                    (. ft := tab.GetBasisType(TTypeMode.tmFloat); .)
 | "bytes"                    (. ft := tab.GetBasisType(TTypeMode.tmBytes); .)
 | KeyType<ft>
-| UserType<typ>              (. ft := tab.GetUserType(typ); .)
+| UserType<typ>              (. ft := msg.FindUserType(typ, True);
+                                if ft.TypMode = TTypeMode.tmUnknown then
+                                  SemError(2); .)
 .
 
 KeyType<var ft: TpbType>

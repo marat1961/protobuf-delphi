@@ -58,7 +58,7 @@ type
     procedure _intLit(var n: Integer);
     procedure _floatLit(var n: Double);
     procedure _boolLit;
-    procedure _Type(var ft: TpbType);
+    procedure _Type(msg: TpbMessage; var ft: TpbType);
     procedure _FieldNumber(var tag: Integer);
     procedure _FieldOptions(f: TPbField);
     procedure _OneOfField(oneOf: TPbOneOf);
@@ -394,7 +394,8 @@ begin
       Get;
     end;
   end;
-  _Type(ft);
+  _Type(msg, ft);
+
   _Ident(name);
   if msg.Fields.Find(name) <> nil then
     SemError(1);
@@ -421,7 +422,7 @@ begin
   Expect(41);
   _KeyType(kt);
   Expect(39);
-  _Type(ft);
+  _Type(msg, ft);
   Expect(42);
   _Ident(name);
   Expect(13);
@@ -578,27 +579,24 @@ procedure TpbParser._Rpc(service: TpbService);
 var
   name: string;
   typ: TUserType;
-  request, response: TpbType;
   rpc: TpbRpc;
 begin
   Expect(24);
   _Ident(name);
   if service.RpcSystem.Find(name) <> nil then
-     SemError(1);
+   SemError(1);
+   rpc := service.AddRpc(name);
   Expect(20);
   if la.kind = 25 then
   begin
     Get;
   end;
   _UserType(typ);
-  request := service.Module.FindType(typ);
-  if request = nil then
+  rpc.Request := service.Module.em.FindMessageType(rpc, typ);
+  if rpc.Request.TypMode = TTypeMode.tmUnknown then
     SemError(4)
-  else if request.Mode <> TMode.mRecord then
-  begin
+  else if rpc.Request.Mode <> TMode.mRecord then
     SemError(5);
-    request := nil;
-  end;
   Expect(21);
   Expect(26);
   Expect(20);
@@ -607,16 +605,12 @@ begin
     Get;
   end;
   _UserType(typ);
-  response := service.Module.FindType(typ);
-  if request = nil then
+  rpc.Response := service.Module.em.FindMessageType(rpc, typ);
+  if rpc.Response.TypMode = TTypeMode.tmUnknown then
     SemError(4)
-  else if request.Mode <> TMode.mRecord then
-  begin
+  else if rpc.Response.Mode <> TMode.mRecord then
     SemError(5);
-    request := nil;
-  end;
   Expect(21);
-  rpc := service.AddRpc(name, TpbMessage(request), TpbMessage(response));
   if la.kind = 10 then
   begin
     Get;
@@ -719,7 +713,7 @@ begin
     SynErr(71);
 end;
 
-procedure TpbParser._Type(var ft: TpbType);
+procedure TpbParser._Type(msg: TpbMessage; var ft: TpbType);
 var typ: TUserType;
 begin
   if la.kind = 43 then
@@ -744,7 +738,9 @@ begin
   else if (la.kind = 1) or (la.kind = 22) then
   begin
     _UserType(typ);
-    ft := tab.GetUserType(typ);
+    ft := msg.FindUserType(typ, True);
+    if ft.TypMode = TTypeMode.tmUnknown then
+      SemError(2);
   end
   else
     SynErr(72);
@@ -772,7 +768,7 @@ var
   tag: Integer;
   ft: TpbType;
 begin
-  _Type(ft);
+  _Type(oneOf.msg, ft);
   _Ident(name);
   Expect(13);
   _FieldNumber(tag);

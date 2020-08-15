@@ -126,7 +126,7 @@ type
 
 procedure TpbFieldHelper.AsTagDeclarations(gen: TGen);
 begin
-  gen.Wr('%s = %d;', [AsCamel(Name), Tag])
+  gen.Wrln('ft%s = %d;', [AsCamel(Name), Tag]);
 end;
 
 procedure TpbFieldHelper.AsDeclaration(gen: TGen);
@@ -135,9 +135,9 @@ begin
   n := AsCamel(Name);
   t := Typ.DelphiName;
   if Rule = TFieldRule.Repeated then
-    gen.Wr('%ss: TList<T%s>;', [n, t])
+    gen.Wrln('%ss: TList<T%s>;', [n, t])
   else
-    gen.Wr('%s: %s;', [n, t]);
+    gen.Wrln('%s: %s;', [n, t]);
 end;
 
 procedure TpbFieldHelper.AsProperty(gen: TGen);
@@ -149,6 +149,7 @@ begin
     gen.Wr('%ss: TList<T%s> read F%s;', [n, t, n])
   else
     gen.Wr('%s: %s read F%s write F%s;', [n, t, n, n]);
+  gen.Wrln;
 end;
 
 procedure TpbFieldHelper.AsReflection(gen: TGen);
@@ -165,7 +166,7 @@ begin
   if options.Default <> '' then
     gen.Wrln('F%s := %s;', [n, options.Default])
   else if Rule = TFieldRule.Repeated then
-    gen.Wrln('F%s := TList<%Ts>.Create;', [n, t])
+    gen.Wrln('F%s := TList<T%s>.Create;', [n, t])
   else if typ.TypMode = TTypeMode.tmMap then
   begin
     k := 'keyType';
@@ -272,7 +273,7 @@ begin
     for i := 0 to Fields.Count - 1 do
     begin
       f := Fields[i];
-      gen.Wrln('ft%s = %d;', [f.Name, f.tag]);
+      f.AsTagDeclarations(gen);
     end;
   finally
     gen.Dedent;
@@ -296,7 +297,7 @@ begin
   try
     gen.Wrln('constructor Create;');
     gen.Wrln('destructor Destoy; override;');
-    gen.Wrln;
+    gen.Wrln('// properties');
     for i := 0 to Fields.Count - 1 do
     begin
       f := Fields[i];
@@ -331,7 +332,7 @@ begin
   gen.Wrln('end;');
   gen.Wrln;
 
-  gen.Wr('destructor %s.Destroy;', [DelphiName]);
+  gen.Wrln('destructor %s.Destroy;', [DelphiName]);
   gen.Wrln('begin');
   gen.Indent;
   try
@@ -342,18 +343,7 @@ begin
     gen.Dedent;
   end;
   gen.Wrln('end;');
-
-  for i := 0 to Fields.Count - 1 do
-  begin
-    f := Fields[i];
-    gen.Wrln('F%.s := %s;', [AsCamel(f.Name) + 's', AsCamel(f.Name)]);
-  end;
-  gen.Dedent;
-  gen.Wrln('end;');
   gen.Wrln;
-
-  gen.WriterImplementation(Self);
-  gen.ReaderImplementation(Self);
 end;
 
 procedure TpbMessageHelper.AsRead(gen: TGen);
@@ -464,7 +454,7 @@ end;
 
 procedure TGen.Wr(const f: string; const Args: array of const);
 begin
-  sb.AppendFormat(f, Args);
+  sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
 end;
 
 procedure TGen.Wrln;
@@ -478,8 +468,10 @@ begin
 end;
 
 procedure TGen.Wrln(const f: string; const Args: array of const);
+var s: string;
 begin
-  sb.AppendFormat(''.PadRight(IndentLevel * 2, ' ') + f, Args);
+  s := Blank(IndentLevel * 2);
+  sb.AppendFormat(s + f, Args);
   sb.AppendLine;
 end;
 

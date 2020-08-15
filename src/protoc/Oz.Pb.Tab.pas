@@ -219,6 +219,15 @@ type
     function DelphiName: string; override;
   end;
 
+  TpbUnknownType = class(TpbType)
+  private
+    FTyp: TUserType;
+  public
+    constructor Create(Scope: TIdent; Typ: TUserType);
+    // Get delphi name
+    function DelphiName: string; override;
+  end;
+
 {$EndRegion}
 
 {$Region 'TpbPackage: Package specifier'}
@@ -352,6 +361,8 @@ type
     constructor Create(Tab: TpbTable; Scope: TIdent;
       const Name: string; Package: TpbPackage);
     destructor Destroy; override;
+    // Find message or enum type
+    function FindUserType(const Typ: TUserType; Recursive: Boolean): TpbType;
     // Add Oneof to message
     function AddOneOf(const Name: string): TPbOneOf;
     // Get delphi name
@@ -379,7 +390,6 @@ type
   public
     constructor Create(Tab: TpbTable; Scope: TIdent);
     destructor Destroy; override;
-    function FindType(const Typ: TUserType): TpbType;
     // Add message to module or meassge
     function AddMessage(Scope: TIdent; const Name: string): TpbMessage;
     // Add enum to module or meassge
@@ -390,6 +400,8 @@ type
     // Add map field to message
     function AddMapField(Scope: TpbMessage; const Name: string;
       KeyTyp, FieldType: TpbType; Tag: Integer): TpbField;
+    // Find message type for Rpc declaration
+    function FindMessageType(Rpc: TIdent; Typ: TUserType): TpbType;
     // properties
     property Messages: TIdents<TpbMessage> read FMessages;
     property Enums: TIdents<TpbEnum> read FEnums;
@@ -402,15 +414,14 @@ type
   TpbRpc = class(TIdent)
   private
     FService: TpbService;
-    FRequest: TpbMessage;
-    FResponse: TpbMessage;
+    FRequest: TpbType;
+    FResponse: TpbType;
   public
-    constructor Create(Scope: TpbService; const Name: string;
-      Request, Response: TpbMessage);
+    constructor Create(Scope: TpbService; const Name: string);
     function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     property Service: TpbService read FService;
-    property Request: TpbMessage read FRequest;
-    property Response: TpbMessage read FResponse;
+    property Request: TpbType read FRequest write FRequest;
+    property Response: TpbType read FResponse write FResponse;
   end;
 
 {$EndRegion}
@@ -424,7 +435,7 @@ type
   public
     constructor Create(Scope: TpbModule; const Name: string);
     // Add Rpc (Remote procedure call) to service
-    function AddRpc(const Name: string; Request, Response: TpbMessage): TpbRpc;
+    function AddRpc(const Name: string): TpbRpc;
     property Module: TpbModule read FModule;
     // Remote procedure ñall system
     property RpcSystem: TIdents<TpbRpc> read FRpcSystem;
@@ -459,8 +470,6 @@ type
     // Search the anonymous pair <KeyTyp, FieldType>
     // and if not found then create it
     function LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
-    // Search type recursively
-    function FindType(const typ: TUserType): TpbType;
     // Add package and update its current value
     function AddPackage(const Name: string): TpbPackage;
     // Add module option
@@ -491,6 +500,8 @@ type
     FModule: TpbModule;
     // root node for predefined elements
     FSystem: TpbModule;
+    // Unknown types
+    FUnknownTypes: TIdents<TpbType>;
     // Fill predefined elements
     procedure InitSystem;
   public
@@ -498,8 +509,8 @@ type
     destructor Destroy; override;
     // Get embedded type by kind
     function GetBasisType(kind: TTypeMode): TpbEmbeddedType;
-    // Get message or enum type
-    function GetUserType(const typ: TUserType): TpbType;
+    // Àdd stub type tmUnknown
+    function AddUnknown(Scope: TIdent; Typ: TUserType): TpbType;
     // Open and read module from file
     function OpenModule(Scope: TpbModule; const Name: string; Weak: Boolean): TpbModule;
     // Convert string to Integer
@@ -701,6 +712,10 @@ begin
   FDesc := Desc;
 end;
 
+{$EndRegion}
+
+{$Region 'TpbEmbeddedType'}
+
 constructor TpbEmbeddedType.Create(Scope: TpbModule; TypMode: TEmbeddedTypes);
 const
   Names: array [TEmbeddedTypes] of string = (
@@ -719,6 +734,21 @@ const
     'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
 begin
   Result := Names[TypMode];
+end;
+
+{$EndRegion}
+
+{$Region 'TpbUnknownType'}
+
+constructor TpbUnknownType.Create(Scope: TIdent; Typ: TUserType);
+begin
+  inherited Create(Scope, Typ.Name, TTypeMode.tmUnknown, '');
+  FTyp := Typ;
+end;
+
+function TpbUnknownType.DelphiName: string;
+begin
+  Result := AsCamel(Name);
 end;
 
 {$EndRegion}
@@ -832,6 +862,78 @@ begin
   inherited;
 end;
 
+type
+  TFinder = record
+  var
+    Typ: TUserType;
+    Recursive: Boolean;
+  public
+    function FindInEm(em: Tem): TpbType;
+    function FindInMessage(msg: TpbMessage): TpbType;
+    function FindInModule(module: TpbModule): TpbType;
+  end;
+
+function TFinder.FindInEm(em: Tem): TpbType;
+var i: Integer;
+begin
+  // search in enumerations
+  Result := em.Enums.Find(Typ.Name);
+  if Result <> nil then exit;
+  // search in messages
+  Result := em.Messages.Find(Typ.Name);
+  if (Result <> nil) or not Recursive then exit;
+  // search recursive in messages
+  for i := 0 to em.Messages.Count - 1 do
+  begin
+    Result := FindInMessage(em.Messages[i]);
+    if Result <> nil then exit;
+  end;
+  Result := FindInEm(em.FTab.FModule.Em);
+end;
+
+function TFinder.FindInModule(module: TpbModule): TpbType;
+var Package: TpbPackage;
+begin
+  if Typ.Package = '' then
+    Result := FindInEm(module.em)
+  else
+  begin
+    Package := module.Packages.Find(Typ.Package);
+    Result := Package.Types.Find(Typ.Name);
+  end;
+end;
+
+function TFinder.FindInMessage(msg: TpbMessage): TpbType;
+begin
+  if Typ.Name = msg.Name then
+    Result := msg
+  else
+    Result := FindInEm(msg.em);
+end;
+
+function TpbMessage.FindUserType(const Typ: TUserType; Recursive: Boolean): TpbType;
+var F: TFinder;
+begin
+  F.Typ := Typ;
+  F.Recursive := Recursive;
+  (*
+  Realize type search according to the strategy:
+   - start from the current visibility area and move to the outside;
+   - in reverse order, we can use the same algorithm...
+     without stopping for the first match.
+  Adding a type in the current module:
+   - type with a short name, put in module types;
+   - type with composite name (name + package) duplicated in the list of packages.
+  *)
+  if FScope.Mode = TMode.mModule then
+    Result := F.FindInModule(TpbModule(FScope))
+  else
+    Result := F.FindInMessage(Self);
+  if Result = nil then
+    // if type is not found add type to stub tmUnknown
+    Result := Fem.FTab.AddUnknown(Self, Typ);
+end;
+
 function TpbMessage.AddOneOf(const Name: string): TPbOneOf;
 begin
   Result := TPbOneOf.Create(Self, Name);
@@ -874,30 +976,6 @@ begin
   inherited;
 end;
 
-function Tem.FindType(const Typ: TUserType): TpbType;
-var
-  Package: TpbPackage;
-begin
-(*
-Realize type search according to the strategy:
- - start from the current visibility area and move to the outside;
- - in reverse order, we can use the same algorithm...
-   without stopping for the first match.
-Adding a type in the current module:
- - type with a short name, put in module types;
- - type with composite name (name + package) duplicated in the list of packages.
-*)
-  if (Typ.Package <> '') and (FScope.Mode = TMode.mModule) then
-  begin
-    Package := TpbModule(FScope).Packages.Find(Typ.Package);
-    Result := Package.Types.Find(Typ.Name);
-    if Result <> nil then exit;
-  end;
-  Result := FMessages.Find(Typ.Name);
-  if Result <> nil then exit;
-  Result := FEnums.Find(Typ.Name);
-end;
-
 function Tem.AddMessage(Scope: TIdent; const Name: string): TpbMessage;
 var Package: TpbPackage;
 begin
@@ -937,6 +1015,13 @@ begin
   Scope.FFields.Add(Result);
 end;
 
+function Tem.FindMessageType(Rpc: TIdent; Typ: TUserType): TpbType;
+begin
+  Result := Messages.Find(Typ.Name);
+  if Result = nil then
+    Result := FTab.AddUnknown(Rpc, Typ);
+end;
+
 {$EndRegion}
 
 {$Region 'TpbPackage'}
@@ -946,9 +1031,9 @@ begin
   inherited Create(Scope, Name, TMode.mService);
 end;
 
-function TpbService.AddRpc(const Name: string; Request, Response: TpbMessage): TpbRpc;
+function TpbService.AddRpc(const Name: string): TpbRpc;
 begin
-  Result := TpbRpc.Create(Self, Name, Request, Response);
+  Result := TpbRpc.Create(Self, Name);
   FRpcSystem.Add(Result);
 end;
 
@@ -956,12 +1041,9 @@ end;
 
 {$Region 'TpbRpc'}
 
-constructor TpbRpc.Create(Scope: TpbService; const Name: string;
-  Request, Response: TpbMessage);
+constructor TpbRpc.Create(Scope: TpbService; const Name: string);
 begin
   inherited Create(Scope, Name, TMode.mRpc);
-  FRequest := Request;
-  FResponse := Response;
 end;
 
 function TpbRpc.AddOption(const Name: string; const Value: TConst): TpbOption;
@@ -1004,11 +1086,6 @@ begin
   Result := nil;
 end;
 
-function TpbModule.FindType(const typ: TUserType): TpbType;
-begin
-  Result := em.FindType(typ);
-end;
-
 function TpbModule.AddPackage(const Name: string): TpbPackage;
 begin
   Result := TpbPackage.Create(Self, Name);
@@ -1047,6 +1124,7 @@ begin
   inherited;
   FModule := TpbModule.Create(Self, nil, 'import', {weak=}True);
   FSystem := TpbModule.Create(Self, nil, 'System', {weak=}False);
+  FUnknownTypes := TIdents<TpbType>.Create;
   InitSystem;
 end;
 
@@ -1054,6 +1132,7 @@ destructor TpbTable.Destroy;
 begin
   FModule.Free;
   FSystem.Free;
+  FUnknownTypes.Free;
   inherited;
 end;
 
@@ -1069,9 +1148,10 @@ begin
   Result := FEmbeddedTypes[kind];
 end;
 
-function TpbTable.GetUserType(const typ: TUserType): TpbType;
+function TpbTable.AddUnknown(Scope: TIdent; Typ: TUserType): TpbType;
 begin
-  Result := nil;
+  Result := TpbUnknownType.Create(Scope, Typ);
+  FUnknownTypes.Add(Result);
 end;
 
 function TpbTable.OpenModule(Scope: TpbModule; const Name: string;
