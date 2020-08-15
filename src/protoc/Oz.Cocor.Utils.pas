@@ -169,7 +169,7 @@ begin
   begin
     c := s[i];
     if not IsUp then
-      Result := Result + c.ToLowerInvariant
+      Result := Result + c
     else if c = '_' then
       IsUp := True
     else

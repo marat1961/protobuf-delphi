@@ -135,9 +135,9 @@ begin
   n := AsCamel(Name);
   t := Typ.DelphiName;
   if Rule = TFieldRule.Repeated then
-    gen.Wrln('%ss: TList<T%s>;', [n, t])
+    gen.Wrln('F%ss: TList<T%s>;', [n, t])
   else
-    gen.Wrln('%s: %s;', [n, t]);
+    gen.Wrln('F%s: %s;', [n, t]);
 end;
 
 procedure TpbFieldHelper.AsProperty(gen: TGen);
@@ -264,7 +264,7 @@ begin
     end;
   end;
 
-  gen.Wrln('%s = class', [DelphiName]);
+  gen.Wrln('T%s = class', [DelphiName]);
 
   // generate field tag definitions
   gen.Wrln('const');
@@ -318,7 +318,6 @@ var
 begin
   // parameterless constructor
   t := DelphiName;
-  gen.Wrln;
   gen.Wrln('constructor %s.Create;', [t]);
   gen.Wrln('begin');
   gen.Indent;
@@ -431,7 +430,6 @@ begin
     m := em.Messages[i];
     m.AsDeclaration(Self);
   end;
-  Wrln;
   Wrln('implementation');
   Wrln;
   for i := 0 to em.Messages.Count - 1 do
@@ -444,12 +442,12 @@ end;
 
 function TGen.GetCode: string;
 begin
-  Result := sb.ToString
+  Result := sb.ToString;
 end;
 
 procedure TGen.Wr(const s: string);
 begin
-  sb.Append(s)
+  sb.Append(Blank(IndentLevel * 2) + s);
 end;
 
 procedure TGen.Wr(const f: string; const Args: array of const);
@@ -459,19 +457,17 @@ end;
 
 procedure TGen.Wrln;
 begin
-  sb.AppendLine
+  sb.AppendLine;
 end;
 
 procedure TGen.Wrln(const s: string);
 begin
-  sb.AppendLine(s);
+  sb.AppendLine(Blank(IndentLevel * 2) + s);
 end;
 
 procedure TGen.Wrln(const f: string; const Args: array of const);
-var s: string;
 begin
-  s := Blank(IndentLevel * 2);
-  sb.AppendFormat(s + f, Args);
+  sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
   sb.AppendLine;
 end;
 
