@@ -43,6 +43,7 @@ type
     procedure _EmptyStatement;
     procedure _Message(Scope: TIdent);
     procedure _Enum(Scope: TIdent);
+    procedure _Map(module: TpbModule);
     procedure _Service(module: TpbModule);
     procedure _Ident(var name: string);
     procedure _Field(msg: TpbMessage);
@@ -53,17 +54,17 @@ type
     procedure _FullIdent(var name: string);
     procedure _OptionName(var s: string);
     procedure _Constant(var c: TConst);
+    procedure _KeyType(var ft: TpbType);
+    procedure _Type(Scope: TIdent; var ft: TpbType);
     procedure _Rpc(service: TpbService);
     procedure _UserType(var typ: TUserType);
     procedure _intLit(var n: Integer);
     procedure _floatLit(var n: Double);
     procedure _boolLit;
-    procedure _Type(msg: TpbMessage; var ft: TpbType);
     procedure _FieldNumber(var tag: Integer);
     procedure _FieldOptions(f: TPbField);
     procedure _OneOfField(oneOf: TPbOneOf);
     procedure _FieldOption(f: TPbField);
-    procedure _KeyType(var ft: TpbType);
     procedure _Ranges(Reserved: TIntSet);
     procedure _FieldNames;
     procedure _Range(var lo, hi: Integer);
@@ -163,7 +164,7 @@ begin
     begin
       _Option(Scope);
     end
-    else if (la.kind = 9) or (la.kind = 23) or (la.kind = 61) then
+    else if StartOf(2) then
     begin
       _TopLevelDef(Scope);
     end
@@ -243,6 +244,10 @@ begin
   end
   else if la.kind = 23 then
   begin
+    _Map(tab.Module);
+  end
+  else if la.kind = 27 then
+  begin
     _Service(tab.Module);
   end
   else
@@ -265,14 +270,14 @@ begin
     SemError(1);
   msg := Scope.em.AddMessage(Scope, name);
   Expect(10);
-  while StartOf(2) do
+  while StartOf(3) do
   begin
     case la.kind of
-      1, 22, 33, 34, 35, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
+      1, 22, 37, 38, 39, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
       begin
         _Field(msg);
       end;
-      40:
+      23:
       begin
         _MapField(msg);
       end;
@@ -288,7 +293,7 @@ begin
       begin
         _Option(msg);
       end;
-      38:
+      42:
       begin
         _OneOf(msg);
       end;
@@ -332,25 +337,44 @@ begin
   Expect(11);
 end;
 
+procedure TpbParser._Map(module: TpbModule);
+var
+  name: string;
+  key, value: TpbType;
+  map: TpbMapType;
+begin
+  Expect(23);
+  _Ident(name);
+  map := module.MapTypes.Find(name);
+  if map <> nil then
+    SemError(1);
+  Expect(24);
+  _KeyType(key);
+  Expect(25);
+  _Type(module, value);
+  Expect(26);
+  module.LookupMapType(name, key, value);
+end;
+
 procedure TpbParser._Service(module: TpbModule);
 var
   name: string;
   service: TpbService;
 begin
-  Expect(23);
+  Expect(27);
   _Ident(name);
   if module.Services.Find(name) <> nil then
     SemError(1);
   service := TpbService.Create(module, name);
   module.Services.Add(service);
   Expect(10);
-  while (la.kind = 14) or (la.kind = 19) or (la.kind = 24) do
+  while (la.kind = 14) or (la.kind = 19) or (la.kind = 28) do
   begin
     if la.kind = 19 then
     begin
       _Option(service);
     end
-    else if la.kind = 24 then
+    else if la.kind = 28 then
     begin
       _Rpc(service);
     end
@@ -377,14 +401,14 @@ var
   ft: TpbType;
 begin
   rule := TFieldRule.Singular;
-  if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
+  if (la.kind = 37) or (la.kind = 38) or (la.kind = 39) then
   begin
-    if la.kind = 33 then
+    if la.kind = 37 then
     begin
       Get;
       rule := TFieldRule.Repeated;
     end
-    else if la.kind = 34 then
+    else if la.kind = 38 then
     begin
       Get;
       rule := TFieldRule.Optional;
@@ -395,44 +419,52 @@ begin
     end;
   end;
   _Type(msg, ft);
-
   _Ident(name);
   if msg.Fields.Find(name) <> nil then
     SemError(1);
   Expect(13);
   _FieldNumber(tag);
   f := msg.em.AddField(msg, name, ft, tag, rule);
-  if la.kind = 36 then
+  if la.kind = 40 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(37);
+    Expect(41);
   end;
   Expect(14);
 end;
 
 procedure TpbParser._MapField(msg: TpbMessage);
 var
-  name: string;
+  mapName, name: string;
+  key, value, map: TpbType;
   tag: Integer;
-  kt, ft: TpbType;
-  f: TPbField;
+  f: TpbField;
 begin
-  Expect(40);
-  Expect(41);
-  _KeyType(kt);
-  Expect(39);
-  _Type(msg, ft);
-  Expect(42);
-  _Ident(name);
+  Expect(23);
+  if la.kind = 1 then
+  begin
+    _Ident(mapName);
+  end;
+  map := tab.module.MapTypes.Find(mapName);
+  if map <> nil then
+    SemError(1);
+  Expect(24);
+  _KeyType(key);
+  Expect(25);
+  _Type(msg, value);
+  Expect(26);
+  if map = nil then
+    map := tab.module.LookupMapType(mapName, key, value);
+  _Ident(mapName);
   Expect(13);
   _FieldNumber(tag);
-  f := msg.em.AddMapField(msg, name, kt, ft, tag);
-  if la.kind = 36 then
+  f := msg.em.AddField(msg, name, map, tag, TFieldRule.Singular);
+  if la.kind = 40 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(37);
+    Expect(41);
   end;
   Expect(14);
 end;
@@ -442,17 +474,17 @@ var
   oneOf: TPbOneOf;
   name: string;
 begin
-  Expect(38);
+  Expect(42);
   _Ident(name);
   oneOf := msg.AddOneOf(name);
   Expect(10);
-  while StartOf(3) do
+  while StartOf(4) do
   begin
     if la.kind = 19 then
     begin
       _Option(oneOf);
     end
-    else if StartOf(4) then
+    else if StartOf(5) then
     begin
       _OneOfField(oneOf);
     end
@@ -533,12 +565,12 @@ begin
     _FullIdent(s);
     c.AsIdent(s);
   end
-  else if StartOf(5) then
+  else if StartOf(6) then
   begin
     sign := 1;
-    if (la.kind = 31) or (la.kind = 32) then
+    if (la.kind = 35) or (la.kind = 36) then
     begin
-      if la.kind = 31 then
+      if la.kind = 35 then
       begin
         Get;
         sign := -sign;
@@ -553,7 +585,7 @@ begin
       _intLit(i);
       c.AsInt(i * sign);
     end
-    else if (la.kind = 5) or (la.kind = 27) or (la.kind = 28) then
+    else if (la.kind = 5) or (la.kind = 31) or (la.kind = 32) then
     begin
       _floatLit(d);
       c.AsFloat(d * sign);
@@ -566,229 +598,13 @@ begin
     _strLit;
     c.AsStr(t.val);
   end
-  else if (la.kind = 29) or (la.kind = 30) then
+  else if (la.kind = 33) or (la.kind = 34) then
   begin
     _boolLit;
     c.AsBool(t.val);
   end
   else
     SynErr(67);
-end;
-
-procedure TpbParser._Rpc(service: TpbService);
-var
-  name: string;
-  typ: TUserType;
-  rpc: TpbRpc;
-begin
-  Expect(24);
-  _Ident(name);
-  if service.RpcSystem.Find(name) <> nil then
-   SemError(1);
-   rpc := service.AddRpc(name);
-  Expect(20);
-  if la.kind = 25 then
-  begin
-    Get;
-  end;
-  _UserType(typ);
-  rpc.Request := service.Module.em.FindMessageType(rpc, typ);
-  if rpc.Request.TypMode = TTypeMode.tmUnknown then
-    SemError(4)
-  else if rpc.Request.Mode <> TMode.mRecord then
-    SemError(5);
-  Expect(21);
-  Expect(26);
-  Expect(20);
-  if la.kind = 25 then
-  begin
-    Get;
-  end;
-  _UserType(typ);
-  rpc.Response := service.Module.em.FindMessageType(rpc, typ);
-  if rpc.Response.TypMode = TTypeMode.tmUnknown then
-    SemError(4)
-  else if rpc.Response.Mode <> TMode.mRecord then
-    SemError(5);
-  Expect(21);
-  if la.kind = 10 then
-  begin
-    Get;
-    while (la.kind = 14) or (la.kind = 19) do
-    begin
-      if la.kind = 19 then
-      begin
-        _Option(rpc);
-      end
-      else
-      begin
-        _EmptyStatement;
-      end;
-    end;
-    Expect(11);
-  end
-  else if la.kind = 14 then
-  begin
-    Get;
-  end
-  else
-    SynErr(68);
-end;
-
-procedure TpbParser._UserType(var typ: TUserType);
-begin
-  typ := Default(TUserType);
-  if la.kind = 22 then
-  begin
-    Get;
-    typ.OutermostScope := True;
-  end;
-  Expect(1);
-  typ.name := t.val;
-  while la.kind = 22 do
-  begin
-    Get;
-    if typ.Package <> '' then
-      typ.Package := typ.Package + '.';
-    typ.Package := typ.Package + typ.Name;
-    Expect(1);
-    typ.Name := t.val;
-  end;
-end;
-
-procedure TpbParser._intLit(var n: Integer);
-begin
-  if la.kind = 2 then
-  begin
-    Get;
-    n := tab.ParseInt(t.val, 10);
-  end
-  else if la.kind = 3 then
-  begin
-    Get;
-    n := tab.ParseInt(t.val, 8);
-  end
-  else if la.kind = 4 then
-  begin
-    Get;
-    n := tab.ParseInt(t.val, 16);
-  end
-  else
-    SynErr(69);
-end;
-
-procedure TpbParser._floatLit(var n: Double);
-var code: Integer;
-begin
-  if la.kind = 5 then
-  begin
-    Get;
-    Val(t.val, n, code);
-  end
-  else if la.kind = 27 then
-  begin
-    Get;
-    n := Infinity;
-  end
-  else if la.kind = 28 then
-  begin
-    Get;
-    n := NaN;
-  end
-  else
-    SynErr(70);
-end;
-
-procedure TpbParser._boolLit;
-begin
-  if la.kind = 29 then
-  begin
-    Get;
-  end
-  else if la.kind = 30 then
-  begin
-    Get;
-  end
-  else
-    SynErr(71);
-end;
-
-procedure TpbParser._Type(msg: TpbMessage; var ft: TpbType);
-var typ: TUserType;
-begin
-  if la.kind = 43 then
-  begin
-    Get;
-    ft := tab.GetBasisType(TTypeMode.tmDouble);
-  end
-  else if la.kind = 44 then
-  begin
-    Get;
-    ft := tab.GetBasisType(TTypeMode.tmFloat);
-  end
-  else if la.kind = 45 then
-  begin
-    Get;
-    ft := tab.GetBasisType(TTypeMode.tmBytes);
-  end
-  else if StartOf(6) then
-  begin
-    _KeyType(ft);
-  end
-  else if (la.kind = 1) or (la.kind = 22) then
-  begin
-    _UserType(typ);
-    ft := msg.FindUserType(typ, True);
-    if ft.TypMode = TTypeMode.tmUnknown then
-      SemError(2);
-  end
-  else
-    SynErr(72);
-end;
-
-procedure TpbParser._FieldNumber(var tag: Integer);
-begin
-  _intLit(tag);
-end;
-
-procedure TpbParser._FieldOptions(f: TPbField);
-begin
-  _FieldOption(f);
-  while la.kind = 39 do
-  begin
-    Get;
-    _FieldOption(f);
-  end;
-end;
-
-procedure TpbParser._OneOfField(oneOf: TPbOneOf);
-var
-  f: TPbField;
-  name: string;
-  tag: Integer;
-  ft: TpbType;
-begin
-  _Type(oneOf.msg, ft);
-  _Ident(name);
-  Expect(13);
-  _FieldNumber(tag);
-  f := oneOf.AddField(name, ft, tag);
-  if la.kind = 36 then
-  begin
-    Get;
-    _FieldOptions(f);
-    Expect(37);
-  end;
-  Expect(14);
-end;
-
-procedure TpbParser._FieldOption(f: TPbField);
-var name: string; Cv: TConst;
-begin
-  _OptionName(name);
-  Expect(13);
-  _Constant(Cv);
-  f.AddOption(name, Cv);
 end;
 
 procedure TpbParser._KeyType(var ft: TpbType);
@@ -855,8 +671,234 @@ begin
       ft := tab.GetBasisType(TTypeMode.tmString);
     end;
     else
-      SynErr(73);
+      SynErr(68);
   end;
+end;
+
+procedure TpbParser._Type(Scope: TIdent; var ft: TpbType);
+var typ: TUserType;
+begin
+  if la.kind = 43 then
+  begin
+    Get;
+    ft := tab.GetBasisType(TTypeMode.tmDouble);
+  end
+  else if la.kind = 44 then
+  begin
+    Get;
+    ft := tab.GetBasisType(TTypeMode.tmFloat);
+  end
+  else if la.kind = 45 then
+  begin
+    Get;
+    ft := tab.GetBasisType(TTypeMode.tmBytes);
+  end
+  else if StartOf(7) then
+  begin
+    _KeyType(ft);
+  end
+  else if (la.kind = 1) or (la.kind = 22) then
+  begin
+    _UserType(typ);
+    case Scope.Mode of
+      TMode.mModule:
+        ft := TpbModule(Scope).FindUserType(typ, True);
+      TMode.mRecord:
+        ft := TpbMessage(Scope).FindUserType(typ, True);
+      else
+      begin
+        SemError(6);
+        exit;
+      end;
+    end;
+    if ft.TypMode = TTypeMode.tmUnknown then
+      SemError(2);
+  end
+  else
+    SynErr(69);
+end;
+
+procedure TpbParser._Rpc(service: TpbService);
+var
+  name: string;
+  typ: TUserType;
+  rpc: TpbRpc;
+begin
+  Expect(28);
+  _Ident(name);
+  if service.RpcSystem.Find(name) <> nil then
+   SemError(1);
+   rpc := service.AddRpc(name);
+  Expect(20);
+  if la.kind = 29 then
+  begin
+    Get;
+  end;
+  _UserType(typ);
+  rpc.Request := service.Module.em.FindMessageType(rpc, typ);
+  if rpc.Request.TypMode = TTypeMode.tmUnknown then
+    SemError(4)
+  else if rpc.Request.Mode <> TMode.mRecord then
+    SemError(5);
+  Expect(21);
+  Expect(30);
+  Expect(20);
+  if la.kind = 29 then
+  begin
+    Get;
+  end;
+  _UserType(typ);
+  rpc.Response := service.Module.em.FindMessageType(rpc, typ);
+  if rpc.Response.TypMode = TTypeMode.tmUnknown then
+    SemError(4)
+  else if rpc.Response.Mode <> TMode.mRecord then
+    SemError(5);
+  Expect(21);
+  if la.kind = 10 then
+  begin
+    Get;
+    while (la.kind = 14) or (la.kind = 19) do
+    begin
+      if la.kind = 19 then
+      begin
+        _Option(rpc);
+      end
+      else
+      begin
+        _EmptyStatement;
+      end;
+    end;
+    Expect(11);
+  end
+  else if la.kind = 14 then
+  begin
+    Get;
+  end
+  else
+    SynErr(70);
+end;
+
+procedure TpbParser._UserType(var typ: TUserType);
+begin
+  typ := Default(TUserType);
+  if la.kind = 22 then
+  begin
+    Get;
+    typ.OutermostScope := True;
+  end;
+  Expect(1);
+  typ.name := t.val;
+  while la.kind = 22 do
+  begin
+    Get;
+    if typ.Package <> '' then
+      typ.Package := typ.Package + '.';
+    typ.Package := typ.Package + typ.Name;
+    Expect(1);
+    typ.Name := t.val;
+  end;
+end;
+
+procedure TpbParser._intLit(var n: Integer);
+begin
+  if la.kind = 2 then
+  begin
+    Get;
+    n := tab.ParseInt(t.val, 10);
+  end
+  else if la.kind = 3 then
+  begin
+    Get;
+    n := tab.ParseInt(t.val, 8);
+  end
+  else if la.kind = 4 then
+  begin
+    Get;
+    n := tab.ParseInt(t.val, 16);
+  end
+  else
+    SynErr(71);
+end;
+
+procedure TpbParser._floatLit(var n: Double);
+var code: Integer;
+begin
+  if la.kind = 5 then
+  begin
+    Get;
+    Val(t.val, n, code);
+  end
+  else if la.kind = 31 then
+  begin
+    Get;
+    n := Infinity;
+  end
+  else if la.kind = 32 then
+  begin
+    Get;
+    n := NaN;
+  end
+  else
+    SynErr(72);
+end;
+
+procedure TpbParser._boolLit;
+begin
+  if la.kind = 33 then
+  begin
+    Get;
+  end
+  else if la.kind = 34 then
+  begin
+    Get;
+  end
+  else
+    SynErr(73);
+end;
+
+procedure TpbParser._FieldNumber(var tag: Integer);
+begin
+  _intLit(tag);
+end;
+
+procedure TpbParser._FieldOptions(f: TPbField);
+begin
+  _FieldOption(f);
+  while la.kind = 25 do
+  begin
+    Get;
+    _FieldOption(f);
+  end;
+end;
+
+procedure TpbParser._OneOfField(oneOf: TPbOneOf);
+var
+  f: TPbField;
+  name: string;
+  tag: Integer;
+  ft: TpbType;
+begin
+  _Type(oneOf.msg, ft);
+  _Ident(name);
+  Expect(13);
+  _FieldNumber(tag);
+  f := oneOf.AddField(name, ft, tag);
+  if la.kind = 40 then
+  begin
+    Get;
+    _FieldOptions(f);
+    Expect(41);
+  end;
+  Expect(14);
+end;
+
+procedure TpbParser._FieldOption(f: TPbField);
+var name: string; Cv: TConst;
+begin
+  _OptionName(name);
+  Expect(13);
+  _Constant(Cv);
+  f.AddOption(name, Cv);
 end;
 
 procedure TpbParser._Ranges(Reserved: TIntSet);
@@ -864,7 +906,7 @@ var lo, hi: Integer;
 begin
   _Range(lo, hi);
   Reserved.AddRange(lo, hi);
-  while la.kind = 39 do
+  while la.kind = 25 do
   begin
     Get;
     _Range(lo, hi);
@@ -876,7 +918,7 @@ procedure TpbParser._FieldNames;
 var name: string;
 begin
   _Ident(name);
-  while la.kind = 39 do
+  while la.kind = 25 do
   begin
     Get;
     _Ident(name);
@@ -908,21 +950,21 @@ var n: Integer;
 begin
   Expect(1);
   Expect(13);
-  if la.kind = 31 then
+  if la.kind = 35 then
   begin
     Get;
   end;
   _intLit(n);
-  if la.kind = 36 then
+  if la.kind = 40 then
   begin
     Get;
     _EnumValueOption(e);
-    while la.kind = 39 do
+    while la.kind = 25 do
     begin
       Get;
       _EnumValueOption(e);
     end;
-    Expect(37);
+    Expect(41);
   end;
   Expect(14);
 end;
@@ -951,13 +993,14 @@ function TpbParser.Starts(s, kind: Integer): Boolean;
 const
   x = false;
   T = true;
-  sets: array [0..6] of array [0..63] of Boolean = (
+  sets: array [0..7] of array [0..63] of Boolean = (
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
-    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
-    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, T,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
+    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
+    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
+    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
-    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x));
 begin
   Result := sets[s, kind];
@@ -990,26 +1033,26 @@ const
     {20} '"(" expected',
     {21} '")" expected',
     {22} '"." expected',
-    {23} '"service" expected',
-    {24} '"rpc" expected',
-    {25} '"stream" expected',
-    {26} '"returns" expected',
-    {27} '"inf" expected',
-    {28} '"nan" expected',
-    {29} '"true" expected',
-    {30} '"false" expected',
-    {31} '"-" expected',
-    {32} '"+" expected',
-    {33} '"repeated" expected',
-    {34} '"optional" expected',
-    {35} '"required" expected',
-    {36} '"[" expected',
-    {37} '"]" expected',
-    {38} '"oneof" expected',
-    {39} '"," expected',
-    {40} '"map" expected',
-    {41} '"<" expected',
-    {42} '">" expected',
+    {23} '"map" expected',
+    {24} '"<" expected',
+    {25} '"," expected',
+    {26} '">" expected',
+    {27} '"service" expected',
+    {28} '"rpc" expected',
+    {29} '"stream" expected',
+    {30} '"returns" expected',
+    {31} '"inf" expected',
+    {32} '"nan" expected',
+    {33} '"true" expected',
+    {34} '"false" expected',
+    {35} '"-" expected',
+    {36} '"+" expected',
+    {37} '"repeated" expected',
+    {38} '"optional" expected',
+    {39} '"required" expected',
+    {40} '"[" expected',
+    {41} '"]" expected',
+    {42} '"oneof" expected',
     {43} '"double" expected',
     {44} '"float" expected',
     {45} '"bytes" expected',
@@ -1035,12 +1078,12 @@ const
     {65} 'invalid OptionName',
     {66} 'invalid Constant',
     {67} 'invalid Constant',
-    {68} 'invalid Rpc',
-    {69} 'invalid intLit',
-    {70} 'invalid floatLit',
-    {71} 'invalid boolLit',
-    {72} 'invalid Type',
-    {73} 'invalid KeyType',
+    {68} 'invalid KeyType',
+    {69} 'invalid Type',
+    {70} 'invalid Rpc',
+    {71} 'invalid intLit',
+    {72} 'invalid floatLit',
+    {73} 'invalid boolLit',
     {74} 'invalid Range');
 begin
   if nr <= MaxErr then

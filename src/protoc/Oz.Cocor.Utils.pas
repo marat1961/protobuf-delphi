@@ -141,6 +141,7 @@ type
 function Between(ch, lo, hi: Char): Boolean;
 function ToChar(i: Integer): string;
 function AsCamel(const s: string): string;
+function Plural(const s: string): string;
 
 implementation
 
@@ -178,6 +179,11 @@ begin
       IsUp := False;
     end;
   end;
+end;
+
+function Plural(const s: string): string;
+begin
+  Result := AsCamel(s) + 's';
 end;
 
 {$Region 'TBitsBuffer'}

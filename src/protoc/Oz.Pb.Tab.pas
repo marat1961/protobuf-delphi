@@ -8,6 +8,8 @@ uses
 
 {$SCOPEDENUMS on}
 
+{$Region 'Forward declarations'}
+
 type
 
   TpbTable = class;          // Parsing context
@@ -17,6 +19,8 @@ type
   TpbService = class;
   TpbPackage = class;
   Tem = class;
+
+{$EndRegion}
 
 {$Region 'TConst: constant identifier, integer, float, string or boolean value'}
 
@@ -142,10 +146,10 @@ type
   TFieldOptions = record
   type
     TOptionKind = (
-      foAccess, foPacked, foDeprecated, foTransient, foReadOnly, foDefault);
+      foDefault, foMapType, foPacked, foAccess, foDeprecated, foTransient, foReadOnly);
   const
     KindNames: array [TOptionKind] of string = (
-      'access', 'packed', 'deprecated', 'transient', 'readonly', 'default');
+      'default', 'mapType', 'packed', 'access', 'deprecated', 'transient', 'readonly');
   var
     Access: TAccessModifier;
     &Packed: Boolean;
@@ -153,6 +157,8 @@ type
     ReadOnly: Boolean;
     // Code will not be generated for this field
     Transient: Boolean;
+    // Map type name or empty for anonymous type
+    MapType: string;
     // The default value for field
     Default: string;
   end;
@@ -345,6 +351,25 @@ type
 
 {$EndRegion}
 
+{$Region 'TpbMapType'}
+
+  TpbMapType = class(TpbType)
+  private
+    FPackage: TpbPackage;
+    FKey: TpbType;
+    FValue: TpbType;
+    function GetModule: TpbModule;
+  public
+    constructor Create(Scope: TpbModule; const Name: string; Key, Value: TpbType);
+    property Module: TpbModule read GetModule;
+    // Get delphi name
+    function DelphiName: string; override;
+    property Key: TpbType read FKey;
+    property Value: TpbType read FValue;
+  end;
+
+{$EndRegion}
+
 {$Region 'TpbMessage'}
 
   TpbMessage = class(TpbType)
@@ -397,9 +422,6 @@ type
     // Add field to message
     function AddField(Scope: TpbMessage; const Name: string; Typ: TpbType;
       Tag: Integer; Rule: TFieldRule): TpbField;
-    // Add map field to message
-    function AddMapField(Scope: TpbMessage; const Name: string;
-      KeyTyp, FieldType: TpbType; Tag: Integer): TpbField;
     // Find message type for Rpc declaration
     function FindMessageType(Rpc: TIdent; Typ: TUserType): TpbType;
     // properties
@@ -457,6 +479,7 @@ type
     FCurrentPackage: TpbPackage;
     FPackages: TIdents<TpbPackage>;
     Fem: Tem;
+    FMapTypes: TIdents<TpbMapType>;
     FServices: TIdents<TpbService>;
     // Search the module recursively
     function FindImport(const Name: string): TpbModule;
@@ -467,19 +490,22 @@ type
     destructor Destroy; override;
     // Search the module recursively and if not found then open the file
     function LookupImport(const Name: string; Weak: Boolean): TpbModule;
-    // Search the anonymous pair <KeyTyp, FieldType>
+    // Search by map type name or the anonymous pair <KeyTyp, FieldType>
     // and if not found then create it
-    function LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
+    function LookupMapType(const Name: string; Key, Value: TpbType): TpbMapType;
     // Add package and update its current value
     function AddPackage(const Name: string): TpbPackage;
     // Add module option
     function AddOption(const Name: string; const Value: TConst): TpbOption; override;
+    // Find message or enum type
+    function FindUserType(const Typ: TUserType; Recursive: Boolean): TpbType;
     // Properties
     property Weak: Boolean read FWeak;
     property Syntax: TSyntaxVersion read FSyntax write FSyntax;
     property Import: TIdents<TpbModule> read FImport;
     property Options: TIdents<TpbOption> read FOptions;
     property Packages: TIdents<TpbPackage> read FPackages;
+    property MapTypes: TIdents<TpbMapType> read FMapTypes;
     property CurrentPackage: TpbPackage read FCurrentPackage;
     property NameSpace: string read GetNameSpace;
     // Declared enumerates and messages
@@ -820,8 +846,8 @@ begin
   inherited Create(Scope, Name, TTypeMode.tmEnum);
   FEnums := TIdents<TEnumValue>.Create;
   FPackage := Package;
-  if Package <> nil then
-    Package.FTypes.Add(Self);
+  if FPackage <> nil then
+    FPackage.FTypes.Add(Self);
 end;
 
 destructor TpbEnum.Destroy;
@@ -838,6 +864,31 @@ end;
 function TpbEnum.DelphiName: string;
 begin
   Result := AsCamel(Name);
+end;
+
+{$EndRegion}
+
+{$Region 'TpbMapType'}
+
+constructor TpbMapType.Create(Scope: TpbModule; const Name: string;
+  Key, Value: TpbType);
+begin
+  inherited Create(Scope, Name, TTypeMode.tmMap);
+  FKey := Key;
+  FValue := Value;
+  FPackage := Scope.CurrentPackage;
+  if FPackage <> nil then
+    FPackage.FTypes.Add(Self);
+end;
+
+function TpbMapType.DelphiName: string;
+begin
+  Result := AsCamel(Name);
+end;
+
+function TpbMapType.GetModule: TpbModule;
+begin
+  Result := TpbModule(Scope);
 end;
 
 {$EndRegion}
@@ -1005,16 +1056,6 @@ begin
   Scope.FFields.Add(Result);
 end;
 
-function Tem.AddMapField(Scope: TpbMessage; const Name: string;
-  KeyTyp, FieldType: TpbType; Tag: Integer): TpbField;
-var
-  Typ: TpbType;
-begin
-  Typ := FTab.Module.LookupMapType(KeyTyp, FieldType);
-  Result := TpbField.Create(Scope, Name, Typ, Tag, TFieldRule.Singular);
-  Scope.FFields.Add(Result);
-end;
-
 function Tem.FindMessageType(Rpc: TIdent; Typ: TUserType): TpbType;
 begin
   Result := Messages.Find(Typ.Name);
@@ -1081,9 +1122,19 @@ begin
     Result := FTab.OpenModule(Self, Name, Weak);
 end;
 
-function TpbModule.LookupMapType(KeyTyp, FieldType: TpbType): TpbType;
+function TpbModule.LookupMapType(const Name: string; Key, Value: TpbType): TpbMapType;
+var Id: string;
 begin
-  Result := nil;
+  if Name <> '' then
+    Id := Name
+  else
+    Id := Key.DelphiName + '_' + Value.DelphiName;
+  Result := FMapTypes.Find(Id);
+  if Result = nil then
+  begin
+    Result := TpbMapType.Create(Self, Name, Key, Value);
+    FMapTypes.Add(Result);
+  end;
 end;
 
 function TpbModule.AddPackage(const Name: string): TpbPackage;
@@ -1108,6 +1159,14 @@ begin
     Result := FImport[i].FindImport(Name);
     if Result <> nil then exit;
   end;
+end;
+
+function TpbModule.FindUserType(const Typ: TUserType; Recursive: Boolean): TpbType;
+var F: TFinder;
+begin
+  F.Typ := Typ;
+  F.Recursive := Recursive;
+  Result := F.FindInModule(Self);
 end;
 
 function TpbModule.GetNameSpace: string;

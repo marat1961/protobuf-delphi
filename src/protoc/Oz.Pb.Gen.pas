@@ -6,6 +6,10 @@ uses
   System.Classes, System.SysUtils, System.Math,
   Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic, Oz.Pb.Tab;
 
+const
+  RepeatedCollection = 'TList<T%s>';
+  MapCollection = 'TDictionary<T%s, T%s>';
+
 type
 
 {$Region 'TGen: code generator for delphi'}
@@ -51,14 +55,9 @@ uses
 type
 
   TpbFieldHelper = class helper for TpbField
-    (* constant declarations for field tags
-       ftId = 1;
-    *)
+    // constant declarations for field tags
     procedure AsTagDeclarations(gen: TGen);
-
-    (* field declaration
-       FId: Integer;
-    *)
+    // field declaration
     procedure AsDeclaration(gen: TGen);
 
     (* field property
@@ -125,8 +124,13 @@ type
 {$Region 'TpbFieldHelper'}
 
 procedure TpbFieldHelper.AsTagDeclarations(gen: TGen);
+var n: string;
 begin
-  gen.Wrln('ft%s = %d;', [AsCamel(Name), Tag]);
+  n := AsCamel(Name);
+  if Rule = TFieldRule.Repeated then
+    n := Plural(n);
+  // ftId = 1; ftPhones = 5;
+  gen.Wrln('ft%s = %d;', [n, Tag]);
 end;
 
 procedure TpbFieldHelper.AsDeclaration(gen: TGen);
@@ -135,21 +139,30 @@ begin
   n := AsCamel(Name);
   t := Typ.DelphiName;
   if Rule = TFieldRule.Repeated then
-    gen.Wrln('F%ss: TList<T%s>;', [n, t])
-  else
-    gen.Wrln('F%s: %s;', [n, t]);
+    t := Format(RepeatedCollection, [Typ.DelphiName]);
+  gen.Wrln('F%s: %s;', [n, t]);
 end;
 
 procedure TpbFieldHelper.AsProperty(gen: TGen);
-var n, t: string;
+var
+  n, t, s: string;
+  ro: Boolean;
 begin
+  ro := Options.ReadOnly;
   n := AsCamel(Name);
   t := Typ.DelphiName;
   if Rule = TFieldRule.Repeated then
-    gen.Wr('%ss: TList<T%s> read F%s;', [n, t, n])
+  begin
+    ro := True;
+    n := Plural(n);
+    t := Format(RepeatedCollection, [t]);
+  end;
+  s := Format('%s: %s read F%s', [n, t, n]);
+  if ro then
+    s := s + ';'
   else
-    gen.Wr('%s: %s read F%s write F%s;', [n, t, n, n]);
-  gen.Wrln;
+    s := s + Format(' write F%s;', [n]);
+  gen.Wrln(s);
 end;
 
 procedure TpbFieldHelper.AsReflection(gen: TGen);
@@ -159,20 +172,16 @@ end;
 
 procedure TpbFieldHelper.AsInit(gen: TGen);
 var
-  n, t, k, v: string;
+  n, t: string;
 begin
   n := AsCamel(Name);
   t := Typ.DelphiName;
   if options.Default <> '' then
     gen.Wrln('F%s := %s;', [n, options.Default])
   else if Rule = TFieldRule.Repeated then
-    gen.Wrln('F%s := TList<T%s>.Create;', [n, t])
+    gen.Wrln('F%s := ' + RepeatedCollection + '.Create;', [n, t])
   else if typ.TypMode = TTypeMode.tmMap then
-  begin
-    k := 'keyType';
-    v := 'valueType';
-    gen.Wrln('F%s := TDictionary<%s, %s>.Create;', [n, k, v]);
-  end;
+    gen.Wrln('F%s := T%s.Create;', [n, t]);
 end;
 
 procedure TpbFieldHelper.AsFree(gen: TGen);
@@ -346,8 +355,16 @@ begin
 end;
 
 procedure TpbMessageHelper.AsRead(gen: TGen);
+var
+  i: Integer;
+  f: TpbField;
+  m: TpbMessage;
 begin
-
+  for i := 0 to Fields.Count - 1 do
+  begin
+    f := Fields[i];
+    f.AsRead(gen);
+  end;
 end;
 
 procedure TpbMessageHelper.AsWrite(gen: TGen);
