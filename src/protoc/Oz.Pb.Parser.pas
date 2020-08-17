@@ -946,15 +946,20 @@ begin
 end;
 
 procedure TpbParser._EnumField(e: TPbEnum);
-var n: Integer;
+var
+  name: string;
+  n: Integer;
+  ev: TEnumValue;
 begin
-  Expect(1);
+  _Ident(name);
   Expect(13);
   if la.kind = 35 then
   begin
     Get;
   end;
   _intLit(n);
+  ev := TEnumValue.Create(e, name, n);
+  e.EnumValues.Add(ev);
   if la.kind = 40 then
   begin
     Get;

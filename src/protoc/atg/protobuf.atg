@@ -447,13 +447,17 @@ Option<enum>
 } "}"
 .
 
-EnumField<e: TPbEnum>        (. var n: Integer; .)
+EnumField<e: TPbEnum>        (. var
+                                  name: string;
+                                  n: Integer;
+                                  ev: TEnumValue; .)
 =
-ident
+Ident<name>
 "="
 [ "-"
 ]
-intLit<n>
+intLit<n>                    (. ev := TEnumValue.Create(e, name, n);
+                                e.EnumValues.Add(ev); .)
 [ "[" EnumValueOption<e>
 { ","  EnumValueOption<e>
 } "]" ]";"

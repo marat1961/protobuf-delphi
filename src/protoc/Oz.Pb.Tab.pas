@@ -85,6 +85,7 @@ type
     mPackage,   // package
     mRecord,    // message definition
     mEnum,      // enum definition
+    mEnumValue, // enum value
     mService,   // service definition
     mRpc,       // service definition
     mOneOf,
@@ -329,9 +330,13 @@ type
   end;
 
   TEnumValue = class(TIdent)
+  private
+    FIntVal: Integer;
+    FComment: string;
   public
-    IntVal: Integer;
-    Comment: string;
+    constructor Create(Scope: TIdent; const Name: string; IntVal: Integer);
+    property IntVal: Integer read FIntVal;
+    property Comment: string read FComment write FComment;
   end;
 
   TpbEnum = class(TpbType)
@@ -345,7 +350,7 @@ type
     destructor Destroy; override;
     // Get delphi name
     function DelphiName: string; override;
-    property Enums: TIdents<TEnumValue> read FEnums;
+    property EnumValues: TIdents<TEnumValue> read FEnums;
     property Options: PEnumOptions read GetOptions;
   end;
 
@@ -839,6 +844,16 @@ end;
 
 {$EndRegion}
 
+{$Region 'TEnumValue'}
+
+constructor TEnumValue.Create(Scope: TIdent; const Name: string; IntVal: Integer);
+begin
+  inherited Create(Scope, Name, TMode.mEnumValue);
+  FIntVal := IntVal;
+end;
+
+{$EndRegion}
+
 {$Region 'TpbType'}
 
 constructor TpbEnum.Create(Scope: TIdent; const Name: string; Package: TpbPackage);
@@ -1103,6 +1118,8 @@ begin
   FImport := TIdents<TpbModule>.Create;
   FPackages := TIdents<TpbPackage>.Create;
   Fem := Tem.Create(Tab, Self);
+  FMapTypes := TIdents<TpbMapType>.Create;
+  FServices := TIdents<TpbService>.Create;
 end;
 
 destructor TpbModule.Destroy;
@@ -1110,6 +1127,8 @@ begin
   FImport.Free;
   FPackages.Free;
   Fem.Free;
+  FMapTypes.Free;
+  FServices.Free;
   inherited;
 end;
 

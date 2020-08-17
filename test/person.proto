@@ -19,3 +19,21 @@ message Person {
   repeated PhoneNumber phone = 4;
 
 }
+
+enum AccessModifier {
+  acsPublic = 1;
+  acsProtected = 2;
+  acsPrivate = 3;
+}
+
+message Ident {
+  string id = 1;
+  AccessModifier access = 2;
+}
+
+map Idtab<string, Ident>;
+
+message Table {
+  string name = 1;
+  map<string, Ident> projects = 2;
+}

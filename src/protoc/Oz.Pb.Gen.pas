@@ -7,8 +7,8 @@ uses
   Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic, Oz.Pb.Tab;
 
 const
-  RepeatedCollection = 'TList<T%s>';
-  MapCollection = 'TDictionary<T%s, T%s>';
+  RepeatedCollection = 'TList<%s>';
+  MapCollection = 'TDictionary<%s, %s>';
 
 type
 
@@ -51,6 +51,14 @@ uses
   Oz.Pb.Parser;
 
 {$Region 'TpbFieldHelper'}
+
+function AsType(Typ: TpbType): string;
+begin
+  if Typ is TpbEmbeddedType then
+    Result := Typ.DelphiName
+  else
+    Result := 'T' + Typ.DelphiName;
+end;
 
 type
 
@@ -121,6 +129,14 @@ type
 
 {$EndRegion}
 
+{$Region 'TpbMapTypeHelper'}
+
+  TpbMapTypeHelper = class helper for TpbMapType
+    procedure AsDeclaration(gen: TGen);
+  end;
+
+{$EndRegion}
+
 {$Region 'TpbFieldHelper'}
 
 procedure TpbFieldHelper.AsTagDeclarations(gen: TGen);
@@ -137,9 +153,9 @@ procedure TpbFieldHelper.AsDeclaration(gen: TGen);
 var n, t: string;
 begin
   n := AsCamel(Name);
-  t := Typ.DelphiName;
+  t := AsType(Typ);
   if Rule = TFieldRule.Repeated then
-    t := Format(RepeatedCollection, [Typ.DelphiName]);
+    t := Format(RepeatedCollection, [t]);
   gen.Wrln('F%s: %s;', [n, t]);
 end;
 
@@ -150,7 +166,7 @@ var
 begin
   ro := Options.ReadOnly;
   n := AsCamel(Name);
-  t := Typ.DelphiName;
+  t := AsType(Typ);
   if Rule = TFieldRule.Repeated then
   begin
     ro := True;
@@ -175,13 +191,13 @@ var
   n, t: string;
 begin
   n := AsCamel(Name);
-  t := Typ.DelphiName;
+  t := AsType(Typ);
   if options.Default <> '' then
     gen.Wrln('F%s := %s;', [n, options.Default])
   else if Rule = TFieldRule.Repeated then
     gen.Wrln('F%s := ' + RepeatedCollection + '.Create;', [n, t])
   else if typ.TypMode = TTypeMode.tmMap then
-    gen.Wrln('F%s := T%s.Create;', [n, t]);
+    gen.Wrln('F%s := %s.Create;', [n, t]);
 end;
 
 procedure TpbFieldHelper.AsFree(gen: TGen);
@@ -390,15 +406,26 @@ var
   ev: TEnumValue;
 begin
   gen.Wrln('T%s = (', [Name]);
-  for i := 0 to Enums.Count - 1 do
+  for i := 0 to EnumValues.Count - 1 do
   begin
-    ev := Enums[i];
-    gen.Wr('  %s=%d', [ev.Name, ev.IntVal]);
-    if i < Enums.Count - 1 then
+    ev := EnumValues[i];
+    gen.Wr('  %s = %d', [ev.Name, ev.IntVal]);
+    if i < EnumValues.Count - 1 then
       gen.Wrln(',')
     else
       gen.Wrln(');');
   end;
+  gen.Wrln;
+end;
+
+{$EndRegion}
+
+{$Region 'TpbMapTypeHelper'}
+
+procedure TpbMapTypeHelper.AsDeclaration(gen: TGen);
+begin
+  gen.Wrln('T%s = ' + MapCollection + ';',
+    [DelphiName, Key.DelphiName, Value.DelphiName]);
 end;
 
 {$EndRegion}
@@ -422,7 +449,8 @@ var
   s: string;
   i: Integer;
   em: Tem;
-  e: TpbEnum;
+  enum: TpbEnum;
+  map: TpbMapType;
   m: TpbMessage;
 begin
   em := Tab.Module.Em;
@@ -437,16 +465,26 @@ begin
   Wrln;
   Wrln('type');
   Wrln;
+
+  // enumerated types
   for i := 0 to em.Enums.Count - 1 do
   begin
-    e := em.Enums[i];
-    e.AsDeclaration(Self);
+    enum := em.Enums[i];
+    enum.AsDeclaration(Self);
+  end;
+
+  // map types
+  for i := 0 to Tab.Module.MapTypes.Count - 1 do
+  begin
+    map := Tab.Module.MapTypes[i];
+    map.AsDeclaration(Self);
   end;
   for i := 0 to em.Messages.Count - 1 do
   begin
     m := em.Messages[i];
     m.AsDeclaration(Self);
   end;
+
   Wrln('implementation');
   Wrln;
   for i := 0 to em.Messages.Count - 1 do
