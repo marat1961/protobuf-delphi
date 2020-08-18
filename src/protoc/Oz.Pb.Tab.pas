@@ -81,6 +81,7 @@ type
   // Ident mode
   TMode = (
     mUnknown,
+    mHead,
     mModule,    // proto file
     mPackage,   // package
     mRecord,    // message definition
@@ -93,6 +94,58 @@ type
     mType,      // embedded type
     mConst,     // constant declaration
     mOption);   // option
+
+  // Type mode
+  TTypeMode = (
+    tmUnknown,  // Unknown
+    // Embedded types
+    tmDouble,   // Double
+    tmFloat,    // Single
+    tmInt64,    // Int64
+    tmUint64,   // UIint64
+    tmInt32,    // Integer
+    tmFixed64,  // UInt64
+    tmFixed32,  // UInt32
+    tmBool,     // Boolean
+    tmString,   // string
+    tmBytes,    // bytes
+    tmUint32,   // UInt32
+    tmSfixed32, // UInt32
+    tmSfixed64, // Int64
+    tmSint32,   // Integer
+    tmSint64,   // Int64
+    // Proto2 syntax only, and deprecated.
+    tmGroup,    // Field type group.
+    // User defined types
+    tmEnum,     // Integer
+    tmMessage,  // message
+    tmMap);     // Map
+
+  TEmbeddedTypes = TTypeMode.tmUnknown .. TTypeMode.tmSint64;
+
+  PObj = ^TObjDesc;
+  PType = ^TTypeDesc;
+
+  TObjDesc = record
+    cls: TMode;
+    lev: Integer;
+    next, dsc: PObj;
+    typ: PType;
+    name: string;
+    val: TValue;
+    idx: Integer;
+    // Get delphi name
+    function DelphiName: string;
+    // Get delphi type
+    function AsType: string;
+  end;
+
+  TTypeDesc = record
+    form: Integer;
+    fields: PObj;
+    base: PObj;
+    size, len: Integer;
+  end;
 
   TIdent = class
   private
@@ -175,68 +228,6 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbType: Base class for all data types'}
-
-  // Field type mode
-  TTypeMode = (
-    tmUnknown,  // Unknown
-    // Embedded types
-    tmDouble,   // Double
-    tmFloat,    // Single
-    tmInt64,    // Int64
-    tmUint64,   // UIint64
-    tmInt32,    // Integer
-    tmFixed64,  // UInt64
-    tmFixed32,  // UInt32
-    tmBool,     // Boolean
-    tmString,   // string
-    tmBytes,    // bytes
-    tmUint32,   // UInt32
-    tmSfixed32, // UInt32
-    tmSfixed64, // Int64
-    tmSint32,   // Integer
-    tmSint64,   // Int64
-    // Proto2 syntax only, and deprecated.
-    tmGroup,    // Field type group.
-    // User defined types
-    tmEnum,     // Integer
-    tmMessage,  // message
-    tmMap);     // Map
-
-  TEmbeddedTypes = TTypeMode.tmDouble .. TTypeMode.tmSint64;
-
-  TpbType = class(TIdent)
-  private
-    FTypeMode: TTypeMode;
-    FDesc: string;
-  protected
-    constructor Create(Scope: TIdent; const Name: string;
-      TypeMode: TTypeMode; const Desc: string = '');
-  public
-    // Get delphi name
-    function DelphiName: string; virtual; abstract;
-    property TypMode: TTypeMode read FTypeMode write FTypeMode;
-    property Desc: string read FDesc;
-  end;
-
-  TpbEmbeddedType = class(TpbType)
-  public
-    constructor Create(Scope: TpbModule; TypMode: TEmbeddedTypes);
-    // Get delphi name
-    function DelphiName: string; override;
-  end;
-
-  TpbUnknownType = class(TpbType)
-  private
-    FTyp: TUserType;
-  public
-    constructor Create(Scope: TIdent; Typ: TUserType);
-    // Get delphi name
-    function DelphiName: string; override;
-  end;
-
-{$EndRegion}
-
 {$Region 'TpbPackage: Package specifier'}
 
 (*  Package Definition
@@ -263,11 +254,11 @@ type
   TpbPackage = class(TIdent)
   private
     FModule: TpbModule;
-    FTypes: TIdents<TpbType>;
+    FTypes: TArray<PType>;
   public
     constructor Create(Scope: TpbModule; const Name: string);
     property Module: TpbModule read FModule;
-    property Types: TIdents<TpbType> read FTypes;
+    property Types: TArray<PType> read FTypes;
   end;
 
 {$EndRegion}
@@ -277,9 +268,9 @@ type
   // Rules for fields in .proto files
   TFieldRule = (Singular, Optional, Repeated);
 
-  TpbField = class(TIdent)
+  TpbField = class
   private
-    FType: TpbType;
+    FType: PType;
     FTag: Integer;
     FRule: TFieldRule;
     FPos: TPosition;
@@ -288,12 +279,12 @@ type
     function GetPos: PPosition;
     function GetOptions: PFieldOptions;
   public
-    constructor Create(Scope: TpbMessage; const Name: string; Typ: TpbType;
+    constructor Create(Scope: TpbMessage; const Name: string; Typ: PType;
       Tag: Integer; Rule: TFieldRule);
     function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     function ToString: string; override;
     property Msg: TpbMessage read GetMsg;
-    property Typ: TpbType read FType;
+    property Typ: PType read FType;
     property Tag: Integer read FTag;
     property Rule: TFieldRule read FRule;
     property Pos: PPosition read GetPos;
@@ -312,7 +303,7 @@ type
     constructor Create(Scope: TpbMessage; const Name: string);
     destructor Destroy; override;
     // Add variant field
-    function AddField(const Name: string; Typ: TpbType; Tag: Integer): TpbField;
+    function AddField(const Name: string; Typ: PType; Tag: Integer): TpbField;
     property Msg: TpbMessage read FMsg;
   end;
 
@@ -497,7 +488,7 @@ type
     function LookupImport(const Name: string; Weak: Boolean): TpbModule;
     // Search by map type name or the anonymous pair <KeyTyp, FieldType>
     // and if not found then create it
-    function LookupMapType(const Name: string; Key, Value: TpbType): TpbMapType;
+    function LookupMapType(const Name: string; Key, Value: PType): PType;
     // Add package and update its current value
     function AddPackage(const Name: string): TpbPackage;
     // Add module option
@@ -526,20 +517,34 @@ type
   // Uses the singleton pattern for its creation.
   TpbTable = class(TCocoPart)
   private
-    FEmbeddedTypes: array [TTypeMode.tmDouble .. TTypeMode.tmSint64] of TpbEmbeddedType;
+    FTopScope: PObj;
+    FUniverse: PObj;
+    FGuard: PObj;
     // root node for the .proto file
     FModule: TpbModule;
     // root node for predefined elements
     FSystem: TpbModule;
     // Unknown types
     FUnknownTypes: TIdents<TpbType>;
+    // predefined types
+    FEmbeddedTypes: array [TEmbeddedTypes] of PType;
     // Fill predefined elements
     procedure InitSystem;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
+    // Add new declaration
+    procedure NewObj(var obj: PObj; const id: string; cls: TMode);
+    // Find
+    procedure Find(var obj: PObj; const id: string);
+    // Open scope
+    procedure OpenScope;
+    // Open scope
+    procedure CloseScope;
+    // Enter
+    procedure Enter(cls: TMode; n: Integer; name: string; typ: PType);
     // Get embedded type by kind
-    function GetBasisType(kind: TTypeMode): TpbEmbeddedType;
+    function GetBasisType(kind: TTypeMode): PType;
     // Àdd stub type tmUnknown
     function AddUnknown(Scope: TIdent; Typ: TUserType): TpbType;
     // Open and read module from file
@@ -554,6 +559,12 @@ type
 {$EndRegion}
 
 function GetWireType(tm: TTypeMode): TWireType;
+
+const
+  EmbeddedTypeNames: array [TEmbeddedTypes] of string = (
+    'unknown', 'double', 'float', 'int64', 'uint64', 'int32',
+    'fixed64', 'fixed32', 'bool', 'string', 'bytes',
+    'uint32', 'sfixed32', 'sfixed64', 'sint32', 'sint64');
 
 implementation
 
@@ -619,6 +630,19 @@ begin
 end;
 
 {$EndRegion}
+
+function TObjDesc.DelphiName: string;
+begin
+  Result := AsCamel(name);
+end;
+
+function TObjDesc.AsType: string;
+begin
+  if Typ is TpbEmbeddedType then
+    Result := DelphiName
+  else
+    Result := 'T' + DelphiName;
+end;
 
 {$Region 'TIdent'}
 
@@ -748,19 +772,14 @@ end;
 {$Region 'TpbEmbeddedType'}
 
 constructor TpbEmbeddedType.Create(Scope: TpbModule; TypMode: TEmbeddedTypes);
-const
-  Names: array [TEmbeddedTypes] of string = (
-    'double', 'float', 'int64', 'uint64', 'int32',
-    'fixed64', 'fixed32', 'bool', 'string', 'bytes',
-    'uint32', 'sfixed32', 'sfixed64', 'sint32', 'sint64');
 begin
-  inherited Create(Scope, Names[TypMode], TypMode, '');
+  inherited Create(Scope, EmbeddedTypeNames[TypMode], TypMode, '');
 end;
 
 function TpbEmbeddedType.DelphiName: string;
 const
   Names: array [TEmbeddedTypes] of string = (
-    'Double', 'Single', 'Int64', 'UIint64', 'Integer',
+    'Unknown', 'Double', 'Single', 'Int64', 'UIint64', 'Integer',
     'UInt64', 'UInt32', 'Boolean', 'string', 'bytes',
     'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
 begin
@@ -1141,7 +1160,7 @@ begin
     Result := FTab.OpenModule(Self, Name, Weak);
 end;
 
-function TpbModule.LookupMapType(const Name: string; Key, Value: TpbType): TpbMapType;
+function TpbModule.LookupMapType(const Name: string; Key, Value: PType): PType;
 var Id: string;
 begin
   if Name <> '' then
@@ -1215,13 +1234,81 @@ begin
 end;
 
 procedure TpbTable.InitSystem;
-var i: TTypeMode;
+var
+  t: TTypeMode;
 begin
-  for i := Low(FEmbeddedTypes) to High(FEmbeddedTypes) do
-    FEmbeddedTypes[i] := TpbEmbeddedType.Create(FSystem, i);
+  New(FGuard);
+  FGuard.cls := TMode.mUnknown; FGuard.val := 0;
+  FTopScope := nil;
+  OpenScope;
+  FUniverse := FTopScope;
+  for t := TTypeMode.tmUnknown to TTypeMode.tmSint64 do
+    Enter(TMode.mType, Ord(t), EmbeddedTypeNames[t], FEmbeddedTypes[t]);
+  FGuard.typ := FEmbeddedTypes[TTypeMode.tmUnknown];
 end;
 
-function TpbTable.GetBasisType(kind: TTypeMode): TpbEmbeddedType;
+procedure TpbTable.NewObj(var obj: PObj; const id: string; cls: TMode);
+var
+  x, n: PObj;
+begin
+  x := FTopScope;
+  FGuard.name := id;
+  while x.next.name <> id do x := x.next;
+  if x.next = FGuard then
+  begin
+    New(n); n.name := id; n.cls := cls; n.next := FGuard;
+    x.next := n; obj := n;
+  end
+  else
+  begin
+    obj := x.next;
+  end;
+end;
+
+procedure TpbTable.Find(var obj: PObj; const id: string);
+var
+  s, x: PObj;
+begin
+  s := FTopScope; FGuard.name := id;
+  repeat
+    x := s.next;
+    while x.name <> id do x := x.next;
+    if x.next <> FGuard then exit;
+    if s = FUniverse then
+    begin
+      obj := x;
+      exit;
+    end;
+    s := s.dsc;
+  until false;
+end;
+
+procedure TpbTable.OpenScope;
+var s: PObj;
+begin
+  New(s);
+  s.cls := TMode.mHead;
+  s.dsc := FTopScope;
+  s.next := FGuard;
+  FTopScope := s;
+end;
+
+procedure TpbTable.CloseScope;
+begin
+  FTopScope := FTopScope.dsc;
+end;
+
+procedure TpbTable.Enter(cls: TMode; n: Integer; name: string; typ: PType);
+var obj: PObj;
+begin
+  New(obj);
+  obj.cls := cls; obj.val := n; obj.name := name; obj.typ := typ;
+  obj.dsc := nil;
+  obj.next := FTopScope.next;
+  FTopScope.next := obj;
+end;
+
+function TpbTable.GetBasisType(kind: TTypeMode): PType;
 begin
   Result := FEmbeddedTypes[kind];
 end;

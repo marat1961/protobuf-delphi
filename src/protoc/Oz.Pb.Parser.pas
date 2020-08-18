@@ -54,8 +54,8 @@ type
     procedure _FullIdent(var name: string);
     procedure _OptionName(var s: string);
     procedure _Constant(var c: TConst);
-    procedure _KeyType(var ft: TpbType);
-    procedure _Type(Scope: TIdent; var ft: TpbType);
+    procedure _KeyType(var ft: PType);
+    procedure _Type(Scope: TIdent; var ft: PType);
     procedure _Rpc(service: TpbService);
     procedure _UserType(var typ: TUserType);
     procedure _intLit(var n: Integer);
@@ -340,7 +340,7 @@ end;
 procedure TpbParser._Map(module: TpbModule);
 var
   name: string;
-  key, value: TpbType;
+  key, value: PType;
   map: TpbMapType;
 begin
   Expect(23);
@@ -607,7 +607,7 @@ begin
     SynErr(67);
 end;
 
-procedure TpbParser._KeyType(var ft: TpbType);
+procedure TpbParser._KeyType(var ft: PType);
 begin
   case la.kind of
     46:
@@ -675,7 +675,7 @@ begin
   end;
 end;
 
-procedure TpbParser._Type(Scope: TIdent; var ft: TpbType);
+procedure TpbParser._Type(Scope: TIdent; var ft: PType);
 var typ: TUserType;
 begin
   if la.kind = 43 then

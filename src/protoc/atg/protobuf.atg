@@ -365,7 +365,7 @@ intLit<tag>
 
 // Types
 
-Type<Scope: TIdent; var ft: TpbType>
+Type<Scope: TIdent; var ft: PType>
                              (. var typ: TUserType; .)
 =
   "double"                   (. ft := tab.GetBasisType(TTypeMode.tmDouble); .)
