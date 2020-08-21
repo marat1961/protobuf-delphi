@@ -35,41 +35,41 @@ type
   private
     procedure SemError(n: Integer);
     procedure _Pb;
-    procedure _Syntax(Scope: TpbModule);
-    procedure _Import(Scope: TpbModule);
-    procedure _Package(Scope: TpbModule);
-    procedure _Option(Scope: TIdent);
-    procedure _TopLevelDef(Scope: TpbModule);
+    procedure _Syntax;
+    procedure _Import;
+    procedure _Package;
+    procedure _Option(var obj: PObj);
+    procedure _TopLevelDef;
     procedure _EmptyStatement;
-    procedure _Message(Scope: TIdent);
+    procedure _Message(var obj: PObj);
     procedure _Enum(Scope: TIdent);
-    procedure _Map(module: TpbModule);
-    procedure _Service(module: TpbModule);
+    procedure _Map(obj: PObj);
+    procedure _Service(obj: PObj);
     procedure _Ident(var name: string);
-    procedure _Field(msg: TpbMessage);
-    procedure _MapField(msg: TpbMessage);
-    procedure _OneOf(msg: TpbMessage);
-    procedure _Reserved(msg: TpbMessage);
+    procedure _Field(msg: PObj);
+    procedure _MapField(msg: PObj);
+    procedure _OneOf(msg: PObj);
+    procedure _Reserved(msg: PObj);
     procedure _strLit;
     procedure _FullIdent(var name: string);
     procedure _OptionName(var s: string);
     procedure _Constant(var c: TConst);
     procedure _KeyType(var ft: PType);
-    procedure _Type(Scope: TIdent; var ft: PType);
-    procedure _Rpc(service: TpbService);
+    procedure _Type(var typ: PType);
+    procedure _Rpc(service: PObj);
     procedure _UserType(var typ: TUserType);
     procedure _intLit(var n: Integer);
     procedure _floatLit(var n: Double);
     procedure _boolLit;
     procedure _FieldNumber(var tag: Integer);
     procedure _FieldOptions(f: TPbField);
-    procedure _OneOfField(oneOf: TPbOneOf);
+    procedure _OneOfField(oneOf: PObj);
     procedure _FieldOption(f: TPbField);
     procedure _Ranges(Reserved: TIntSet);
     procedure _FieldNames;
     procedure _Range(var lo, hi: Integer);
-    procedure _EnumField(e: TPbEnum);
-    procedure _EnumValueOption(e: TPbEnum);
+    procedure _EnumField(e: PObj);
+    procedure _EnumValueOption(e: PObj);
   protected
     function Starts(s, kind: Integer): Boolean; override;
     procedure Get; override;
@@ -146,36 +146,37 @@ begin
 end;
 
 procedure TpbParser._Pb;
-var Scope: TpbModule;
+var obj: PObj;
 begin
-  Scope := tab.Module;
-  _Syntax(Scope);
+  tab.OpenScope;
+  _Syntax;
   while StartOf(1) do
   begin
     if la.kind = 15 then
     begin
-      _Import(Scope);
+      _Import;
     end
     else if la.kind = 18 then
     begin
-      _Package(Scope);
+      _Package;
     end
     else if la.kind = 19 then
     begin
-      _Option(Scope);
+      _Option(obj);
     end
     else if StartOf(2) then
     begin
-      _TopLevelDef(Scope);
+      _TopLevelDef;
     end
     else
     begin
       _EmptyStatement;
     end;
   end;
+  tab.CloseScope;
 end;
 
-procedure TpbParser._Syntax(Scope: TpbModule);
+procedure TpbParser._Syntax;
 begin
   Expect(12);
   Expect(13);
@@ -188,7 +189,7 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._Import(Scope: TpbModule);
+procedure TpbParser._Import;
 var weak: Boolean;
 begin
   weak := False;
@@ -206,11 +207,11 @@ begin
     end;
   end;
   _strLit;
-  tab.Module.LookupImport(t.val, weak);
+
   Expect(14);
 end;
 
-procedure TpbParser._Package(Scope: TpbModule);
+procedure TpbParser._Package;
 var name: string;
 begin
   Expect(18);
@@ -219,7 +220,7 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._Option(Scope: TIdent);
+procedure TpbParser._Option(var obj: PObj);
 var
   name: string;
   Cv: TConst;
@@ -232,23 +233,25 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._TopLevelDef(Scope: TpbModule);
+procedure TpbParser._TopLevelDef;
+var
+  obj: PObj;
 begin
   if la.kind = 9 then
   begin
-    _Message(tab.Module);
+    _Message(obj);
   end
   else if la.kind = 61 then
   begin
-    _Enum(tab.Module);
+    _Enum(obj);
   end
   else if la.kind = 23 then
   begin
-    _Map(tab.Module);
+    _Map(obj);
   end
   else if la.kind = 27 then
   begin
-    _Service(tab.Module);
+    _Service(obj);
   end
   else
     SynErr(63);
@@ -259,16 +262,17 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._Message(Scope: TIdent);
+procedure TpbParser._Message(var obj: PObj);
 var
   name: string;
-  msg: TpbMessage;
+  msg: PObj;
 begin
   Expect(9);
   _Ident(name);
   if Scope.em.Messages.Find(name) <> nil then
     SemError(1);
   msg := Scope.em.AddMessage(Scope, name);
+  tab.OpenScope;
   Expect(10);
   while StartOf(3) do
   begin
@@ -308,12 +312,13 @@ begin
       end;
   end;
   Expect(11);
+  tab.OpenScope;
 end;
 
 procedure TpbParser._Enum(Scope: TIdent);
 var
   name: string;
-  enum: TPbEnum;
+  enum: PObj;
 begin
   Expect(61);
   _Ident(name);
@@ -337,7 +342,7 @@ begin
   Expect(11);
 end;
 
-procedure TpbParser._Map(module: TpbModule);
+procedure TpbParser._Map(obj: PObj);
 var
   name: string;
   key, value: PType;
@@ -356,16 +361,16 @@ begin
   module.LookupMapType(name, key, value);
 end;
 
-procedure TpbParser._Service(module: TpbModule);
+procedure TpbParser._Service(obj: PObj);
 var
-  name: string;
-  service: TpbService;
+   name: string;
+   service: PObj;
 begin
   Expect(27);
   _Ident(name);
   if module.Services.Find(name) <> nil then
     SemError(1);
-  service := TpbService.Create(module, name);
+  service := PObj.Create(module, name);
   module.Services.Add(service);
   Expect(10);
   while (la.kind = 14) or (la.kind = 19) or (la.kind = 28) do
@@ -392,13 +397,13 @@ begin
   name := t.val;
 end;
 
-procedure TpbParser._Field(msg: TpbMessage);
+procedure TpbParser._Field(msg: PObj);
 var
   f: TPbField;
   name: string;
   tag: Integer;
   rule: TFieldRule;
-  ft: TpbType;
+  ft: PType;
 begin
   rule := TFieldRule.Singular;
   if (la.kind = 37) or (la.kind = 38) or (la.kind = 39) then
@@ -418,7 +423,7 @@ begin
       Get;
     end;
   end;
-  _Type(msg, ft);
+  _Type(ft);
   _Ident(name);
   if msg.Fields.Find(name) <> nil then
     SemError(1);
@@ -434,12 +439,12 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._MapField(msg: TpbMessage);
+procedure TpbParser._MapField(msg: PObj);
 var
-  mapName, name: string;
-  key, value, map: TpbType;
-  tag: Integer;
-  f: TpbField;
+        mapName, name: string;
+        key, value, map: PType;
+        tag: Integer;
+        f: TpbField;
 begin
   Expect(23);
   if la.kind = 1 then
@@ -469,9 +474,9 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._OneOf(msg: TpbMessage);
+procedure TpbParser._OneOf(msg: PObj);
 var
-  oneOf: TPbOneOf;
+  oneOf: PObj;
   name: string;
 begin
   Expect(42);
@@ -496,7 +501,7 @@ begin
   Expect(11);
 end;
 
-procedure TpbParser._Reserved(msg: TpbMessage);
+procedure TpbParser._Reserved(msg: PObj);
 begin
   Expect(58);
   if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
@@ -675,54 +680,50 @@ begin
   end;
 end;
 
-procedure TpbParser._Type(Scope: TIdent; var ft: PType);
-var typ: TUserType;
+procedure TpbParser._Type(var typ: PType);
+var
+  obj: PObj;
+  ut: TUserType;
 begin
   if la.kind = 43 then
   begin
     Get;
-    ft := tab.GetBasisType(TTypeMode.tmDouble);
+    typ := tab.GetBasisType(TTypeMode.tmDouble);
   end
   else if la.kind = 44 then
   begin
     Get;
-    ft := tab.GetBasisType(TTypeMode.tmFloat);
+    typ := tab.GetBasisType(TTypeMode.tmFloat);
   end
   else if la.kind = 45 then
   begin
     Get;
-    ft := tab.GetBasisType(TTypeMode.tmBytes);
+    typ := tab.GetBasisType(TTypeMode.tmBytes);
   end
   else if StartOf(7) then
   begin
-    _KeyType(ft);
+    _KeyType(typ);
   end
   else if (la.kind = 1) or (la.kind = 22) then
   begin
-    _UserType(typ);
-    case Scope.Mode of
-      TMode.mModule:
-        ft := TpbModule(Scope).FindUserType(typ, True);
-      TMode.mRecord:
-        ft := TpbMessage(Scope).FindUserType(typ, True);
-      else
-      begin
-        SemError(6);
-        exit;
-      end;
-    end;
-    if ft.TypMode = TTypeMode.tmUnknown then
-      SemError(2);
+    _UserType(ut);
+    typ := tab.Find(obj, ut);
+    if obj.cls = TMode.mType then
+      typ := obj.typ
+    else if typ.TypMode = TTypeMode.tmUnknown then
+      SemError(2)
+    else
+      SemError(5);
   end
   else
     SynErr(69);
 end;
 
-procedure TpbParser._Rpc(service: TpbService);
+procedure TpbParser._Rpc(service: PObj);
 var
   name: string;
   typ: TUserType;
-  rpc: TpbRpc;
+  rpc: PObj;
 begin
   Expect(28);
   _Ident(name);
@@ -871,12 +872,12 @@ begin
   end;
 end;
 
-procedure TpbParser._OneOfField(oneOf: TPbOneOf);
+procedure TpbParser._OneOfField(oneOf: PObj);
 var
   f: TPbField;
   name: string;
   tag: Integer;
-  ft: TpbType;
+  ft: PType;
 begin
   _Type(oneOf.msg, ft);
   _Ident(name);
@@ -945,11 +946,11 @@ begin
   end;
 end;
 
-procedure TpbParser._EnumField(e: TPbEnum);
+procedure TpbParser._EnumField(e: PObj);
 var
-  name: string;
-  n: Integer;
-  ev: TEnumValue;
+     name: string;
+     n: Integer;
+     ev: TEnumValue;
 begin
   _Ident(name);
   Expect(13);
@@ -974,10 +975,10 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._EnumValueOption(e: TPbEnum);
+procedure TpbParser._EnumValueOption(e: PObj);
 var
-  Name: string;
-  Cv: TConst;
+     Name: string;
+     Cv: TConst;
 begin
   _OptionName(Name);
   Expect(13);

@@ -72,6 +72,8 @@ type
 
 {$EndRegion}
 
+{$Region 'TMode, TTypeMode, PObj, TObjDesc, PType, TTypeDesc'}
+
   // Obj mode
   TMode = (
     mUnknown,
@@ -145,6 +147,8 @@ type
     size, len: Integer;
   end;
 
+{$EndRegion}
+
 {$Region 'TIdent: base class for creating all other objects'}
 
   TIdent = class
@@ -192,6 +196,8 @@ type
 
 {$EndRegion}
 
+{$Region 'TpbPackage: Package specifier'}
+
 (*  Package Definition
     ------------------
     Within a single module, the Package Definition may occur from 0 to n.
@@ -213,6 +219,14 @@ type
     All this means that there are two types of access to declarations in the module:
      - by short name;
      - by a composite name. *)
+  TpbPackage = class(TIdent)
+  private
+    FTypes: PType;
+  public
+    property Types: PType read FTypes;
+  end;
+
+{$EndRegion}
 
 {$Region 'TpbOption: can be used in proto files, messages, enums and services'}
 
@@ -283,15 +297,15 @@ type
     FSyntax: TSyntaxVersion;
     FImport: TIdents<TpbModule>;
     FOptions: TIdents<TpbOption>;
-    // Search the module recursively
-    function FindImport(const Name: string): TpbModule;
+    FPackages: TIdents<TpbPackage>;
+    FCurrentPackage: TpbPackage;
     function GetNameSpace: string;
   protected
     constructor Create(Tab: TpbTable; const Name: string; Weak: Boolean);
   public
     destructor Destroy; override;
-    // Search the module recursively and if not found then open the file
-    function LookupImport(const Name: string; Weak: Boolean): TpbModule;
+    // Add package and update its current value
+    procedure AddPackage(const Name: string);
     // Add module option
     function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     // Properties
@@ -531,31 +545,15 @@ begin
   inherited;
 end;
 
-function TpbModule.LookupImport(const Name: string; Weak: Boolean): TpbModule;
+procedure TpbModule.AddPackage(const Name: string);
 begin
-  // If the module has already been read and is in memory,
-  // then do not read it again
-  Result := FindImport(Name);
-  if Result = nil then
-    Result := FTab.OpenModule(Name, Weak);
+  FCurrentPackage := TpbPackage.Create(Name);
+  FPackages.Add(FCurrentPackage);
 end;
 
 function TpbModule.AddOption(const Name: string; const Value: TConst): TpbOption;
 begin
   Result := TpbOption.Create(Name, Value);
-end;
-
-function TpbModule.FindImport(const Name: string): TpbModule;
-var
-  i: Integer;
-begin
-  Result := FImport.Find(Name);
-  if Result <> nil then exit;
-  for i := 0 to FImport.Count - 1 do
-  begin
-    Result := FImport[i].FindImport(Name);
-    if Result <> nil then exit;
-  end;
 end;
 
 function TpbModule.GetNameSpace: string;

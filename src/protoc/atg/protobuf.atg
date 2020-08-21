@@ -41,32 +41,35 @@ IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
-Pb                          (. var Scope: TpbModule; .)
-=                           (. Scope := tab.Module; .)
-Syntax<Scope>
+Pb                           (. var obj: PObj; .)
+=                            (. tab.OpenScope; .)
+Syntax
 {
-  Import<Scope>
-| Package<Scope>
-| Option<Scope>
-| TopLevelDef<Scope>
+  Import
+| Package
+| Option<obj>
+| TopLevelDef
 | EmptyStatement
-} .
-
-TopLevelDef<Scope: TpbModule>
-=
-  Message<tab.Module>
-| Enum<tab.Module>
-| Map<tab.Module>
-| Service<tab.Module>
+}                            (. tab.CloseScope; .)
 .
 
-Message<Scope: TIdent>       (. var
+TopLevelDef                  (. var
+                                  obj: PObj; .)
+=
+  Message<obj>
+| Enum<obj>
+| Map<obj>
+| Service<obj>
+.
+
+Message<var obj: PObj>       (. var
                                   name: string;
-                                  msg: TpbMessage; .)
+                                  msg: PObj; .)
 =
 "message" Ident<name>        (. if Scope.em.Messages.Find(name) <> nil then
                                   SemError(1);
-                                msg := Scope.em.AddMessage(Scope, name); .)
+                                msg := Scope.em.AddMessage(Scope, name);
+                                tab.OpenScope; .)
 "{" {
   Field<msg>
 | MapField<msg>
@@ -76,12 +79,12 @@ Message<Scope: TIdent>       (. var
 | OneOf<msg>
 | Reserved<msg>
 | EmptyStatement
-} "}"
+} "}"                        (. tab.OpenScope; .)
 .
 
 // Syntax
 
-Syntax<Scope: TpbModule>
+Syntax
  =
 "syntax" "=" strLit          (. tab.Module.Syntax := TSyntaxVersion.Proto2;
                                 if t.val = '"proto3"' then
@@ -93,19 +96,19 @@ Syntax<Scope: TpbModule>
 
 // Import Statement
 
-Import<Scope: TpbModule>     (. var weak: Boolean; .)
+Import                       (. var weak: Boolean; .)
 =                            (. weak := False; .)
  "import"
 [ "weak"                     (. weak := True; .)
 | "public"
 ]
-strLit                       (. tab.Module.LookupImport(t.val, weak); .)
+strLit                       (.  .)
 ";"
 .
 
 // Package
 
-Package<Scope: TpbModule>    (. var name: string; .)
+Package                      (. var name: string; .)
 =
 "package"
 FullIdent<name>              (. Tab.Module.AddPackage(name); .)
@@ -114,7 +117,7 @@ FullIdent<name>              (. Tab.Module.AddPackage(name); .)
 
 // Option
 
-Option<Scope: TIdent>        (. var
+Option<var obj: PObj>        (. var
                                   name: string;
                                   Cv: TConst;  .)
 =
@@ -135,9 +138,9 @@ ident                        (. name := t.val; .)
 }
 .
 
-Map<module: TpbModule>       (. var
+Map<obj: PObj>               (. var
                                   name: string;
-                                  key, value: TpbType;
+                                  key, value: PType;
                                   map: TpbMapType; .)
 =
 "map"
@@ -149,13 +152,13 @@ Ident<name>                  (. map := module.MapTypes.Find(name);
 ">"                          (. module.LookupMapType(name, key, value); .)
 .
 
-Service<module: TpbModule>    (. var
+Service<obj: PObj>           (. var
                                    name: string;
-                                   service: TpbService; .)
+                                   service: PObj; .)
 =
 "service" Ident<name>        (. if module.Services.Find(name) <> nil then
                                   SemError(1);
-                                service := TpbService.Create(module, name);
+                                service := PObj.Create(module, name);
                                 module.Services.Add(service); .)
 "{" {
   Option<service>
@@ -164,10 +167,10 @@ Service<module: TpbModule>    (. var
 } "}"
 .
 
-Rpc<service: TpbService>     (. var
+Rpc<service: PObj>           (. var
                                   name: string;
                                   typ: TUserType;
-                                  rpc: TpbRpc; .)
+                                  rpc: PObj; .)
 =
 "rpc" Ident<name>            (. if service.RpcSystem.Find(name) <> nil then
                                  SemError(1);
@@ -277,18 +280,18 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 
 // Fields
 
-Field<msg: TpbMessage>       (. var
+Field<msg: PObj>             (. var
                                   f: TPbField;
                                   name: string;
                                   tag: Integer;
                                   rule: TFieldRule;
-                                  ft: TpbType; .)
+                                  ft: PType; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-Type<msg, ft>
+Type<ft>
 Ident<name>                  (. if msg.Fields.Find(name) <> nil then
                                   SemError(1); .)
 "="
@@ -298,8 +301,8 @@ FieldNumber<tag>             (. f := msg.em.AddField(msg, name, ft, tag, rule); 
 ";"
 .
 
-OneOf<msg: TpbMessage>       (. var
-                                  oneOf: TPbOneOf;
+OneOf<msg: PObj>             (. var
+                                  oneOf: PObj;
                                   name: string; .)
 =
 "oneof"
@@ -311,11 +314,11 @@ Ident<name>                  (. oneOf := msg.AddOneOf(name); .)
 } "}"
 .
 
-OneOfField<oneOf: TPbOneOf>  (. var
+OneOfField<oneOf: PObj>      (. var
                                   f: TPbField;
                                   name: string;
                                   tag: Integer;
-                                  ft: TpbType; .)
+                                  ft: PType; .)
 =
 Type<oneOf.msg, ft>
 Ident<name>
@@ -336,9 +339,9 @@ OptionName<name>
 Constant<Cv>                 (. f.AddOption(name, Cv); .)
 .
 
-MapField<msg: TpbMessage>    (. var
+MapField<msg: PObj>    (. var
                                   mapName, name: string;
-                                  key, value, map: TpbType;
+                                  key, value, map: PType;
                                   tag: Integer;
                                   f: TpbField; .)
 =
@@ -365,29 +368,25 @@ intLit<tag>
 
 // Types
 
-Type<Scope: TIdent; var ft: PType>
-                             (. var typ: TUserType; .)
+Type<var typ: PType>
+                             (. var
+                                  obj: PObj;
+                                  ut: TUserType; .)
 =
-  "double"                   (. ft := tab.GetBasisType(TTypeMode.tmDouble); .)
-| "float"                    (. ft := tab.GetBasisType(TTypeMode.tmFloat); .)
-| "bytes"                    (. ft := tab.GetBasisType(TTypeMode.tmBytes); .)
-| KeyType<ft>
-| UserType<typ>              (. case Scope.Mode of
-                                  TMode.mModule:
-                                    ft := TpbModule(Scope).FindUserType(typ, True);
-                                  TMode.mRecord:
-                                    ft := TpbMessage(Scope).FindUserType(typ, True);
-                                  else
-                                  begin
-                                    SemError(6);
-                                    exit;
-                                  end;
-                                end;
-                                if ft.TypMode = TTypeMode.tmUnknown then
-                                  SemError(2); .)
+  "double"                   (. typ := tab.GetBasisType(TTypeMode.tmDouble); .)
+| "float"                    (. typ := tab.GetBasisType(TTypeMode.tmFloat); .)
+| "bytes"                    (. typ := tab.GetBasisType(TTypeMode.tmBytes); .)
+| KeyType<typ>
+| UserType<ut>               (. typ := tab.Find(obj, ut);
+                                if obj.cls = TMode.mType then
+                                  typ := obj.typ
+                                else if typ.TypMode = TTypeMode.tmUnknown then
+                                  SemError(2)
+                                else
+                                  SemError(5); .)
 .
 
-KeyType<var ft: TpbType>
+KeyType<var ft: PType>
 =
   "int32"                    (. ft := tab.GetBasisType(TTypeMode.tmInt32); .)
 | "int64"                    (. ft := tab.GetBasisType(TTypeMode.tmInt64); .)
@@ -403,7 +402,7 @@ KeyType<var ft: TpbType>
 | "string"                   (. ft := tab.GetBasisType(TTypeMode.tmString); .)
 .
 
-Reserved<msg: TpbMessage>
+Reserved<msg: PObj>
 =
 "reserved"
 ( Ranges<msg.Reserved>
@@ -436,7 +435,7 @@ Ident<name>
 
 Enum<Scope: TIdent>          (. var
                                   name: string;
-                                  enum: TPbEnum; .)
+                                  enum: PObj; .)
 =
 "enum"
 Ident<name>                  (. enum := Scope.em.AddEnum(Scope, name); .)
@@ -447,7 +446,7 @@ Option<enum>
 } "}"
 .
 
-EnumField<e: TPbEnum>        (. var
+EnumField<e: PObj>        (. var
                                   name: string;
                                   n: Integer;
                                   ev: TEnumValue; .)
@@ -463,7 +462,7 @@ intLit<n>                    (. ev := TEnumValue.Create(e, name, n);
 } "]" ]";"
 .
 
-EnumValueOption<e: TPbEnum>  (. var
+EnumValueOption<e: PObj>  (. var
                                   Name: string;
                                   Cv: TConst; .)
 =

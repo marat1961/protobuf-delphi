@@ -30,11 +30,11 @@ type
     procedure Dedent;
 
     procedure GenComment(const ñ: string);
-    procedure LoadMessage(msg: TpbMessage);
-    procedure WriterInterface(msg: TpbMessage);
-    procedure ReaderInterface(msg: TpbMessage);
-    procedure WriterImplementation(msg: TpbMessage);
-    procedure ReaderImplementation(msg: TpbMessage);
+    procedure LoadMessage(msg: PObj);
+    procedure WriterInterface(msg: PObj);
+    procedure ReaderInterface(msg: PObj);
+    procedure WriterImplementation(msg: PObj);
+    procedure ReaderImplementation(msg: PObj);
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -110,9 +110,9 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbMessageHelper'}
+{$Region 'PObjHelper'}
 
-  TpbMessageHelper = class helper for TpbMessage
+  PObjHelper = class helper for PObj
     procedure AsDeclaration(gen: TGen);
     procedure AsImplementation(gen: TGen);
     procedure AsWrite(gen: TGen);
@@ -271,11 +271,11 @@ end;
 
 {$EndRegion}
 
-{$Region 'TpbMessageHelper'}
+{$Region 'PObjHelper'}
 
-procedure TpbMessageHelper.AsDeclaration(gen: TGen);
+procedure PObjHelper.AsDeclaration(gen: TGen);
 var
-  m: TpbMessage;
+  m: PObj;
   f: TpbField;
   i: Integer;
 begin
@@ -335,7 +335,7 @@ begin
   gen.Wrln;
 end;
 
-procedure TpbMessageHelper.AsImplementation(gen: TGen);
+procedure PObjHelper.AsImplementation(gen: TGen);
 var
   i: Integer;
   t, v: string;
@@ -370,11 +370,11 @@ begin
   gen.Wrln;
 end;
 
-procedure TpbMessageHelper.AsRead(gen: TGen);
+procedure PObjHelper.AsRead(gen: TGen);
 var
   i: Integer;
   f: TpbField;
-  m: TpbMessage;
+  m: PObj;
 begin
   for i := 0 to Fields.Count - 1 do
   begin
@@ -383,11 +383,11 @@ begin
   end;
 end;
 
-procedure TpbMessageHelper.AsWrite(gen: TGen);
+procedure PObjHelper.AsWrite(gen: TGen);
 var
   i: Integer;
   f: TpbField;
-  m: TpbMessage;
+  m: PObj;
 begin
   for i := 0 to Fields.Count - 1 do
   begin
@@ -451,7 +451,7 @@ var
   em: Tem;
   enum: TpbEnum;
   map: TpbMapType;
-  m: TpbMessage;
+  m: PObj;
 begin
   em := Tab.Module.Em;
   s := Tab.Module.NameSpace;
@@ -546,11 +546,11 @@ begin
     Wrln('// ' + s)
 end;
 
-procedure TGen.LoadMessage(msg: TpbMessage);
+procedure TGen.LoadMessage(msg: PObj);
 var
   i: Integer;
   f: TpbField;
-  m: TpbMessage;
+  m: PObj;
 begin
   for i := 0 to msg.em.Messages.Count - 1 do
   begin
@@ -559,7 +559,7 @@ begin
   end;
 end;
 
-procedure TGen.WriterInterface(msg: TpbMessage);
+procedure TGen.WriterInterface(msg: PObj);
 begin
   Wrln(msg.DelphiName + 'Writer = class');
   Wrln('private');
@@ -573,7 +573,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.WriterImplementation(msg: TpbMessage);
+procedure TGen.WriterImplementation(msg: PObj);
 begin
   Wrln('function %sWriter.GetPb: TProtoBufOutput;', [msg.DelphiName]);
   Wrln('begin');
@@ -594,10 +594,10 @@ begin
   Wrln('');
 end;
 
-procedure TGen.ReaderInterface(msg: TpbMessage);
+procedure TGen.ReaderInterface(msg: PObj);
 var
   i: Integer;
-  m: TpbMessage;
+  m: PObj;
   msgType, s, t: string;
 begin
   msgType := msg.DelphiName;
@@ -622,7 +622,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.ReaderImplementation(msg: TpbMessage);
+procedure TGen.ReaderImplementation(msg: PObj);
 var
   i: Integer;
   f: TpbField;
