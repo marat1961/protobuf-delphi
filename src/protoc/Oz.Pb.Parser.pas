@@ -40,6 +40,7 @@ type
     procedure _Package;
     procedure _Option;
     procedure _Message;
+    procedure _Enum;
     procedure _Service;
     procedure _EmptyStatement;
     procedure _Ident(var id: string);
@@ -60,9 +61,8 @@ type
     procedure _Type(var typ: PType);
     procedure _MapType(typ: PType);
     procedure _OneOf(typ: PType);
-    procedure _Enum;
     procedure _KeyType(var ft: PType);
-    procedure _OneOfField(oneOf: PObj);
+    procedure _OneOfField(typ: PType);
     procedure _FieldOption(f: PObj);
     procedure _Ranges(Reserved: TIntSet);
     procedure _FieldNames(Fields: TStringList);
@@ -167,6 +167,10 @@ begin
       begin
         _Message;
       end;
+      61:
+      begin
+        _Enum;
+      end;
       23:
       begin
         _Service;
@@ -251,21 +255,56 @@ begin
   Expect(10);
   while StartOf(2) do
   begin
-    if StartOf(3) then
-    begin
-      _Field;
-    end
-    else if la.kind = 9 then
-    begin
-      _Message;
-    end
-    else if la.kind = 19 then
+    case la.kind of
+      19:
+      begin
+        _Option;
+      end;
+      1, 22, 33, 34, 35, 38, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
+      begin
+        _Field;
+      end;
+      9:
+      begin
+        _Message;
+      end;
+      61:
+      begin
+        _Enum;
+      end;
+      58:
+      begin
+        _Reserved;
+      end;
+      14:
+      begin
+        _EmptyStatement;
+      end;
+      end;
+  end;
+  Expect(11);
+  tab.OpenScope;
+end;
+
+procedure TpbParser._Enum;
+var
+  id: string;
+  enum: PObj;
+begin
+  Expect(61);
+  _Ident(id);
+  tab.NewObj(enum, id, TMode.mEnum);
+  tab.OpenScope;
+  Expect(10);
+  while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
+  begin
+    if la.kind = 19 then
     begin
       _Option;
     end
-    else if la.kind = 58 then
+    else if la.kind = 1 then
     begin
-      _Reserved;
+      _EnumField(enum);
     end
     else
     begin
@@ -273,7 +312,7 @@ begin
     end;
   end;
   Expect(11);
-  tab.OpenScope;
+  tab.CloseScope;
 end;
 
 procedure TpbParser._Service;
@@ -427,7 +466,7 @@ begin
     _FullIdent(s);
     c.AsIdent(s);
   end
-  else if StartOf(4) then
+  else if StartOf(3) then
   begin
     sign := 1;
     if (la.kind = 31) or (la.kind = 32) then
@@ -601,7 +640,7 @@ end;
 
 procedure TpbParser._FieldType(typ: PType);
 begin
-  if StartOf(5) then
+  if StartOf(4) then
   begin
     _Type(typ);
   end
@@ -612,10 +651,6 @@ begin
   else if la.kind = 42 then
   begin
     _OneOf(typ);
-  end
-  else if la.kind = 61 then
-  begin
-    _Enum;
   end
   else
     SynErr(71);
@@ -654,7 +689,7 @@ begin
     Get;
     typ := tab.GetBasisType(TTypeMode.tmBytes);
   end
-  else if StartOf(6) then
+  else if StartOf(5) then
   begin
     _KeyType(typ);
   end
@@ -668,41 +703,45 @@ begin
 end;
 
 procedure TpbParser._MapType(typ: PType);
-var obj: PObj;
+var
+  id: string; obj: PObj;
+  key, value: PType;
 begin
   Expect(38);
   if la.kind = 1 then
   begin
-    _Ident(mapName);
+    _Ident(id);
   end;
   Expect(39);
   _KeyType(key);
   Expect(40);
   _Type(value);
   Expect(41);
-  tab.NewObj(mapName);
-  if map = nil then
-    map := tab.module.LookupMapType(mapName, key, value);
+  if id = '' then
+    id := Format('%s_%s', [key, value]);
+  tab.NewObj(obj, id, TMode.mType);
+  New(typ); typ.form := TTypeMode.tmMap;
+  typ.base := key; typ.value := value;
 end;
 
 procedure TpbParser._OneOf(typ: PType);
 var
-  oneOf: PObj;
-  id: string;
+  id: string; obj: PObj;
 begin
   Expect(42);
   _Ident(id);
-  oneOf := msg.AddOneOf(id);
+  tab.NewObj(obj, id, TMode.mOneOf);
+  New(typ); typ.form := TTypeMode.tmUnion;
   Expect(10);
-  while StartOf(7) do
+  while StartOf(6) do
   begin
     if la.kind = 19 then
     begin
       _Option;
     end
-    else if StartOf(5) then
+    else if StartOf(4) then
     begin
-      _OneOfField(oneOf);
+      _OneOfField(typ);
     end
     else
     begin
@@ -710,35 +749,6 @@ begin
     end;
   end;
   Expect(11);
-end;
-
-procedure TpbParser._Enum;
-var
-  id: string;
-  enum: PObj;
-begin
-  Expect(61);
-  _Ident(id);
-  tab.NewObj(enum, id, TMode.mEnum);
-  tab.OpenScope;
-  Expect(10);
-  while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
-  begin
-    if la.kind = 19 then
-    begin
-      _Option;
-    end
-    else if la.kind = 1 then
-    begin
-      _EnumField(enum);
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
-  end;
-  Expect(11);
-  tab.CloseScope;
 end;
 
 procedure TpbParser._KeyType(var ft: PType);
@@ -809,12 +819,10 @@ begin
   end;
 end;
 
-procedure TpbParser._OneOfField(oneOf: PObj);
+procedure TpbParser._OneOfField(typ: PType);
 var
-  f: PObj;
-  id: string;
-  tag: Integer;
-  typ: PType;
+   id: string;
+   tag: Integer; f: PObj;
 begin
   _Type(typ);
   _Ident(id);
@@ -938,11 +946,10 @@ function TpbParser.Starts(s, kind: Integer): Boolean;
 const
   x = false;
   T = true;
-  sets: array [0..7] of array [0..63] of Boolean = (
+  sets: array [0..6] of array [0..63] of Boolean = (
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
-    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
     (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,T,x,x),
     (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
     (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),

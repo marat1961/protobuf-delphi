@@ -118,7 +118,8 @@ type
     tmEnum,     // enumeration
     tmMessage,  // message
     tmArray,    // array
-    tmMap);     // map
+    tmMap,      // map
+    tmUnion);   // union (oneOf)
 
   TEmbeddedTypes = TTypeMode.tmUnknown .. TTypeMode.tmSint64;
 
@@ -145,7 +146,7 @@ type
   TTypeDesc = record
     form: TTypeMode;
     fields: PObj;
-    base: PType;
+    base, value: PType;
     size, len: Integer;
   end;
 
