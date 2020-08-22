@@ -41,43 +41,32 @@ IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
-Pb                           (. var obj: PObj; .)
+Pb
 =                            (. tab.OpenScope; .)
 Syntax
 {
   Import
 | Package
-| Option<obj>
-| TopLevelDef
+| Option
+| Message
+| Enum
+| Service
 | EmptyStatement
 }                            (. tab.CloseScope; .)
 .
 
-TopLevelDef                  (. var
+Message                      (. var
+                                  id: string;
                                   obj: PObj; .)
 =
-  Message<obj>
-| Enum<obj>
-| Map<obj>
-| Service<obj>
-.
-
-Message<var obj: PObj>       (. var
-                                  name: string;
-                                  msg: PObj; .)
-=
-"message" Ident<name>        (. if Scope.em.Messages.Find(name) <> nil then
-                                  SemError(1);
-                                msg := Scope.em.AddMessage(Scope, name);
+"message" Ident<id>          (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope; .)
 "{" {
-  Field<msg>
-| MapField<msg>
-| Enum<msg>
-| Message<msg>
-| Option<msg>
-| OneOf<msg>
-| Reserved<msg>
+  Option
+| Field
+| Message
+| Enum
+| Reserved
 | EmptyStatement
 } "}"                        (. tab.OpenScope; .)
 .
@@ -108,92 +97,67 @@ strLit                       (.  .)
 
 // Package
 
-Package                      (. var name: string; .)
+Package                      (. var
+                                  id: string;
+                                  obj: PObj; .)
 =
-"package"
-FullIdent<name>              (. Tab.Module.AddPackage(name); .)
+"package" FullIdent<id>      (. Tab.NewObj(obj, id, TMode.mPackage); .)
 ";"
 .
 
 // Option
 
-Option<var obj: PObj>        (. var
-                                  name: string;
+Option                       (. var
+                                  id: string;
                                   Cv: TConst;  .)
 =
 "option"
-OptionName<name>
-"=" Constant<Cv>             (. Scope.AddOption(name, Cv); .)
+OptionName<id>
+"=" Constant<Cv>             (. tab.AddOption(id, Cv); .)
 ";"
 .
 
-OptionName<var s: string>    (. var name: string; .)
+OptionName<var s: string>    (. var id: string; .)
 =
 (
-ident                        (. name := t.val; .)
-| "(" FullIdent<name>        (. name := name + '(' + name + ')'; .)
+ident                        (. id := t.val; .)
+| "(" FullIdent<id>          (. id := id + '(' + id + ')'; .)
 ")"
 )
-{ "." ident                  (. name := name + '.' + t.val; .)
+{ "." ident                  (. id := id + '.' + t.val; .)
 }
 .
 
-Map<obj: PObj>               (. var
-                                  name: string;
-                                  key, value: PType;
-                                  map: TpbMapType; .)
-=
-"map"
-Ident<name>                  (. map := module.MapTypes.Find(name);
-                                if map <> nil then
-                                  SemError(1); .)
-"<" KeyType<key>
-"," Type<module, value>
-">"                          (. module.LookupMapType(name, key, value); .)
-.
-
-Service<obj: PObj>           (. var
-                                   name: string;
+Service                      (. var
+                                   id: string;
                                    service: PObj; .)
 =
-"service" Ident<name>        (. if module.Services.Find(name) <> nil then
-                                  SemError(1);
-                                service := PObj.Create(module, name);
-                                module.Services.Add(service); .)
+"service" Ident<id>          (. tab.NewObj(service, id, TMode.mService);
+                                tab.OpenScope; .)
 "{" {
-  Option<service>
-| Rpc<service>
+  Option
+| Rpc
 | EmptyStatement
-} "}"
+} "}"                        (. tab.CloseScope; .)
 .
 
-Rpc<service: PObj>           (. var
-                                  name: string;
-                                  typ: TUserType;
-                                  rpc: PObj; .)
+Rpc                          (. var
+                                  id: string; typ: TQualIdent; rpc: PObj;
+                                  request, response: PType; .)
 =
-"rpc" Ident<name>            (. if service.RpcSystem.Find(name) <> nil then
-                                 SemError(1);
-                                 rpc := service.AddRpc(name); .)
+"rpc" Ident<id>              (. tab.NewObj(rpc, id, TMode.mService);
+                                tab.OpenScope; .)
 "(" [ "stream" ]
-UserType<typ>                (. rpc.Request := service.Module.em.FindMessageType(rpc, typ);
-                                if rpc.Request.TypMode = TTypeMode.tmUnknown then
-                                  SemError(4)
-                                else if rpc.Request.Mode <> TMode.mRecord then
-                                  SemError(5); .)
+UserType<typ>                (. request := tab.FindMessageType(typ); .)
 ")"
 "returns"
 "(" [ "stream" ]
-UserType<typ>                (. rpc.Response := service.Module.em.FindMessageType(rpc, typ);
-                                if rpc.Response.TypMode = TTypeMode.tmUnknown then
-                                  SemError(4)
-                                else if rpc.Response.Mode <> TMode.mRecord then
-                                  SemError(5); .)
-")"
+UserType<typ>                (. response := tab.FindMessageType(typ); .)
+")"                          (. rpc.options := TRpcOptions.Create(rpc, request, response); .)
 (( "{" {
-Option<rpc>
+Option
 | EmptyStatement
-} "}" ) | ";")
+} "}" ) | ";")               (. tab.CloseScope; .)
 .
 
 // Integer literals
@@ -216,25 +180,25 @@ real                         (. Val(t.val, n, code); .)
 
 // Identifiers
 
-Ident<var name: string>
+Ident<var id: string>
 =
-ident                        (. name := t.val; .)
+ident                        (. id := t.val; .)
 .
 
-FullIdent<var name: string>
+FullIdent<var id: string>
 =
-ident                        (. name := t.val; .)
-{ "." ident                  (. name := name + '.' + t.val; .)
+ident                        (. id := t.val; .)
+{ "." ident                  (. id := id + '.' + t.val; .)
 }
 .
 
 // messageType or enumType
 
-UserType<var typ: TUserType>
-=                            (. typ := Default(TUserType); .)
+UserType<var typ: TQualIdent>
+=                            (. typ := Default(TQualIdent); .)
 [ "."                        (. typ.OutermostScope := True; .)
 ]
-ident                        (. typ.name := t.val; .)
+ident                        (. typ.Name := t.val; .)
 { "."                        (. if typ.Package <> '' then
                                   typ.Package := typ.Package + '.';
                                 typ.Package := typ.Package + typ.Name; .)
@@ -280,85 +244,81 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 
 // Fields
 
-Field<msg: PObj>             (. var
-                                  f: TPbField;
-                                  name: string;
-                                  tag: Integer;
-                                  rule: TFieldRule;
-                                  ft: PType; .)
+Field                        (. var
+                                  obj: PObj; id: string;
+                                  tag: Integer; rule: TFieldRule; typ: PType; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-Type<ft>
-Ident<name>                  (. if msg.Fields.Find(name) <> nil then
-                                  SemError(1); .)
+FieldType<typ>
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mField); .)
+
 "="
-FieldNumber<tag>             (. f := msg.em.AddField(msg, name, ft, tag, rule); .)
-[ "[" FieldOptions<f>
+FieldNumber<tag>             (. obj.options := TFieldOptions.Create(obj, tag, rule); .)
+[ "[" FieldOptions<obj>
 "]" ]
 ";"
 .
 
-OneOf<msg: PObj>             (. var
+FieldType<typ: PType>
+=
+  Type<typ>
+| MapType<typ>
+| OneOf<typ>
+.
+
+MapType<typ: PType>         (. var obj: PObj; .)
+=
+"map"
+[ Ident<mapName>
+]
+"<" KeyType<key>
+"," Type<value>
+">"                          (. tab.NewObj(mapName); .)
+                             (. if map = nil then
+                                  map := tab.module.LookupMapType(mapName, key, value); .)
+.
+
+OneOf<typ: PType>            (. var
                                   oneOf: PObj;
-                                  name: string; .)
+                                  id: string; .)
 =
 "oneof"
-Ident<name>                  (. oneOf := msg.AddOneOf(name); .)
+Ident<id>                  (. oneOf := msg.AddOneOf(id); .)
 "{" {
-  Option<oneOf>
+  Option
 | OneOfField<oneOf>
 | EmptyStatement
 } "}"
 .
 
 OneOfField<oneOf: PObj>      (. var
-                                  f: TPbField;
-                                  name: string;
+                                  f: PObj;
+                                  id: string;
                                   tag: Integer;
-                                  ft: PType; .)
+                                  typ: PType; .)
 =
-Type<oneOf.msg, ft>
-Ident<name>
+Type<typ>
+Ident<id>
 "="
-FieldNumber<tag>             (. f := oneOf.AddField(name, ft, tag); .)
+FieldNumber<tag>             (. f := oneOf.AddField(id, ft, tag); .)
 [ "[" FieldOptions<f>
 "]" ] ";"
 .
 
-FieldOptions<f: TPbField>
+FieldOptions<f: PObj>
 =
-FieldOption<f> { ","  FieldOption<f> } .
-
-FieldOption<f: TPbField>     (. var name: string; Cv: TConst; .)
-=
-OptionName<name>
-"="
-Constant<Cv>                 (. f.AddOption(name, Cv); .)
+FieldOption<f>
+{ ","  FieldOption<f> }
 .
 
-MapField<msg: PObj>    (. var
-                                  mapName, name: string;
-                                  key, value, map: PType;
-                                  tag: Integer;
-                                  f: TpbField; .)
+FieldOption<f: PObj>         (. var id: string; Cv: TConst; .)
 =
-"map"
-[ Ident<mapName> ]           (. map := tab.module.MapTypes.Find(mapName);
-                                if map <> nil then
-                                  SemError(1); .)
-"<" KeyType<key>
-"," Type<msg, value>
-">"                          (. if map = nil then
-                                  map := tab.module.LookupMapType(mapName, key, value); .)
-Ident<mapName>
+OptionName<id>
 "="
-FieldNumber<tag>             (. f := msg.em.AddField(msg, name, map, tag, TFieldRule.Singular); .)
-[ "[" FieldOptions<f>
-"]" ]
-";"
+Constant<Cv>                 (. f.AddOption(id, Cv); .)
 .
 
 FieldNumber<var tag: Integer>
@@ -369,21 +329,13 @@ intLit<tag>
 // Types
 
 Type<var typ: PType>
-                             (. var
-                                  obj: PObj;
-                                  ut: TUserType; .)
+                             (. var ut: TQualIdent; .)
 =
   "double"                   (. typ := tab.GetBasisType(TTypeMode.tmDouble); .)
 | "float"                    (. typ := tab.GetBasisType(TTypeMode.tmFloat); .)
 | "bytes"                    (. typ := tab.GetBasisType(TTypeMode.tmBytes); .)
 | KeyType<typ>
-| UserType<ut>               (. typ := tab.Find(obj, ut);
-                                if obj.cls = TMode.mType then
-                                  typ := obj.typ
-                                else if typ.TypMode = TTypeMode.tmUnknown then
-                                  SemError(2)
-                                else
-                                  SemError(5); .)
+| UserType<ut>               (. typ := tab.FindType(ut); .)
 .
 
 KeyType<var ft: PType>
@@ -402,11 +354,13 @@ KeyType<var ft: PType>
 | "string"                   (. ft := tab.GetBasisType(TTypeMode.tmString); .)
 .
 
-Reserved<msg: PObj>
+Reserved                     (. var obj: PObj; .)
 =
-"reserved"
-( Ranges<msg.Reserved>
-| FieldNames
+"reserved"                   (. obj := tab.topScope;
+                                if obj.options = nil then
+                                  obj.options := TMessageOptions.Create(obj); .)
+( Ranges<TMessageOptions(obj.options).Reserved>
+| FieldNames<TMessageOptions(obj.options).Fields>
 ) ";"
 .
 
@@ -426,49 +380,51 @@ intLit<hi>
 ) ]
 .
 
-FieldNames                   (. var name: string; .)
+FieldNames<Fields: TStringList>
+                            (. var id: string; .)
 =
-Ident<name>
-{ "," Ident<name>
+Ident<id>                   (. Fields.Add(id); .)
+{ "," Ident<id>             (. Fields.Add(id); .)
 }
 .
 
-Enum<Scope: TIdent>          (. var
-                                  name: string;
+Enum                         (. var
+                                  id: string;
                                   enum: PObj; .)
 =
 "enum"
-Ident<name>                  (. enum := Scope.em.AddEnum(Scope, name); .)
+Ident<id>                    (. tab.NewObj(enum, id, TMode.mEnum);
+                                tab.OpenScope; .)
 "{" {
-Option<enum>
+Option
 | EnumField<enum>
 | EmptyStatement
-} "}"
+} "}"                        (. tab.CloseScope; .)
 .
 
-EnumField<e: PObj>        (. var
-                                  name: string;
+EnumField<e: PObj>           (. var
+                                  id: string;
                                   n: Integer;
                                   ev: TEnumValue; .)
 =
-Ident<name>
+Ident<id>
 "="
 [ "-"
 ]
-intLit<n>                    (. ev := TEnumValue.Create(e, name, n);
+intLit<n>                    (. ev := TEnumValue.Create(e, id, n);
                                 e.EnumValues.Add(ev); .)
 [ "[" EnumValueOption<e>
 { ","  EnumValueOption<e>
 } "]" ]";"
 .
 
-EnumValueOption<e: PObj>  (. var
-                                  Name: string;
+EnumValueOption<e: PObj>     (. var
+                                  id: string;
                                   Cv: TConst; .)
 =
-OptionName<Name>
+OptionName<id>
 "="
-Constant<Cv>                 (. e.AddOption(Name, Cv); .)
+Constant<Cv>                 (. e.AddOption(id, Cv); .)
 .
 
 END Pb.

@@ -46,13 +46,13 @@ begin
   start.Add(40, 30);
   start.Add(41, 31);
   start.Add(46, 32);
-  start.Add(60, 33);
-  start.Add(44, 34);
-  start.Add(62, 35);
-  start.Add(45, 36);
-  start.Add(43, 37);
-  start.Add(91, 38);
-  start.Add(93, 39);
+  start.Add(45, 33);
+  start.Add(43, 34);
+  start.Add(91, 35);
+  start.Add(93, 36);
+  start.Add(60, 37);
+  start.Add(44, 38);
+  start.Add(62, 39);
   start.Add(Ord(TBuffer.EF), -1);
 end;
 
@@ -181,30 +181,30 @@ begin
     t.kind := 18
   else if t.val = 'option' then
     t.kind := 19
-  else if t.val = 'map' then
-    t.kind := 23
   else if t.val = 'service' then
-    t.kind := 27
+    t.kind := 23
   else if t.val = 'rpc' then
-    t.kind := 28
+    t.kind := 24
   else if t.val = 'stream' then
-    t.kind := 29
+    t.kind := 25
   else if t.val = 'returns' then
-    t.kind := 30
+    t.kind := 26
   else if t.val = 'inf' then
-    t.kind := 31
+    t.kind := 27
   else if t.val = 'nan' then
-    t.kind := 32
+    t.kind := 28
   else if t.val = 'true' then
-    t.kind := 33
+    t.kind := 29
   else if t.val = 'false' then
-    t.kind := 34
+    t.kind := 30
   else if t.val = 'repeated' then
-    t.kind := 37
+    t.kind := 33
   else if t.val = 'optional' then
-    t.kind := 38
+    t.kind := 34
   else if t.val = 'required' then
-    t.kind := 39
+    t.kind := 35
+  else if t.val = 'map' then
+    t.kind := 38
   else if t.val = 'oneof' then
     t.kind := 42
   else if t.val = 'double' then
@@ -674,23 +674,23 @@ begin
       end;
       33:
       begin
-        t.kind := 24; break;
+        t.kind := 31; break;
       end;
       34:
       begin
-        t.kind := 25; break;
+        t.kind := 32; break;
       end;
       35:
       begin
-        t.kind := 26; break;
+        t.kind := 36; break;
       end;
       36:
       begin
-        t.kind := 35; break;
+        t.kind := 37; break;
       end;
       37:
       begin
-        t.kind := 36; break;
+        t.kind := 39; break;
       end;
       38:
       begin

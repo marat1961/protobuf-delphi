@@ -38,35 +38,34 @@ type
     procedure _Syntax;
     procedure _Import;
     procedure _Package;
-    procedure _Option(var obj: PObj);
-    procedure _TopLevelDef;
+    procedure _Option;
+    procedure _Message;
+    procedure _Service;
     procedure _EmptyStatement;
-    procedure _Message(var obj: PObj);
-    procedure _Enum(Scope: TIdent);
-    procedure _Map(obj: PObj);
-    procedure _Service(obj: PObj);
-    procedure _Ident(var name: string);
-    procedure _Field(msg: PObj);
-    procedure _MapField(msg: PObj);
-    procedure _OneOf(msg: PObj);
-    procedure _Reserved(msg: PObj);
+    procedure _Ident(var id: string);
+    procedure _Field;
+    procedure _Reserved;
     procedure _strLit;
-    procedure _FullIdent(var name: string);
+    procedure _FullIdent(var id: string);
     procedure _OptionName(var s: string);
     procedure _Constant(var c: TConst);
-    procedure _KeyType(var ft: PType);
-    procedure _Type(var typ: PType);
-    procedure _Rpc(service: PObj);
-    procedure _UserType(var typ: TUserType);
+    procedure _Rpc;
+    procedure _UserType(var typ: TQualIdent);
     procedure _intLit(var n: Integer);
     procedure _floatLit(var n: Double);
     procedure _boolLit;
+    procedure _FieldType(typ: PType);
     procedure _FieldNumber(var tag: Integer);
-    procedure _FieldOptions(f: TPbField);
+    procedure _FieldOptions(f: PObj);
+    procedure _Type(var typ: PType);
+    procedure _MapType(typ: PType);
+    procedure _OneOf(typ: PType);
+    procedure _Enum;
+    procedure _KeyType(var ft: PType);
     procedure _OneOfField(oneOf: PObj);
-    procedure _FieldOption(f: TPbField);
+    procedure _FieldOption(f: PObj);
     procedure _Ranges(Reserved: TIntSet);
-    procedure _FieldNames;
+    procedure _FieldNames(Fields: TStringList);
     procedure _Range(var lo, hi: Integer);
     procedure _EnumField(e: PObj);
     procedure _EnumValueOption(e: PObj);
@@ -146,32 +145,37 @@ begin
 end;
 
 procedure TpbParser._Pb;
-var obj: PObj;
 begin
   tab.OpenScope;
   _Syntax;
   while StartOf(1) do
   begin
-    if la.kind = 15 then
-    begin
-      _Import;
-    end
-    else if la.kind = 18 then
-    begin
-      _Package;
-    end
-    else if la.kind = 19 then
-    begin
-      _Option(obj);
-    end
-    else if StartOf(2) then
-    begin
-      _TopLevelDef;
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
+    case la.kind of
+      15:
+      begin
+        _Import;
+      end;
+      18:
+      begin
+        _Package;
+      end;
+      19:
+      begin
+        _Option;
+      end;
+      9:
+      begin
+        _Message;
+      end;
+      23:
+      begin
+        _Service;
+      end;
+      14:
+      begin
+        _EmptyStatement;
+      end;
+      end;
   end;
   tab.CloseScope;
 end;
@@ -212,49 +216,93 @@ begin
 end;
 
 procedure TpbParser._Package;
-var name: string;
+var
+  id: string;
+  obj: PObj;
 begin
   Expect(18);
-  _FullIdent(name);
-  Tab.Module.AddPackage(name);
+  _FullIdent(id);
+  Tab.NewObj(obj, id, TMode.mPackage);
   Expect(14);
 end;
 
-procedure TpbParser._Option(var obj: PObj);
+procedure TpbParser._Option;
 var
-  name: string;
+  id: string;
   Cv: TConst;
 begin
   Expect(19);
-  _OptionName(name);
+  _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  Scope.AddOption(name, Cv);
+  tab.AddOption(id, Cv);
   Expect(14);
 end;
 
-procedure TpbParser._TopLevelDef;
+procedure TpbParser._Message;
 var
+  id: string;
   obj: PObj;
 begin
-  if la.kind = 9 then
+  Expect(9);
+  _Ident(id);
+  tab.NewObj(obj, id, TMode.mType);
+  tab.OpenScope;
+  Expect(10);
+  while StartOf(2) do
   begin
-    _Message(obj);
-  end
-  else if la.kind = 61 then
+    if StartOf(3) then
+    begin
+      _Field;
+    end
+    else if la.kind = 9 then
+    begin
+      _Message;
+    end
+    else if la.kind = 19 then
+    begin
+      _Option;
+    end
+    else if la.kind = 58 then
+    begin
+      _Reserved;
+    end
+    else
+    begin
+      _EmptyStatement;
+    end;
+  end;
+  Expect(11);
+  tab.OpenScope;
+end;
+
+procedure TpbParser._Service;
+var
+   id: string;
+   service: PObj;
+begin
+  Expect(23);
+  _Ident(id);
+  tab.NewObj(service, id, TMode.mService);
+  tab.OpenScope;
+  Expect(10);
+  while (la.kind = 14) or (la.kind = 19) or (la.kind = 24) do
   begin
-    _Enum(obj);
-  end
-  else if la.kind = 23 then
-  begin
-    _Map(obj);
-  end
-  else if la.kind = 27 then
-  begin
-    _Service(obj);
-  end
-  else
-    SynErr(63);
+    if la.kind = 19 then
+    begin
+      _Option;
+    end
+    else if la.kind = 24 then
+    begin
+      _Rpc;
+    end
+    else
+    begin
+      _EmptyStatement;
+    end;
+  end;
+  Expect(11);
+  tab.CloseScope;
 end;
 
 procedure TpbParser._EmptyStatement;
@@ -262,158 +310,26 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._Message(var obj: PObj);
-var
-  name: string;
-  msg: PObj;
-begin
-  Expect(9);
-  _Ident(name);
-  if Scope.em.Messages.Find(name) <> nil then
-    SemError(1);
-  msg := Scope.em.AddMessage(Scope, name);
-  tab.OpenScope;
-  Expect(10);
-  while StartOf(3) do
-  begin
-    case la.kind of
-      1, 22, 37, 38, 39, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
-      begin
-        _Field(msg);
-      end;
-      23:
-      begin
-        _MapField(msg);
-      end;
-      61:
-      begin
-        _Enum(msg);
-      end;
-      9:
-      begin
-        _Message(msg);
-      end;
-      19:
-      begin
-        _Option(msg);
-      end;
-      42:
-      begin
-        _OneOf(msg);
-      end;
-      58:
-      begin
-        _Reserved(msg);
-      end;
-      14:
-      begin
-        _EmptyStatement;
-      end;
-      end;
-  end;
-  Expect(11);
-  tab.OpenScope;
-end;
-
-procedure TpbParser._Enum(Scope: TIdent);
-var
-  name: string;
-  enum: PObj;
-begin
-  Expect(61);
-  _Ident(name);
-  enum := Scope.em.AddEnum(Scope, name);
-  Expect(10);
-  while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
-  begin
-    if la.kind = 19 then
-    begin
-      _Option(enum);
-    end
-    else if la.kind = 1 then
-    begin
-      _EnumField(enum);
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
-  end;
-  Expect(11);
-end;
-
-procedure TpbParser._Map(obj: PObj);
-var
-  name: string;
-  key, value: PType;
-  map: TpbMapType;
-begin
-  Expect(23);
-  _Ident(name);
-  map := module.MapTypes.Find(name);
-  if map <> nil then
-    SemError(1);
-  Expect(24);
-  _KeyType(key);
-  Expect(25);
-  _Type(module, value);
-  Expect(26);
-  module.LookupMapType(name, key, value);
-end;
-
-procedure TpbParser._Service(obj: PObj);
-var
-   name: string;
-   service: PObj;
-begin
-  Expect(27);
-  _Ident(name);
-  if module.Services.Find(name) <> nil then
-    SemError(1);
-  service := PObj.Create(module, name);
-  module.Services.Add(service);
-  Expect(10);
-  while (la.kind = 14) or (la.kind = 19) or (la.kind = 28) do
-  begin
-    if la.kind = 19 then
-    begin
-      _Option(service);
-    end
-    else if la.kind = 28 then
-    begin
-      _Rpc(service);
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
-  end;
-  Expect(11);
-end;
-
-procedure TpbParser._Ident(var name: string);
+procedure TpbParser._Ident(var id: string);
 begin
   Expect(1);
-  name := t.val;
+  id := t.val;
 end;
 
-procedure TpbParser._Field(msg: PObj);
+procedure TpbParser._Field;
 var
-  f: TPbField;
-  name: string;
-  tag: Integer;
-  rule: TFieldRule;
-  ft: PType;
+  obj: PObj; id: string;
+  tag: Integer; rule: TFieldRule; typ: PType;
 begin
   rule := TFieldRule.Singular;
-  if (la.kind = 37) or (la.kind = 38) or (la.kind = 39) then
+  if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
   begin
-    if la.kind = 37 then
+    if la.kind = 33 then
     begin
       Get;
       rule := TFieldRule.Repeated;
     end
-    else if la.kind = 38 then
+    else if la.kind = 34 then
     begin
       Get;
       rule := TFieldRule.Optional;
@@ -423,97 +339,38 @@ begin
       Get;
     end;
   end;
-  _Type(ft);
-  _Ident(name);
-  if msg.Fields.Find(name) <> nil then
-    SemError(1);
+  _FieldType(typ);
+  _Ident(id);
+  tab.NewObj(obj, id, TMode.mField);
   Expect(13);
   _FieldNumber(tag);
-  f := msg.em.AddField(msg, name, ft, tag, rule);
-  if la.kind = 40 then
+  obj.options := TFieldOptions.Create(obj, tag, rule);
+  if la.kind = 36 then
   begin
     Get;
-    _FieldOptions(f);
-    Expect(41);
+    _FieldOptions(obj);
+    Expect(37);
   end;
   Expect(14);
 end;
 
-procedure TpbParser._MapField(msg: PObj);
-var
-        mapName, name: string;
-        key, value, map: PType;
-        tag: Integer;
-        f: TpbField;
-begin
-  Expect(23);
-  if la.kind = 1 then
-  begin
-    _Ident(mapName);
-  end;
-  map := tab.module.MapTypes.Find(mapName);
-  if map <> nil then
-    SemError(1);
-  Expect(24);
-  _KeyType(key);
-  Expect(25);
-  _Type(msg, value);
-  Expect(26);
-  if map = nil then
-    map := tab.module.LookupMapType(mapName, key, value);
-  _Ident(mapName);
-  Expect(13);
-  _FieldNumber(tag);
-  f := msg.em.AddField(msg, name, map, tag, TFieldRule.Singular);
-  if la.kind = 40 then
-  begin
-    Get;
-    _FieldOptions(f);
-    Expect(41);
-  end;
-  Expect(14);
-end;
-
-procedure TpbParser._OneOf(msg: PObj);
-var
-  oneOf: PObj;
-  name: string;
-begin
-  Expect(42);
-  _Ident(name);
-  oneOf := msg.AddOneOf(name);
-  Expect(10);
-  while StartOf(4) do
-  begin
-    if la.kind = 19 then
-    begin
-      _Option(oneOf);
-    end
-    else if StartOf(5) then
-    begin
-      _OneOfField(oneOf);
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
-  end;
-  Expect(11);
-end;
-
-procedure TpbParser._Reserved(msg: PObj);
+procedure TpbParser._Reserved;
+var obj: PObj;
 begin
   Expect(58);
+  obj := tab.topScope;
+  if obj.options = nil then
+    obj.options := TMessageOptions.Create(obj);
   if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
   begin
-    _Ranges(msg.Reserved);
+    _Ranges(TMessageOptions(obj.options).Reserved);
   end
   else if la.kind = 1 then
   begin
-    _FieldNames;
+    _FieldNames(TMessageOptions(obj.options).Fields);
   end
   else
-    SynErr(64);
+    SynErr(63);
   Expect(14);
 end;
 
@@ -522,40 +379,40 @@ begin
   Expect(6);
 end;
 
-procedure TpbParser._FullIdent(var name: string);
+procedure TpbParser._FullIdent(var id: string);
 begin
   Expect(1);
-  name := t.val;
+  id := t.val;
   while la.kind = 22 do
   begin
     Get;
     Expect(1);
-    name := name + '.' + t.val;
+    id := id + '.' + t.val;
   end;
 end;
 
 procedure TpbParser._OptionName(var s: string);
-var name: string;
+var id: string;
 begin
   if la.kind = 1 then
   begin
     Get;
-    name := t.val;
+    id := t.val;
   end
   else if la.kind = 20 then
   begin
     Get;
-    _FullIdent(name);
-    name := name + '(' + name + ')';
+    _FullIdent(id);
+    id := id + '(' + id + ')';
     Expect(21);
   end
   else
-    SynErr(65);
+    SynErr(64);
   while la.kind = 22 do
   begin
     Get;
     Expect(1);
-    name := name + '.' + t.val;
+    id := id + '.' + t.val;
   end;
 end;
 
@@ -570,12 +427,12 @@ begin
     _FullIdent(s);
     c.AsIdent(s);
   end
-  else if StartOf(6) then
+  else if StartOf(4) then
   begin
     sign := 1;
-    if (la.kind = 35) or (la.kind = 36) then
+    if (la.kind = 31) or (la.kind = 32) then
     begin
-      if la.kind = 35 then
+      if la.kind = 31 then
       begin
         Get;
         sign := -sign;
@@ -590,26 +447,298 @@ begin
       _intLit(i);
       c.AsInt(i * sign);
     end
-    else if (la.kind = 5) or (la.kind = 31) or (la.kind = 32) then
+    else if (la.kind = 5) or (la.kind = 27) or (la.kind = 28) then
     begin
       _floatLit(d);
       c.AsFloat(d * sign);
     end
     else
-      SynErr(66);
+      SynErr(65);
   end
   else if la.kind = 6 then
   begin
     _strLit;
     c.AsStr(t.val);
   end
-  else if (la.kind = 33) or (la.kind = 34) then
+  else if (la.kind = 29) or (la.kind = 30) then
   begin
     _boolLit;
     c.AsBool(t.val);
   end
   else
+    SynErr(66);
+end;
+
+procedure TpbParser._Rpc;
+var
+  id: string; typ: TQualIdent; rpc: PObj;
+  request, response: PType;
+begin
+  Expect(24);
+  _Ident(id);
+  tab.NewObj(rpc, id, TMode.mService);
+  tab.OpenScope;
+  Expect(20);
+  if la.kind = 25 then
+  begin
+    Get;
+  end;
+  _UserType(typ);
+  request := tab.FindMessageType(typ);
+  Expect(21);
+  Expect(26);
+  Expect(20);
+  if la.kind = 25 then
+  begin
+    Get;
+  end;
+  _UserType(typ);
+  response := tab.FindMessageType(typ);
+  Expect(21);
+  rpc.options := TRpcOptions.Create(rpc, request, response);
+  if la.kind = 10 then
+  begin
+    Get;
+    while (la.kind = 14) or (la.kind = 19) do
+    begin
+      if la.kind = 19 then
+      begin
+        _Option;
+      end
+      else
+      begin
+        _EmptyStatement;
+      end;
+    end;
+    Expect(11);
+  end
+  else if la.kind = 14 then
+  begin
+    Get;
+  end
+  else
     SynErr(67);
+  tab.CloseScope;
+end;
+
+procedure TpbParser._UserType(var typ: TQualIdent);
+begin
+  typ := Default(TQualIdent);
+  if la.kind = 22 then
+  begin
+    Get;
+    typ.OutermostScope := True;
+  end;
+  Expect(1);
+  typ.Name := t.val;
+  while la.kind = 22 do
+  begin
+    Get;
+    if typ.Package <> '' then
+      typ.Package := typ.Package + '.';
+    typ.Package := typ.Package + typ.Name;
+    Expect(1);
+    typ.Name := t.val;
+  end;
+end;
+
+procedure TpbParser._intLit(var n: Integer);
+begin
+  if la.kind = 2 then
+  begin
+    Get;
+    n := tab.ParseInt(t.val, 10);
+  end
+  else if la.kind = 3 then
+  begin
+    Get;
+    n := tab.ParseInt(t.val, 8);
+  end
+  else if la.kind = 4 then
+  begin
+    Get;
+    n := tab.ParseInt(t.val, 16);
+  end
+  else
+    SynErr(68);
+end;
+
+procedure TpbParser._floatLit(var n: Double);
+var code: Integer;
+begin
+  if la.kind = 5 then
+  begin
+    Get;
+    Val(t.val, n, code);
+  end
+  else if la.kind = 27 then
+  begin
+    Get;
+    n := Infinity;
+  end
+  else if la.kind = 28 then
+  begin
+    Get;
+    n := NaN;
+  end
+  else
+    SynErr(69);
+end;
+
+procedure TpbParser._boolLit;
+begin
+  if la.kind = 29 then
+  begin
+    Get;
+  end
+  else if la.kind = 30 then
+  begin
+    Get;
+  end
+  else
+    SynErr(70);
+end;
+
+procedure TpbParser._FieldType(typ: PType);
+begin
+  if StartOf(5) then
+  begin
+    _Type(typ);
+  end
+  else if la.kind = 38 then
+  begin
+    _MapType(typ);
+  end
+  else if la.kind = 42 then
+  begin
+    _OneOf(typ);
+  end
+  else if la.kind = 61 then
+  begin
+    _Enum;
+  end
+  else
+    SynErr(71);
+end;
+
+procedure TpbParser._FieldNumber(var tag: Integer);
+begin
+  _intLit(tag);
+end;
+
+procedure TpbParser._FieldOptions(f: PObj);
+begin
+  _FieldOption(f);
+  while la.kind = 40 do
+  begin
+    Get;
+    _FieldOption(f);
+  end;
+end;
+
+procedure TpbParser._Type(var typ: PType);
+var ut: TQualIdent;
+begin
+  if la.kind = 43 then
+  begin
+    Get;
+    typ := tab.GetBasisType(TTypeMode.tmDouble);
+  end
+  else if la.kind = 44 then
+  begin
+    Get;
+    typ := tab.GetBasisType(TTypeMode.tmFloat);
+  end
+  else if la.kind = 45 then
+  begin
+    Get;
+    typ := tab.GetBasisType(TTypeMode.tmBytes);
+  end
+  else if StartOf(6) then
+  begin
+    _KeyType(typ);
+  end
+  else if (la.kind = 1) or (la.kind = 22) then
+  begin
+    _UserType(ut);
+    typ := tab.FindType(ut);
+  end
+  else
+    SynErr(72);
+end;
+
+procedure TpbParser._MapType(typ: PType);
+var obj: PObj;
+begin
+  Expect(38);
+  if la.kind = 1 then
+  begin
+    _Ident(mapName);
+  end;
+  Expect(39);
+  _KeyType(key);
+  Expect(40);
+  _Type(value);
+  Expect(41);
+  tab.NewObj(mapName);
+  if map = nil then
+    map := tab.module.LookupMapType(mapName, key, value);
+end;
+
+procedure TpbParser._OneOf(typ: PType);
+var
+  oneOf: PObj;
+  id: string;
+begin
+  Expect(42);
+  _Ident(id);
+  oneOf := msg.AddOneOf(id);
+  Expect(10);
+  while StartOf(7) do
+  begin
+    if la.kind = 19 then
+    begin
+      _Option;
+    end
+    else if StartOf(5) then
+    begin
+      _OneOfField(oneOf);
+    end
+    else
+    begin
+      _EmptyStatement;
+    end;
+  end;
+  Expect(11);
+end;
+
+procedure TpbParser._Enum;
+var
+  id: string;
+  enum: PObj;
+begin
+  Expect(61);
+  _Ident(id);
+  tab.NewObj(enum, id, TMode.mEnum);
+  tab.OpenScope;
+  Expect(10);
+  while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
+  begin
+    if la.kind = 19 then
+    begin
+      _Option;
+    end
+    else if la.kind = 1 then
+    begin
+      _EnumField(enum);
+    end
+    else
+    begin
+      _EmptyStatement;
+    end;
+  end;
+  Expect(11);
+  tab.CloseScope;
 end;
 
 procedure TpbParser._KeyType(var ft: PType);
@@ -676,230 +805,38 @@ begin
       ft := tab.GetBasisType(TTypeMode.tmString);
     end;
     else
-      SynErr(68);
-  end;
-end;
-
-procedure TpbParser._Type(var typ: PType);
-var
-  obj: PObj;
-  ut: TUserType;
-begin
-  if la.kind = 43 then
-  begin
-    Get;
-    typ := tab.GetBasisType(TTypeMode.tmDouble);
-  end
-  else if la.kind = 44 then
-  begin
-    Get;
-    typ := tab.GetBasisType(TTypeMode.tmFloat);
-  end
-  else if la.kind = 45 then
-  begin
-    Get;
-    typ := tab.GetBasisType(TTypeMode.tmBytes);
-  end
-  else if StartOf(7) then
-  begin
-    _KeyType(typ);
-  end
-  else if (la.kind = 1) or (la.kind = 22) then
-  begin
-    _UserType(ut);
-    typ := tab.Find(obj, ut);
-    if obj.cls = TMode.mType then
-      typ := obj.typ
-    else if typ.TypMode = TTypeMode.tmUnknown then
-      SemError(2)
-    else
-      SemError(5);
-  end
-  else
-    SynErr(69);
-end;
-
-procedure TpbParser._Rpc(service: PObj);
-var
-  name: string;
-  typ: TUserType;
-  rpc: PObj;
-begin
-  Expect(28);
-  _Ident(name);
-  if service.RpcSystem.Find(name) <> nil then
-   SemError(1);
-   rpc := service.AddRpc(name);
-  Expect(20);
-  if la.kind = 29 then
-  begin
-    Get;
-  end;
-  _UserType(typ);
-  rpc.Request := service.Module.em.FindMessageType(rpc, typ);
-  if rpc.Request.TypMode = TTypeMode.tmUnknown then
-    SemError(4)
-  else if rpc.Request.Mode <> TMode.mRecord then
-    SemError(5);
-  Expect(21);
-  Expect(30);
-  Expect(20);
-  if la.kind = 29 then
-  begin
-    Get;
-  end;
-  _UserType(typ);
-  rpc.Response := service.Module.em.FindMessageType(rpc, typ);
-  if rpc.Response.TypMode = TTypeMode.tmUnknown then
-    SemError(4)
-  else if rpc.Response.Mode <> TMode.mRecord then
-    SemError(5);
-  Expect(21);
-  if la.kind = 10 then
-  begin
-    Get;
-    while (la.kind = 14) or (la.kind = 19) do
-    begin
-      if la.kind = 19 then
-      begin
-        _Option(rpc);
-      end
-      else
-      begin
-        _EmptyStatement;
-      end;
-    end;
-    Expect(11);
-  end
-  else if la.kind = 14 then
-  begin
-    Get;
-  end
-  else
-    SynErr(70);
-end;
-
-procedure TpbParser._UserType(var typ: TUserType);
-begin
-  typ := Default(TUserType);
-  if la.kind = 22 then
-  begin
-    Get;
-    typ.OutermostScope := True;
-  end;
-  Expect(1);
-  typ.name := t.val;
-  while la.kind = 22 do
-  begin
-    Get;
-    if typ.Package <> '' then
-      typ.Package := typ.Package + '.';
-    typ.Package := typ.Package + typ.Name;
-    Expect(1);
-    typ.Name := t.val;
-  end;
-end;
-
-procedure TpbParser._intLit(var n: Integer);
-begin
-  if la.kind = 2 then
-  begin
-    Get;
-    n := tab.ParseInt(t.val, 10);
-  end
-  else if la.kind = 3 then
-  begin
-    Get;
-    n := tab.ParseInt(t.val, 8);
-  end
-  else if la.kind = 4 then
-  begin
-    Get;
-    n := tab.ParseInt(t.val, 16);
-  end
-  else
-    SynErr(71);
-end;
-
-procedure TpbParser._floatLit(var n: Double);
-var code: Integer;
-begin
-  if la.kind = 5 then
-  begin
-    Get;
-    Val(t.val, n, code);
-  end
-  else if la.kind = 31 then
-  begin
-    Get;
-    n := Infinity;
-  end
-  else if la.kind = 32 then
-  begin
-    Get;
-    n := NaN;
-  end
-  else
-    SynErr(72);
-end;
-
-procedure TpbParser._boolLit;
-begin
-  if la.kind = 33 then
-  begin
-    Get;
-  end
-  else if la.kind = 34 then
-  begin
-    Get;
-  end
-  else
-    SynErr(73);
-end;
-
-procedure TpbParser._FieldNumber(var tag: Integer);
-begin
-  _intLit(tag);
-end;
-
-procedure TpbParser._FieldOptions(f: TPbField);
-begin
-  _FieldOption(f);
-  while la.kind = 25 do
-  begin
-    Get;
-    _FieldOption(f);
+      SynErr(73);
   end;
 end;
 
 procedure TpbParser._OneOfField(oneOf: PObj);
 var
-  f: TPbField;
-  name: string;
+  f: PObj;
+  id: string;
   tag: Integer;
-  ft: PType;
+  typ: PType;
 begin
-  _Type(oneOf.msg, ft);
-  _Ident(name);
+  _Type(typ);
+  _Ident(id);
   Expect(13);
   _FieldNumber(tag);
-  f := oneOf.AddField(name, ft, tag);
-  if la.kind = 40 then
+  f := oneOf.AddField(id, ft, tag);
+  if la.kind = 36 then
   begin
     Get;
     _FieldOptions(f);
-    Expect(41);
+    Expect(37);
   end;
   Expect(14);
 end;
 
-procedure TpbParser._FieldOption(f: TPbField);
-var name: string; Cv: TConst;
+procedure TpbParser._FieldOption(f: PObj);
+var id: string; Cv: TConst;
 begin
-  _OptionName(name);
+  _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  f.AddOption(name, Cv);
+  f.AddOption(id, Cv);
 end;
 
 procedure TpbParser._Ranges(Reserved: TIntSet);
@@ -907,7 +844,7 @@ var lo, hi: Integer;
 begin
   _Range(lo, hi);
   Reserved.AddRange(lo, hi);
-  while la.kind = 25 do
+  while la.kind = 40 do
   begin
     Get;
     _Range(lo, hi);
@@ -915,14 +852,16 @@ begin
   end;
 end;
 
-procedure TpbParser._FieldNames;
-var name: string;
+procedure TpbParser._FieldNames(Fields: TStringList);
+var id: string;
 begin
-  _Ident(name);
-  while la.kind = 25 do
+  _Ident(id);
+  Fields.Add(id);
+  while la.kind = 40 do
   begin
     Get;
-    _Ident(name);
+    _Ident(id);
+    Fields.Add(id);
   end;
 end;
 
@@ -948,42 +887,42 @@ end;
 
 procedure TpbParser._EnumField(e: PObj);
 var
-     name: string;
-     n: Integer;
-     ev: TEnumValue;
+  id: string;
+  n: Integer;
+  ev: TEnumValue;
 begin
-  _Ident(name);
+  _Ident(id);
   Expect(13);
-  if la.kind = 35 then
+  if la.kind = 31 then
   begin
     Get;
   end;
   _intLit(n);
-  ev := TEnumValue.Create(e, name, n);
+  ev := TEnumValue.Create(e, id, n);
   e.EnumValues.Add(ev);
-  if la.kind = 40 then
+  if la.kind = 36 then
   begin
     Get;
     _EnumValueOption(e);
-    while la.kind = 25 do
+    while la.kind = 40 do
     begin
       Get;
       _EnumValueOption(e);
     end;
-    Expect(41);
+    Expect(37);
   end;
   Expect(14);
 end;
 
 procedure TpbParser._EnumValueOption(e: PObj);
 var
-     Name: string;
-     Cv: TConst;
+  id: string;
+  Cv: TConst;
 begin
-  _OptionName(Name);
+  _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  e.AddOption(Name, Cv);
+  e.AddOption(id, Cv);
 end;
 
 procedure TpbParser.Parse;
@@ -1001,13 +940,13 @@ const
   T = true;
   sets: array [0..7] of array [0..63] of Boolean = (
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
-    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
-    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
-    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,T, x,x,x,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
+    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,T,x,x),
+    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
-    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
-    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x));
+    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x));
 begin
   Result := sets[s, kind];
 end;
@@ -1039,25 +978,25 @@ const
     {20} '"(" expected',
     {21} '")" expected',
     {22} '"." expected',
-    {23} '"map" expected',
-    {24} '"<" expected',
-    {25} '"," expected',
-    {26} '">" expected',
-    {27} '"service" expected',
-    {28} '"rpc" expected',
-    {29} '"stream" expected',
-    {30} '"returns" expected',
-    {31} '"inf" expected',
-    {32} '"nan" expected',
-    {33} '"true" expected',
-    {34} '"false" expected',
-    {35} '"-" expected',
-    {36} '"+" expected',
-    {37} '"repeated" expected',
-    {38} '"optional" expected',
-    {39} '"required" expected',
-    {40} '"[" expected',
-    {41} '"]" expected',
+    {23} '"service" expected',
+    {24} '"rpc" expected',
+    {25} '"stream" expected',
+    {26} '"returns" expected',
+    {27} '"inf" expected',
+    {28} '"nan" expected',
+    {29} '"true" expected',
+    {30} '"false" expected',
+    {31} '"-" expected',
+    {32} '"+" expected',
+    {33} '"repeated" expected',
+    {34} '"optional" expected',
+    {35} '"required" expected',
+    {36} '"[" expected',
+    {37} '"]" expected',
+    {38} '"map" expected',
+    {39} '"<" expected',
+    {40} '"," expected',
+    {41} '">" expected',
     {42} '"oneof" expected',
     {43} '"double" expected',
     {44} '"float" expected',
@@ -1079,17 +1018,17 @@ const
     {60} '"max" expected',
     {61} '"enum" expected',
     {62} '??? expected',
-    {63} 'invalid TopLevelDef',
-    {64} 'invalid Reserved',
-    {65} 'invalid OptionName',
+    {63} 'invalid Reserved',
+    {64} 'invalid OptionName',
+    {65} 'invalid Constant',
     {66} 'invalid Constant',
-    {67} 'invalid Constant',
-    {68} 'invalid KeyType',
-    {69} 'invalid Type',
-    {70} 'invalid Rpc',
-    {71} 'invalid intLit',
-    {72} 'invalid floatLit',
-    {73} 'invalid boolLit',
+    {67} 'invalid Rpc',
+    {68} 'invalid intLit',
+    {69} 'invalid floatLit',
+    {70} 'invalid boolLit',
+    {71} 'invalid FieldType',
+    {72} 'invalid Type',
+    {73} 'invalid KeyType',
     {74} 'invalid Range');
 begin
   if nr <= MaxErr then

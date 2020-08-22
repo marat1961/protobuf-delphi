@@ -12,9 +12,9 @@ uses
 
 type
 
-  TpbTable = class;          // Parsing context
-  TpbModule = class;         // .proto file
-  TpbOption = class;
+  TpbTable = class;      // Parsing context
+  TpbModule = class;     // .proto file
+  TObjOptions = class;   // object options
 
 {$EndRegion}
 
@@ -41,9 +41,9 @@ type
 
 {$EndRegion}
 
-{$Region 'TUserType: User defined type'}
+{$Region 'TQualIdent: User defined type'}
 
-  TUserType = record
+  TQualIdent = record
     OutermostScope: Boolean;
     Package: string;
     Name: string;
@@ -78,22 +78,20 @@ type
   TMode = (
     mUnknown,
     mHead,
-    mVar,        // variable definition
-    mPar,        // procedure parameter
-    mConst,      // constant declaration
-    mField,      // record field
-    mType,       // type
-    mProc,       // procedure
-    mEnum,       // enum definition
-    mEnumValue); // enum value
-
-//    mOneOf,     // proto OnOf
-//    mModule,    // proto file
-//    mPackage,   // proto package
-//    mOption,    // proto option
-//    mService,   // service definition
-//    mRpc,       // service definition
-//    mRecord,    // message definition
+    mModule,    // proto file
+    mVar,       // variable declaration
+    mPar,       // procedure parameter
+    mConst,     // constant declaration
+    mField,     // record field
+    mType,      // type
+    mProc,      // procedure
+    mEnum,      // enum declaration
+    mEnumValue, // enum value
+    mOneOf,     // proto OnOf
+    mPackage,   // proto package
+    mOption,    // proto option
+    mService,   // service declaration
+    mRpc);      // RPC declaration
 
   // Type mode
   TTypeMode = (
@@ -117,9 +115,10 @@ type
     tmSint64,   // Int64
 
     // User defined types
-    tmEnum,     // Integer
+    tmEnum,     // enumeration
     tmMessage,  // message
-    tmMap);     // Map
+    tmArray,    // array
+    tmMap);     // map
 
   TEmbeddedTypes = TTypeMode.tmUnknown .. TTypeMode.tmSint64;
 
@@ -127,6 +126,7 @@ type
   PType = ^TTypeDesc;
 
   TObjDesc = record
+  var
     cls: TMode;
     lev: Integer;
     next, dsc: PObj;
@@ -134,6 +134,8 @@ type
     name: string;
     val: TValue;
     idx: Integer;
+    options: TObjOptions;
+  public
     // Get delphi name
     function DelphiName: string;
     // Get delphi type
@@ -149,49 +151,14 @@ type
 
 {$EndRegion}
 
-{$Region 'TIdent: base class for creating all other objects'}
+{$Region 'TObjOptions: base class for object options'}
 
-  TIdent = class
-  private
-    FName: string;
+  TObjOptions = class
+  var
+    Obj: PObj;
   public
-    constructor Create(const Name: string);
-    function AddOption(const Name: string; const Value: TConst): TpbOption; virtual;
-    property Name: string read FName;
-  end;
-
-{$EndRegion}
-
-{$Region 'TUnknownType'}
-
-  TUnknownType = record
-    obj: PObj;
-    typ: TUserType;
-  end;
-
-{$EndRegion}
-
-{$Region 'TIdentList'}
-
-  TIdentList = class
-  private
-    FList: TList;
-    function GetCount: Integer;  inline;
-    function Find(const Name: string): TIdent;
-    procedure Add(Item: TIdent);
-  public
-    constructor Create;
-    destructor Destroy; override;
-    property Count: Integer read GetCount;
-  end;
-
-  TIdents<T: TIdent> = class(TIdentList)
-  private
-    function GetItem(Index: Integer): T;
-  public
-    function Find(const Name: string): T; inline;
-    procedure Add(Item: T); inline;
-    property Items[Index: Integer]: T read GetItem; default;
+    constructor Create(Obj: PObj);
+    procedure Update(const Name: string; const Value: TConst); virtual;
   end;
 
 {$EndRegion}
@@ -219,19 +186,41 @@ type
     All this means that there are two types of access to declarations in the module:
      - by short name;
      - by a composite name. *)
-  TpbPackage = class(TIdent)
-  private
-    FTypes: PType;
-  public
-    property Types: PType read FTypes;
+  TpbPackage = class
+    Name: string;
+    Types: PType;
   end;
 
 {$EndRegion}
 
-{$Region 'TpbOption: can be used in proto files, messages, enums and services'}
+{$Region 'TpbOption: can be used in proto files, messages, fields, enums and services'}
 
-  PFieldOptions = ^TFieldOptions;
-  TFieldOptions = record
+  TpbOption = record
+    Name: string;
+    Cval: TConst;
+  end;
+
+{$EndRegion}
+
+{$Region 'TMessageOptions: message options'}
+
+  TMessageOptions = class(TObjOptions)
+  var
+    Reserved: TIntSet;
+    Fields: TStringList;
+  public
+    constructor Create(Obj: PObj);
+    destructor Destroy; override;
+  end;
+
+{$EndRegion}
+
+{$Region 'TFieldOptions: field options'}
+
+  // Rules for fields in .proto files
+  TFieldRule = (Singular, Optional, Repeated);
+
+  TFieldOptions = class(TObjOptions)
   type
     TOptionKind = (
       foDefault, foMapType, foPacked, foAccess, foDeprecated, foTransient, foReadOnly);
@@ -239,6 +228,8 @@ type
     KindNames: array [TOptionKind] of string = (
       'default', 'mapType', 'packed', 'access', 'deprecated', 'transient', 'readonly');
   var
+    Tag: Integer;
+    Rule: TFieldRule;
     Access: TAccessModifier;
     &Packed: Boolean;
     &Deprecated: Boolean;
@@ -249,26 +240,19 @@ type
     MapType: string;
     // The default value for field
     Default: string;
-  end;
-
-  TpbOption = class(TIdent)
-  private
-    FCval: TConst;
   public
-    constructor Create(const Name: string; const Value: TConst);
-    property Value: TValue read FCval.val;
-    property Typ: TConstType read FCval.typ;
+    constructor Create(Obj: PObj; Tag: Integer; Rule: TFieldRule);
   end;
 
-  // Rules for fields in .proto files
-  TFieldRule = (Singular, Optional, Repeated);
+{$EndRegion}
 
-  TpbField = record
-    Typ: PType;
-    Tag: Integer;
-    Rule: TFieldRule;
-    Pos: TPosition;
-    Options: TFieldOptions;
+{$Region 'TRpcOptions'}
+
+  TRpcOptions = class(TObjOptions)
+  var
+    request, response: PType;
+  public
+    constructor Create(Obj: PObj; request, response: PType);
   end;
 
 {$EndRegion}
@@ -278,9 +262,8 @@ type
   // Enum options kind
   TEnumOptionKind = (foNamespace, foAllowAlias);
 
-  PEnumOptions = ^TEnumOptions;
-  TEnumOptions = record
-    Namespace: string;
+  TEnumOptions = class(TObjOptions)
+  var
     foAllowAlias: Boolean;
   end;
 
@@ -290,29 +273,23 @@ type
 
   // Importing definition
   // import = "import" [ "weak" | "public" ] strLit ";"
-  TpbModule = class(TIdent)
+  TpbModule = class
   private
+    FName: string;
     FTab: TpbTable;
     FWeak: Boolean;
     FSyntax: TSyntaxVersion;
-    FImport: TIdents<TpbModule>;
-    FOptions: TIdents<TpbOption>;
-    FPackages: TIdents<TpbPackage>;
+    FImport: TList<TpbModule>;
     FCurrentPackage: TpbPackage;
     function GetNameSpace: string;
   protected
     constructor Create(Tab: TpbTable; const Name: string; Weak: Boolean);
   public
     destructor Destroy; override;
-    // Add package and update its current value
-    procedure AddPackage(const Name: string);
-    // Add module option
-    function AddOption(const Name: string; const Value: TConst): TpbOption; override;
     // Properties
     property Weak: Boolean read FWeak;
     property Syntax: TSyntaxVersion read FSyntax write FSyntax;
-    property Import: TIdents<TpbModule> read FImport;
-    property Options: TIdents<TpbOption> read FOptions;
+    property Import: TList<TpbModule> read FImport;
     property NameSpace: string read GetNameSpace;
   end;
 
@@ -329,7 +306,6 @@ type
     UnknownType: PType;
     // root node for the .proto file
     FModule: TpbModule;
-    FUnknownTypes: TList<TUnknownType>;
     // predefined types
     FEmbeddedTypes: array [TEmbeddedTypes] of PType;
     // Fill predefined elements
@@ -339,7 +315,7 @@ type
     destructor Destroy; override;
     // Add new declaration
     procedure NewObj(var obj: PObj; const id: string; cls: TMode);
-    // Find
+    // Find identifier
     procedure Find(var obj: PObj; const id: string);
     // Open scope
     procedure OpenScope;
@@ -347,16 +323,21 @@ type
     procedure CloseScope;
     // Enter
     procedure Enter(cls: TMode; n: Integer; name: string; typ: PType);
+    // Find type
+    function FindType(const id: TQualIdent): PType;
+    // Find message type
+    function FindMessageType(id: TQualIdent): PType;
     // Get embedded type by kind
     function GetBasisType(kind: TTypeMode): PType;
-    // Аdd stub type tmUnknown
-    function AddUnknown(Typ: TUserType): PType;
+    // Update option value
+    procedure AddOption(const name: string; const val: TConst);
     // Open and read module from file
     function OpenModule(const Name: string; Weak: Boolean): TpbModule;
     // Convert string to Integer
     function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
     function GenScript: string;
+    property TopScope: PObj read FTopScope;
     property Module: TpbModule read FModule write FModule;
   end;
 
@@ -376,6 +357,9 @@ const
     'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
 
 implementation
+
+uses
+  Oz.Pb.Parser;
 
 function GetWireType(tm: TTypeMode): TWireType;
 begin
@@ -545,17 +529,6 @@ begin
   inherited;
 end;
 
-procedure TpbModule.AddPackage(const Name: string);
-begin
-  FCurrentPackage := TpbPackage.Create(Name);
-  FPackages.Add(FCurrentPackage);
-end;
-
-function TpbModule.AddOption(const Name: string; const Value: TConst): TpbOption;
-begin
-  Result := TpbOption.Create(Name, Value);
-end;
-
 function TpbModule.GetNameSpace: string;
 begin
   Result := 'Example1';
@@ -609,6 +582,7 @@ begin
   else
   begin
     obj := x.next;
+    parser.SemError(1);
   end;
 end;
 
@@ -660,14 +634,41 @@ begin
   Result := FEmbeddedTypes[kind];
 end;
 
-function TpbTable.AddUnknown(Typ: TUserType): PType;
+function TpbTable.FindType(const id: TQualIdent): PType;
 var
-  u: TUnknownType;
+  obj: PObj;
 begin
-  Result := UnknownType;
-  u.obj := nil;
-  u.typ := Typ;
-  FUnknownTypes.Add(u);
+  if id.Package = '' then
+    Find(obj, id)
+  else
+  begin
+    // искать пакет, а уже в нём тип
+    Find(obj, id.Package);
+    if obj.cls = TMode.mPackage then
+      Find(obj, id);
+  end;
+  if obj.cls = TMode.mType then
+    Result := obj.typ
+  else if Result.form = TTypeMode.tmUnknown then
+    parser.SemError(2)
+  else
+    parser.SemError(5);
+end;
+
+function TpbTable.FindMessageType(id: TQualIdent): PType;
+var
+  obj: PObj;
+begin
+  Find(obj, id);
+  Assert(obj.cls = TMode.mType );
+  Result := obj.typ;
+end;
+
+procedure TpbTable.AddOption(var obj: PObj; const name: string; const val: TConst);
+begin
+  case obj.cls of
+
+  end;
 end;
 
 function TpbTable.OpenModule(const Name: string; Weak: Boolean): TpbModule;
