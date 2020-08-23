@@ -1,0 +1,53 @@
+Oneof
+-----
+Предположим у нас есть определение
+
+oneof oneof_name {
+    int32 foo_int = 4;
+    string foo_string = 9;
+    ...
+}
+
+Компилятор генерирует перечислимый тип.
+  TOneofNameCase = (kFooInt = 4, kFooString = 9, ONEOF_NAME_NOT_SET = 0);
+
+Можно предложить две реализации.
+
+а) Классическая запись с вариантами.
+
+ Генерирутеся запись
+
+  TMsgType = record
+    ...
+    case oneof_name_case: TOneofNameCase of
+      kFooInt: (foo_int: int32);	
+      kFooInt: (foo_string: string);	
+    ...
+  end;
+  
+б) Объект
+В объекте генерирутеся пара полей
+
+  oneof_name_case: TOneofNameCase;
+  oneof_value: TValue;
+  
+Генерируются свойства + геттеры и сеттеры.
+  property foo_int: int32;
+  property foo_string: string;
+
+Кроме того, он будет генерировать эти методы:
+
+// Возвращает перечисление, указывающее, какое поле установлено. 
+// Возвращает ONEOF_NAME_NOT_SET, если ни одно из них не установлено.
+property oneof_name_case: OneofNameCase
+
+// Освобождает объект, если вариантное поле Message, String и т.п. 
+// case_поле := ONEOF_NAME_NOT_SET.
+procedure clear_oneof_name;
+
+Размещение в таблице.
+Помещаем в список case_поле. 
+openScope;
+  Создаём тип tmUnion.
+  Вариантные поля помещаем в список полей этого типа.
+closeScope;
