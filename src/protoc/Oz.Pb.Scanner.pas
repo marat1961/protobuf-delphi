@@ -49,9 +49,9 @@ begin
   start.Add(45, 33);
   start.Add(43, 34);
   start.Add(91, 35);
-  start.Add(93, 36);
-  start.Add(60, 37);
-  start.Add(44, 38);
+  start.Add(44, 36);
+  start.Add(93, 37);
+  start.Add(60, 38);
   start.Add(62, 39);
   start.Add(Ord(TBuffer.EF), -1);
 end;
@@ -204,7 +204,7 @@ begin
   else if t.val = 'required' then
     t.kind := 35
   else if t.val = 'map' then
-    t.kind := 38
+    t.kind := 39
   else if t.val = 'oneof' then
     t.kind := 42
   else if t.val = 'double' then
@@ -690,7 +690,7 @@ begin
       end;
       37:
       begin
-        t.kind := 39; break;
+        t.kind := 38; break;
       end;
       38:
       begin

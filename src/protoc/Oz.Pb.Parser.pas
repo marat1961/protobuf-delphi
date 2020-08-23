@@ -44,7 +44,7 @@ type
     procedure _Service;
     procedure _EmptyStatement;
     procedure _Ident(var id: string);
-    procedure _Field;
+    procedure _Field(var typ: PType);
     procedure _Reserved;
     procedure _strLit;
     procedure _FullIdent(var id: string);
@@ -55,20 +55,20 @@ type
     procedure _intLit(var n: Integer);
     procedure _floatLit(var n: Double);
     procedure _boolLit;
-    procedure _FieldType(typ: PType);
-    procedure _FieldNumber(var tag: Integer);
-    procedure _FieldOptions(f: PObj);
+    procedure _FieldType(var typ: PType);
+    procedure _FieldDecl(ftyp: PType; rule: TFieldRule);
     procedure _Type(var typ: PType);
-    procedure _MapType(typ: PType);
-    procedure _OneOf(typ: PType);
+    procedure _MapType(var typ: PType);
+    procedure _OneOfType(var typ: PType);
+    procedure _FieldNumber(var tag: Integer);
+    procedure _FieldOption;
     procedure _KeyType(var ft: PType);
     procedure _OneOfField(typ: PType);
-    procedure _FieldOption(f: PObj);
     procedure _Ranges(Reserved: TIntSet);
     procedure _FieldNames(Fields: TStringList);
     procedure _Range(var lo, hi: Integer);
-    procedure _EnumField(e: PObj);
-    procedure _EnumValueOption(e: PObj);
+    procedure _EnumField;
+    procedure _EnumValueOption;
   protected
     function Starts(s, kind: Integer): Boolean; override;
     procedure Get; override;
@@ -247,11 +247,14 @@ procedure TpbParser._Message;
 var
   id: string;
   obj: PObj;
+  typ: PType;
 begin
   Expect(9);
   _Ident(id);
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
+  New(typ); typ.form := TTypeMode.tmMessage;
+  obj.typ := typ;
   Expect(10);
   while StartOf(2) do
   begin
@@ -260,9 +263,9 @@ begin
       begin
         _Option;
       end;
-      1, 22, 33, 34, 35, 38, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
+      1, 22, 33, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
       begin
-        _Field;
+        _Field(typ);
       end;
       9:
       begin
@@ -283,7 +286,7 @@ begin
       end;
   end;
   Expect(11);
-  tab.OpenScope;
+  tab.CloseScope;
 end;
 
 procedure TpbParser._Enum;
@@ -304,7 +307,7 @@ begin
     end
     else if la.kind = 1 then
     begin
-      _EnumField(enum);
+      _EnumField;
     end
     else
     begin
@@ -355,10 +358,11 @@ begin
   id := t.val;
 end;
 
-procedure TpbParser._Field;
+procedure TpbParser._Field(var typ: PType);
 var
   obj: PObj; id: string;
-  tag: Integer; rule: TFieldRule; typ: PType;
+  tag: Integer; rule: TFieldRule;
+  ftyp: PType;
 begin
   rule := TFieldRule.Singular;
   if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
@@ -378,18 +382,8 @@ begin
       Get;
     end;
   end;
-  _FieldType(typ);
-  _Ident(id);
-  tab.NewObj(obj, id, TMode.mField);
-  Expect(13);
-  _FieldNumber(tag);
-  obj.options := TFieldOptions.Create(obj, tag, rule);
-  if la.kind = 36 then
-  begin
-    Get;
-    _FieldOptions(obj);
-    Expect(37);
-  end;
+  _FieldType(ftyp);
+  _FieldDecl(ftyp, rule);
   Expect(14);
 end;
 
@@ -638,36 +632,46 @@ begin
     SynErr(70);
 end;
 
-procedure TpbParser._FieldType(typ: PType);
+procedure TpbParser._FieldType(var typ: PType);
 begin
   if StartOf(4) then
   begin
     _Type(typ);
   end
-  else if la.kind = 38 then
+  else if la.kind = 39 then
   begin
     _MapType(typ);
   end
   else if la.kind = 42 then
   begin
-    _OneOf(typ);
+    _OneOfType(typ);
   end
   else
     SynErr(71);
 end;
 
-procedure TpbParser._FieldNumber(var tag: Integer);
+procedure TpbParser._FieldDecl(ftyp: PType; rule: TFieldRule);
+var
+  obj: PObj;
+  id: string;
+  tag: Integer;
 begin
-  _intLit(tag);
-end;
-
-procedure TpbParser._FieldOptions(f: PObj);
-begin
-  _FieldOption(f);
-  while la.kind = 40 do
+  _Ident(id);
+  tab.NewObj(obj, id, TMode.mField);
+  obj.typ := ftyp;
+  Expect(13);
+  _FieldNumber(tag);
+  obj.options := TFieldOptions.Create(obj, tag, rule);
+  if la.kind = 36 then
   begin
     Get;
-    _FieldOption(f);
+    _FieldOption;
+    while la.kind = 37 do
+    begin
+      Get;
+      _FieldOption;
+    end;
+    Expect(38);
   end;
 end;
 
@@ -702,19 +706,19 @@ begin
     SynErr(72);
 end;
 
-procedure TpbParser._MapType(typ: PType);
+procedure TpbParser._MapType(var typ: PType);
 var
-  id: string; obj: PObj;
-  key, value: PType;
+id: string; obj: PObj;
+key, value: PType;
 begin
-  Expect(38);
+  Expect(39);
   if la.kind = 1 then
   begin
     _Ident(id);
   end;
-  Expect(39);
-  _KeyType(key);
   Expect(40);
+  _KeyType(key);
+  Expect(37);
   _Type(value);
   Expect(41);
   if id = '' then
@@ -724,13 +728,15 @@ begin
   typ.base := key; typ.value := value;
 end;
 
-procedure TpbParser._OneOf(typ: PType);
+procedure TpbParser._OneOfType(var typ: PType);
 var
-  id: string; obj: PObj;
+  id: string;
+  obj: PObj;
 begin
   Expect(42);
   _Ident(id);
   tab.NewObj(obj, id, TMode.mOneOf);
+  tab.OpenScope;
   New(typ); typ.form := TTypeMode.tmUnion;
   Expect(10);
   while StartOf(6) do
@@ -749,6 +755,23 @@ begin
     end;
   end;
   Expect(11);
+  tab.CloseScope;
+end;
+
+procedure TpbParser._FieldNumber(var tag: Integer);
+begin
+  _intLit(tag);
+end;
+
+procedure TpbParser._FieldOption;
+var
+   id: string;
+   Cv: TConst;
+begin
+  _OptionName(id);
+  Expect(13);
+  _Constant(Cv);
+  tab.AddOption(id, Cv);
 end;
 
 procedure TpbParser._KeyType(var ft: PType);
@@ -820,31 +843,10 @@ begin
 end;
 
 procedure TpbParser._OneOfField(typ: PType);
-var
-   id: string;
-   tag: Integer; f: PObj;
+var ftyp: PType;
 begin
-  _Type(typ);
-  _Ident(id);
-  Expect(13);
-  _FieldNumber(tag);
-  f := oneOf.AddField(id, ft, tag);
-  if la.kind = 36 then
-  begin
-    Get;
-    _FieldOptions(f);
-    Expect(37);
-  end;
-  Expect(14);
-end;
-
-procedure TpbParser._FieldOption(f: PObj);
-var id: string; Cv: TConst;
-begin
-  _OptionName(id);
-  Expect(13);
-  _Constant(Cv);
-  f.AddOption(id, Cv);
+  _Type(ftyp);
+  _FieldDecl(ftyp, TFieldRule.Singular);
 end;
 
 procedure TpbParser._Ranges(Reserved: TIntSet);
@@ -852,7 +854,7 @@ var lo, hi: Integer;
 begin
   _Range(lo, hi);
   Reserved.AddRange(lo, hi);
-  while la.kind = 40 do
+  while la.kind = 37 do
   begin
     Get;
     _Range(lo, hi);
@@ -865,7 +867,7 @@ var id: string;
 begin
   _Ident(id);
   Fields.Add(id);
-  while la.kind = 40 do
+  while la.kind = 37 do
   begin
     Get;
     _Ident(id);
@@ -893,36 +895,36 @@ begin
   end;
 end;
 
-procedure TpbParser._EnumField(e: PObj);
+procedure TpbParser._EnumField;
 var
   id: string;
   n: Integer;
-  ev: TEnumValue;
+  ev: PObj;
 begin
   _Ident(id);
+  tab.NewObj(ev, id, TMode.mEnumValue);
   Expect(13);
   if la.kind = 31 then
   begin
     Get;
   end;
   _intLit(n);
-  ev := TEnumValue.Create(e, id, n);
-  e.EnumValues.Add(ev);
+  ev.val := n;
   if la.kind = 36 then
   begin
     Get;
-    _EnumValueOption(e);
-    while la.kind = 40 do
+    _EnumValueOption;
+    while la.kind = 37 do
     begin
       Get;
-      _EnumValueOption(e);
+      _EnumValueOption;
     end;
-    Expect(37);
+    Expect(38);
   end;
   Expect(14);
 end;
 
-procedure TpbParser._EnumValueOption(e: PObj);
+procedure TpbParser._EnumValueOption;
 var
   id: string;
   Cv: TConst;
@@ -930,7 +932,7 @@ begin
   _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  e.AddOption(id, Cv);
+  tab.AddOption(id, Cv);
 end;
 
 procedure TpbParser.Parse;
@@ -949,7 +951,7 @@ const
   sets: array [0..6] of array [0..63] of Boolean = (
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
-    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,T,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
+    (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,x,T, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
     (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
     (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
@@ -999,10 +1001,10 @@ const
     {34} '"optional" expected',
     {35} '"required" expected',
     {36} '"[" expected',
-    {37} '"]" expected',
-    {38} '"map" expected',
-    {39} '"<" expected',
-    {40} '"," expected',
+    {37} '"," expected',
+    {38} '"]" expected',
+    {39} '"map" expected',
+    {40} '"<" expected',
     {41} '">" expected',
     {42} '"oneof" expected',
     {43} '"double" expected',

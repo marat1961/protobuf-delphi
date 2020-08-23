@@ -57,18 +57,21 @@ Syntax
 
 Message                      (. var
                                   id: string;
-                                  obj: PObj; .)
+                                  obj: PObj;
+                                  typ: PType; .)
 =
 "message" Ident<id>          (. tab.NewObj(obj, id, TMode.mType);
-                                tab.OpenScope; .)
+                                tab.OpenScope;
+                                New(typ); typ.form := TTypeMode.tmMessage;
+                                obj.typ := typ; .)
 "{" {
   Option
-| Field
+| Field<typ>
 | Message
 | Enum
 | Reserved
 | EmptyStatement
-} "}"                        (. tab.OpenScope; .)
+} "}"                        (. tab.CloseScope; .)
 .
 
 // Syntax
@@ -244,32 +247,41 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 
 // Fields
 
-Field                        (. var
+Field<var typ: PType>        (. var
                                   obj: PObj; id: string;
-                                  tag: Integer; rule: TFieldRule; typ: PType; .)
+                                  tag: Integer; rule: TFieldRule;
+                                  ftyp: PType; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-FieldType<typ>
-Ident<id>                    (. tab.NewObj(obj, id, TMode.mField); .)
-
-"="
-FieldNumber<tag>             (. obj.options := TFieldOptions.Create(obj, tag, rule); .)
-[ "[" FieldOptions<obj>
-"]" ]
+FieldType<ftyp>
+FieldDecl<ftyp, rule>
 ";"
 .
 
-FieldType<typ: PType>
+FieldType<var typ: PType>
 =
   Type<typ>
 | MapType<typ>
-| OneOf<typ>
+| OneOfType<typ>
 .
 
-MapType<typ: PType>         (. var
+FieldDecl<ftyp: PType; rule: TFieldRule>
+                             (. var
+                                  obj: PObj;
+                                  id: string;
+                                  tag: Integer; .)
+=
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
+                                obj.typ := ftyp; .)
+"="
+FieldNumber<tag>             (. obj.options := TFieldOptions.Create(obj, tag, rule); .)
+[ "[" FieldOption { ","  FieldOption } "]" ]
+.
+
+MapType<var typ: PType>         (. var
                                  id: string; obj: PObj;
                                  key, value: PType; .)
 =
@@ -285,42 +297,34 @@ MapType<typ: PType>         (. var
                                 typ.base := key; typ.value := value; .)
 .
 
-OneOf<typ: PType>            (. var
-                                  id: string; obj: PObj; .)
+OneOfType<var typ: PType>    (. var
+                                  id: string;
+                                  obj: PObj; .)
 =
 "oneof"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mOneOf);
+                                tab.OpenScope;
                                 New(typ); typ.form := TTypeMode.tmUnion; .)
 "{" {
   Option
 | OneOfField<typ>
 | EmptyStatement
-} "}"
+} "}"                        (. tab.CloseScope; .)
 .
 
-OneOfField<typ: PType>      (. var
-                                  id: string; ftyp: PType;
-                                  tag: Integer; f: PObj; .)
+OneOfField<typ: PType>       (. var ftyp: PType;  .)
 =
 Type<ftyp>
-Ident<id>
-"="
-FieldNumber<tag>             (. f := oneOf.AddField(id, ft, tag); .)
-[ "[" FieldOptions<f>
-"]" ] ";"
+FieldDecl<ftyp, TFieldRule.Singular>
 .
 
-FieldOptions<f: PObj>
-=
-FieldOption<f>
-{ ","  FieldOption<f> }
-.
-
-FieldOption<f: PObj>         (. var id: string; Cv: TConst; .)
+FieldOption                  (. var
+                                   id: string;
+                                   Cv: TConst; .)
 =
 OptionName<id>
 "="
-Constant<Cv>                 (. f.AddOption(id, Cv); .)
+Constant<Cv>                 (. tab.AddOption(id, Cv); .)
 .
 
 FieldNumber<var tag: Integer>
@@ -399,34 +403,33 @@ Ident<id>                    (. tab.NewObj(enum, id, TMode.mEnum);
                                 tab.OpenScope; .)
 "{" {
 Option
-| EnumField<enum>
+| EnumField
 | EmptyStatement
 } "}"                        (. tab.CloseScope; .)
 .
 
-EnumField<e: PObj>           (. var
+EnumField                    (. var
                                   id: string;
                                   n: Integer;
-                                  ev: TEnumValue; .)
+                                  ev: PObj; .)
 =
-Ident<id>
+Ident<id>                    (. tab.NewObj(ev, id, TMode.mEnumValue); .)
 "="
 [ "-"
 ]
-intLit<n>                    (. ev := TEnumValue.Create(e, id, n);
-                                e.EnumValues.Add(ev); .)
-[ "[" EnumValueOption<e>
-{ ","  EnumValueOption<e>
+intLit<n>                    (. ev.val := n; .)
+[ "[" EnumValueOption
+{ ","  EnumValueOption
 } "]" ]";"
 .
 
-EnumValueOption<e: PObj>     (. var
+EnumValueOption              (. var
                                   id: string;
                                   Cv: TConst; .)
 =
 OptionName<id>
 "="
-Constant<Cv>                 (. e.AddOption(id, Cv); .)
+Constant<Cv>                 (. tab.AddOption(id, Cv); .)
 .
 
 END Pb.
