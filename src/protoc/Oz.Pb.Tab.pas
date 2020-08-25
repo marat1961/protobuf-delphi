@@ -14,7 +14,7 @@ type
 
   TpbTable = class;      // Parsing context
   TpbModule = class;     // .proto file
-  TObjOptions = class;   // object options
+  TAux = class;   // object options
 
 {$EndRegion}
 
@@ -135,7 +135,7 @@ type
     name: string;
     val: TValue;
     idx: Integer;
-    options: TObjOptions;
+    aux: TAux;
   public
     // Get delphi name
     function DelphiName: string;
@@ -148,18 +148,6 @@ type
     fields: PObj;
     base, value: PType;
     size, len: Integer;
-  end;
-
-{$EndRegion}
-
-{$Region 'TObjOptions: base class for object options'}
-
-  TObjOptions = class
-  var
-    Obj: PObj;
-  public
-    constructor Create(Obj: PObj);
-    procedure Update(const Name: string; const Value: TConst); virtual;
   end;
 
 {$EndRegion}
@@ -203,9 +191,26 @@ type
 
 {$EndRegion}
 
+{$Region 'TAux: auxiliary data for object'}
+
+  // All additional attributes of the object are placed in auxilary data:
+  //  - comments;
+  //  - options;
+  //  - additional object fields;
+  //  - position in the file for the object declaration.
+  TAux = class
+  var
+    Obj: PObj;
+  public
+    constructor Create(Obj: PObj);
+    procedure Update(const Name: string; const Value: TConst); virtual;
+  end;
+
+{$EndRegion}
+
 {$Region 'TMessageOptions: message options'}
 
-  TMessageOptions = class(TObjOptions)
+  TMessageOptions = class(TAux)
   var
     Reserved: TIntSet;
     Fields: TStringList;
@@ -221,7 +226,7 @@ type
   // Rules for fields in .proto files
   TFieldRule = (Singular, Optional, Repeated);
 
-  TFieldOptions = class(TObjOptions)
+  TFieldOptions = class(TAux)
   type
     TOptionKind = (
       foDefault, foMapType, foPacked, foAccess, foDeprecated, foTransient, foReadOnly);
@@ -229,6 +234,7 @@ type
     KindNames: array [TOptionKind] of string = (
       'default', 'mapType', 'packed', 'access', 'deprecated', 'transient', 'readonly');
   var
+    Msg: PObj;
     Tag: Integer;
     Rule: TFieldRule;
     Access: TAccessModifier;
@@ -242,14 +248,14 @@ type
     // The default value for field
     Default: string;
   public
-    constructor Create(Obj: PObj; Tag: Integer; Rule: TFieldRule);
+    constructor Create(Obj, Msg: PObj; Tag: Integer; Rule: TFieldRule);
   end;
 
 {$EndRegion}
 
 {$Region 'TRpcOptions'}
 
-  TRpcOptions = class(TObjOptions)
+  TRpcOptions = class(TAux)
   var
     request, response: PType;
   public
@@ -263,7 +269,16 @@ type
   // Enum options kind
   TEnumOptionKind = (foNamespace, foAllowAlias);
 
-  TEnumOptions = class(TObjOptions)
+  TEnumOptions = class(TAux)
+  var
+    foAllowAlias: Boolean;
+  end;
+
+{$EndRegion}
+
+{$Region 'TMapOptions'}
+
+  TMapOptions = class(TAux)
   var
     foAllowAlias: Boolean;
   end;

@@ -392,15 +392,15 @@ var obj: PObj;
 begin
   Expect(58);
   obj := tab.topScope;
-  if obj.options = nil then
-    obj.options := TMessageOptions.Create(obj);
+  if obj.aux = nil then
+    obj.aux := TMessageOptions.Create(obj);
   if (la.kind = 2) or (la.kind = 3) or (la.kind = 4) then
   begin
-    _Ranges(TMessageOptions(obj.options).Reserved);
+    _Ranges(TMessageOptions(obj.aux).Reserved);
   end
   else if la.kind = 1 then
   begin
-    _FieldNames(TMessageOptions(obj.options).Fields);
+    _FieldNames(TMessageOptions(obj.aux).Fields);
   end
   else
     SynErr(63);
@@ -528,7 +528,7 @@ begin
   _UserType(typ);
   response := tab.FindMessageType(typ);
   Expect(21);
-  rpc.options := TRpcOptions.Create(rpc, request, response);
+  rpc.aux := TRpcOptions.Create(rpc, request, response);
   if la.kind = 10 then
   begin
     Get;
@@ -661,7 +661,7 @@ begin
   obj.typ := ftyp;
   Expect(13);
   _FieldNumber(tag);
-  obj.options := TFieldOptions.Create(obj, tag, rule);
+  obj.aux := TFieldOptions.Create(obj, tab.TopScope, tag, rule);
   if la.kind = 36 then
   begin
     Get;

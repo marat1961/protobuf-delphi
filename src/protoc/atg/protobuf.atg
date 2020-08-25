@@ -156,7 +156,7 @@ UserType<typ>                (. request := tab.FindMessageType(typ); .)
 "returns"
 "(" [ "stream" ]
 UserType<typ>                (. response := tab.FindMessageType(typ); .)
-")"                          (. rpc.options := TRpcOptions.Create(rpc, request, response); .)
+")"                          (. rpc.aux := TRpcOptions.Create(rpc, request, response); .)
 (( "{" {
 Option
 | EmptyStatement
@@ -277,7 +277,7 @@ FieldDecl<ftyp: PType; rule: TFieldRule>
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
                                 obj.typ := ftyp; .)
 "="
-FieldNumber<tag>             (. obj.options := TFieldOptions.Create(obj, tag, rule); .)
+FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule); .)
 [ "[" FieldOption { ","  FieldOption } "]" ]
 .
 
@@ -363,10 +363,10 @@ KeyType<var ft: PType>
 Reserved                     (. var obj: PObj; .)
 =
 "reserved"                   (. obj := tab.topScope;
-                                if obj.options = nil then
-                                  obj.options := TMessageOptions.Create(obj); .)
-( Ranges<TMessageOptions(obj.options).Reserved>
-| FieldNames<TMessageOptions(obj.options).Fields>
+                                if obj.aux = nil then
+                                  obj.aux := TMessageOptions.Create(obj); .)
+( Ranges<TMessageOptions(obj.aux).Reserved>
+| FieldNames<TMessageOptions(obj.aux).Fields>
 ) ";"
 .
 

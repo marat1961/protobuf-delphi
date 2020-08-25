@@ -29,6 +29,8 @@ type
     procedure Indent;
     procedure Dedent;
 
+    procedure GenDataStructures;
+    procedure GenIO;
     procedure GenComment(const ñ: string);
     procedure LoadMessage(msg: PObj);
     procedure WriterInterface(msg: PObj);
@@ -52,17 +54,9 @@ uses
 
 {$Region 'TpbFieldHelper'}
 
-function AsType(Typ: TpbType): string;
-begin
-  if Typ is TpbEmbeddedType then
-    Result := Typ.DelphiName
-  else
-    Result := 'T' + Typ.DelphiName;
-end;
-
 type
 
-  TpbFieldHelper = class helper for TpbField
+  TpbFieldHelper = class helper for TFieldOptions
     // constant declarations for field tags
     procedure AsTagDeclarations(gen: TGen);
     // field declaration
@@ -112,7 +106,7 @@ type
 
 {$Region 'PObjHelper'}
 
-  PObjHelper = class helper for PObj
+  PObjHelper = record helper for PObj
     procedure AsDeclaration(gen: TGen);
     procedure AsImplementation(gen: TGen);
     procedure AsWrite(gen: TGen);
@@ -123,7 +117,7 @@ type
 
 {$Region 'TpbEnumHelper'}
 
-  TpbEnumHelper = class helper for TpbEnum
+  TpbEnumHelper = class helper for TEnumOptions
     procedure AsDeclaration(gen: TGen);
   end;
 
@@ -131,7 +125,7 @@ type
 
 {$Region 'TpbMapTypeHelper'}
 
-  TpbMapTypeHelper = class helper for TpbMapType
+  TpbMapTypeHelper = class helper for TMapOptions
     procedure AsDeclaration(gen: TGen);
   end;
 
@@ -142,7 +136,7 @@ type
 procedure TpbFieldHelper.AsTagDeclarations(gen: TGen);
 var n: string;
 begin
-  n := AsCamel(Name);
+  n := obj.DelphiName;
   if Rule = TFieldRule.Repeated then
     n := Plural(n);
   // ftId = 1; ftPhones = 5;
@@ -152,8 +146,8 @@ end;
 procedure TpbFieldHelper.AsDeclaration(gen: TGen);
 var n, t: string;
 begin
-  n := AsCamel(Name);
-  t := AsType(Typ);
+  n := obj.DelphiName;
+  t := obj.AsType;
   if Rule = TFieldRule.Repeated then
     t := Format(RepeatedCollection, [t]);
   gen.Wrln('F%s: %s;', [n, t]);
@@ -164,9 +158,9 @@ var
   n, t, s: string;
   ro: Boolean;
 begin
-  ro := Options.ReadOnly;
-  n := AsCamel(Name);
-  t := AsType(Typ);
+  ro := ReadOnly;
+  n := obj.DelphiName;
+  t := obj.AsType;
   if Rule = TFieldRule.Repeated then
   begin
     ro := True;
@@ -190,20 +184,20 @@ procedure TpbFieldHelper.AsInit(gen: TGen);
 var
   n, t: string;
 begin
-  n := AsCamel(Name);
-  t := AsType(Typ);
-  if options.Default <> '' then
-    gen.Wrln('F%s := %s;', [n, options.Default])
+  n := obj.DelphiName;
+  t := obj.AsType;
+  if Default <> '' then
+    gen.Wrln('F%s := %s;', [n, Default])
   else if Rule = TFieldRule.Repeated then
     gen.Wrln('F%s := ' + RepeatedCollection + '.Create;', [n, t])
-  else if typ.TypMode = TTypeMode.tmMap then
+  else if obj.typ.form = TTypeMode.tmMap then
     gen.Wrln('F%s := %s.Create;', [n, t]);
 end;
 
 procedure TpbFieldHelper.AsFree(gen: TGen);
 begin
-  if (Rule = TFieldRule.Repeated) or (typ.TypMode = TTypeMode.tmMap) then
-    gen.Wrln('F%s.Free;', [AsCamel(Name)]);
+  if (Rule = TFieldRule.Repeated) or (obj.typ.form = TTypeMode.tmMap) then
+    gen.Wrln('F%s.Free;', [obj.DelphiName]);
 end;
 
 procedure TpbFieldHelper.AsRead(gen: TGen);
@@ -211,7 +205,7 @@ var
   m, n, s: string;
 begin
   m := Msg.DelphiName;
-  n := AsCamel(Typ.Name);
+  n := obj.AsType;
   gen.Wrln('%s.ft%s:', [m, n]);
   gen.Indent;
   try
@@ -235,10 +229,10 @@ var
 
   procedure Process;
   begin
-    case Typ.TypMode of
+    case obj.typ.form of
       TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
         gen.Wrln('FPb.Write%s(%s.ft%s, %s.%s);',
-          [Typ.name, m, Name, msg.Name, Name]);
+          [obj.DelphiName, m, obj.Name, msg.Name, obj.Name]);
       TTypeMode.tmEnum:
         gen.Wrln('FPb.Write Enum');
       TTypeMode.tmMessage:
@@ -446,16 +440,15 @@ end;
 
 procedure TGen.GenerateCode;
 var
-  s: string;
+  ns: string;
   i: Integer;
-  em: Tem;
-  enum: TpbEnum;
-  map: TpbMapType;
-  m: PObj;
+  m: TpbModule;
+  enum: PObj;
+  map: PType;
 begin
-  em := Tab.Module.Em;
-  s := Tab.Module.NameSpace;
-  Wrln('unit %s;', [s]);
+  m := Tab.Module;
+  ns := Tab.Module.NameSpace;
+  Wrln('unit %s;', [ns]);
   Wrln;
   Wrln('interface');
   Wrln;
@@ -463,9 +456,14 @@ begin
   Wrln('  System.Classes, System.SysUtils, Generics.Collections,');
   Wrln('  pbPublic, pbInput, pbOutput;');
   Wrln;
+  GenDataStructures;
+  Wrln('end;');
+end;
+
+procedure TGen.GenDataStructures;
+begin
   Wrln('type');
   Wrln;
-
   // enumerated types
   for i := 0 to em.Enums.Count - 1 do
   begin
@@ -484,7 +482,6 @@ begin
     m := em.Messages[i];
     m.AsDeclaration(Self);
   end;
-
   Wrln('implementation');
   Wrln;
   for i := 0 to em.Messages.Count - 1 do
@@ -492,7 +489,7 @@ begin
     m := em.Messages[i];
     m.AsImplementation(Self);
   end;
-  Wrln('end;');
+
 end;
 
 function TGen.GetCode: string;
