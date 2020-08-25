@@ -302,9 +302,10 @@ OneOfType<var typ: PType>    (. var
                                   obj: PObj; .)
 =
 "oneof"
-Ident<id>                    (. tab.NewObj(obj, id, TMode.mOneOf);
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmUnion; .)
+                                New(typ); typ.form := TTypeMode.tmUnion;
+                                obj.typ := typ; .)
 "{" {
   Option
 | OneOfField<typ>
@@ -396,11 +397,14 @@ Ident<id>                   (. Fields.Add(id); .)
 
 Enum                         (. var
                                   id: string;
-                                  enum: PObj; .)
+                                  enum: PObj;
+                                  typ: PType; .)
 =
 "enum"
-Ident<id>                    (. tab.NewObj(enum, id, TMode.mEnum);
-                                tab.OpenScope; .)
+Ident<id>                    (. tab.NewObj(enum, id, TMode.mType);
+                                tab.OpenScope;
+                                New(typ); typ.form := TTypeMode.tmEnum;
+                                obj.typ := typ; .)
 "{" {
 Option
 | EnumField
@@ -413,7 +417,7 @@ EnumField                    (. var
                                   n: Integer;
                                   ev: PObj; .)
 =
-Ident<id>                    (. tab.NewObj(ev, id, TMode.mEnumValue); .)
+Ident<id>                    (. tab.NewObj(ev, id, TMode.mConst); .)
 "="
 [ "-"
 ]

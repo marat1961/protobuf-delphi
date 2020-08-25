@@ -12,9 +12,9 @@ uses
 
 type
 
-  TpbTable = class;      // Parsing context
-  TpbModule = class;     // .proto file
-  TAux = class;   // object options
+  TpbTable = class;  // Parsing context
+  TModule = class;   // .proto file
+  TAux = class;      // object options
 
 {$EndRegion}
 
@@ -85,11 +85,9 @@ type
     mField,     // record field
     mType,      // type
     mProc,      // procedure
-    mEnum,      // enum declaration
-    mEnumValue, // enum value
-    mOneOf,     // proto OnOf
     mPackage,   // proto package
     mOption,    // proto option
+    // todo: standart procedure
     mService,   // service declaration
     mRpc);      // RPC declaration
 
@@ -248,7 +246,7 @@ type
     // The default value for field
     Default: string;
   public
-    constructor Create(Obj, Msg: PObj; Tag: Integer; Rule: TFieldRule);
+    constructor Create(Obj: PObj; Tag: Integer; Rule: TFieldRule);
   end;
 
 {$EndRegion}
@@ -285,18 +283,20 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbModule: translation unit'}
+{$Region 'TModule: translation unit'}
 
   // Importing definition
   // import = "import" [ "weak" | "public" ] strLit ";"
-  TpbModule = class
+  TModule = class(TAux)
   private
     FName: string;
     FTab: TpbTable;
     FWeak: Boolean;
     FSyntax: TSyntaxVersion;
-    FImport: TList<TpbModule>;
+    FImport: TList<TModule>;
     FCurrentPackage: TpbPackage;
+    FMessages: TList<PObj>;
+    FEnums: TList<PObj>;
     function GetNameSpace: string;
   protected
     constructor Create(Tab: TpbTable; const Name: string; Weak: Boolean);
@@ -305,8 +305,10 @@ type
     // Properties
     property Weak: Boolean read FWeak;
     property Syntax: TSyntaxVersion read FSyntax write FSyntax;
-    property Import: TList<TpbModule> read FImport;
+    property Import: TList<TModule> read FImport;
     property NameSpace: string read GetNameSpace;
+    property Messages: TList<PObj> read FMessages;
+    property Enums: TList<PObj> read FEnums;
   end;
 
 {$EndRegion}
@@ -321,7 +323,7 @@ type
     FGuard: PObj;
     UnknownType: PType;
     // root node for the .proto file
-    FModule: TpbModule;
+    FModule: TModule;
     // predefined types
     FEmbeddedTypes: array [TEmbeddedTypes] of PType;
     // Fill predefined elements
@@ -348,13 +350,13 @@ type
     // Update option value
     procedure AddOption(const name: string; const val: TConst);
     // Open and read module from file
-    function OpenModule(const Name: string; Weak: Boolean): TpbModule;
+    function OpenModule(const Name: string; Weak: Boolean): TModule;
     // Convert string to Integer
     function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
     function GenScript: string;
     property TopScope: PObj read FTopScope;
-    property Module: TpbModule read FModule write FModule;
+    property Module: TModule read FModule write FModule;
   end;
 
 {$EndRegion}
@@ -440,6 +442,8 @@ end;
 
 {$EndRegion}
 
+{$Region 'TObjDesc'}
+
 function TObjDesc.DelphiName: string;
 begin
   Result := AsCamel(name);
@@ -453,99 +457,23 @@ begin
     Result := 'T' + DelphiName;
 end;
 
-{$Region 'TIdent'}
-
-constructor TIdent.Create(const Name: string);
-begin
-  inherited Create;
-  FName := Name;
-end;
-
-function TIdent.AddOption(const Name: string; const Value: TConst): TpbOption;
-begin
-  Result := nil;
-end;
-
 {$EndRegion}
 
-{$Region 'TIdentList<T: TIdent>'}
+{$Region 'TModule'}
 
-constructor TIdentList.Create;
-begin
-  inherited;
-  FList := TList.Create;
-end;
-
-destructor TIdentList.Destroy;
-begin
-  FList.Free;
-  inherited;
-end;
-
-procedure TIdentList.Add(Item: TIdent);
-begin
-  FList.Add(Item);
-end;
-
-function TIdentList.GetCount: Integer;
-begin
-  Result := FList.Count;
-end;
-
-function TIdentList.Find(const Name: string): TIdent;
-var
-  i: Integer;
-begin
-  for i := 0 to FList.Count - 1 do
-  begin
-    Result := TIdent(FList.Items[i]);
-    if Result.Name = Name then exit;
-  end;
-  Result := nil;
-end;
-
-function TIdents<T>.Find(const Name: string): T;
-begin
-  Result := T(inherited Find(Name));
-end;
-
-procedure TIdents<T>.Add(Item: T);
-begin
-  inherited Add(Item);
-end;
-
-function TIdents<T>.GetItem(Index: Integer): T;
-begin
-  Result := T(FList.Items[Index]);
-end;
-
-{$EndRegion}
-
-{$Region 'TpbOption'}
-
-constructor TpbOption.Create(const Name: string; const Value: TConst);
+constructor TModule.Create(Tab: TpbTable; const Name: string; Weak: Boolean);
 begin
   inherited Create(Name);
-  Self.FCval := Value;
+  FImport := TIdents<TModule>.Create;
 end;
 
-{$EndRegion}
-
-{$Region 'TpbModule'}
-
-constructor TpbModule.Create(Tab: TpbTable; const Name: string; Weak: Boolean);
-begin
-  inherited Create(Name);
-  FImport := TIdents<TpbModule>.Create;
-end;
-
-destructor TpbModule.Destroy;
+destructor TModule.Destroy;
 begin
   FImport.Free;
   inherited;
 end;
 
-function TpbModule.GetNameSpace: string;
+function TModule.GetNameSpace: string;
 begin
   Result := 'Example1';
 end;
@@ -557,7 +485,7 @@ end;
 constructor TpbTable.Create(Parser: TBaseParser);
 begin
   inherited;
-  FModule := TpbModule.Create(Self, 'import', {weak=}True);
+  FModule := TModule.Create(Self, 'import', {weak=}True);
   FUnknownTypes := TList<TUnknownType>.Create;
   InitSystem;
 end;
@@ -680,16 +608,37 @@ begin
   Result := obj.typ;
 end;
 
-procedure TpbTable.AddOption(var obj: PObj; const name: string; const val: TConst);
+procedure TpbTable.AddOption(const name: string; const val: TConst);
+var obj: PObj;
 begin
-  case obj.cls of
+  obj := TopScope;
+  if obj.aux = nil then
+  begin
+    case obj.cls of
+      TMode.mModule: obj.aux := tab.Module;
+      TMode.mRpc: obj.aux := TRpcOptions.Create(obj);
+      TMode.mField: obj.aux := TFieldOptions.Create(obj);
+      TMode.mType:
+        case obj.typ.form of
+          TTypeMode.tmEnum: obj.aux := TEnumOptions.Create(obj);
+          TTypeMode.tmMessage: obj.aux := TMessageOptions.Create(obj);
+          TTypeMode.tmMap: obj.aux := TMapOptions.Create(obj);
+          TTypeMode.tmUnion:
+            obj.aux := TAux.Create(obj);
+          else
+            raise Exception.Create('AddOption error');
 
+        end;
+      else
+        raise Exception.Create('AddOption error');
+    end;
   end;
+  obj.aux.Update(name, val);
 end;
 
-function TpbTable.OpenModule(const Name: string; Weak: Boolean): TpbModule;
+function TpbTable.OpenModule(const Name: string; Weak: Boolean): TModule;
 begin
-  Result := TpbModule.Create(Self, Name, Weak);
+  Result := TModule.Create(Self, Name, Weak);
 end;
 
 function TpbTable.ParseInt(const s: string; base: Integer): Integer;

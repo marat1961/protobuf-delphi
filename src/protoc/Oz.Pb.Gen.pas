@@ -52,11 +52,11 @@ implementation
 uses
   Oz.Pb.Parser;
 
-{$Region 'TpbFieldHelper'}
+{$Region 'TFieldHelper'}
 
 type
 
-  TpbFieldHelper = class helper for TFieldOptions
+  TFieldHelper = class helper for TFieldOptions
     // constant declarations for field tags
     procedure AsTagDeclarations(gen: TGen);
     // field declaration
@@ -104,9 +104,9 @@ type
 
 {$EndRegion}
 
-{$Region 'PObjHelper'}
+{$Region 'TModuleHelper'}
 
-  PObjHelper = record helper for PObj
+  TModuleHelper = class helper for TModule
     procedure AsDeclaration(gen: TGen);
     procedure AsImplementation(gen: TGen);
     procedure AsWrite(gen: TGen);
@@ -115,9 +115,9 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbEnumHelper'}
+{$Region 'TEnumHelper'}
 
-  TpbEnumHelper = class helper for TEnumOptions
+  TEnumHelper = class helper for TEnumOptions
     procedure AsDeclaration(gen: TGen);
   end;
 
@@ -131,9 +131,9 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbFieldHelper'}
+{$Region 'TFieldHelper'}
 
-procedure TpbFieldHelper.AsTagDeclarations(gen: TGen);
+procedure TFieldHelper.AsTagDeclarations(gen: TGen);
 var n: string;
 begin
   n := obj.DelphiName;
@@ -143,7 +143,7 @@ begin
   gen.Wrln('ft%s = %d;', [n, Tag]);
 end;
 
-procedure TpbFieldHelper.AsDeclaration(gen: TGen);
+procedure TFieldHelper.AsDeclaration(gen: TGen);
 var n, t: string;
 begin
   n := obj.DelphiName;
@@ -153,7 +153,7 @@ begin
   gen.Wrln('F%s: %s;', [n, t]);
 end;
 
-procedure TpbFieldHelper.AsProperty(gen: TGen);
+procedure TFieldHelper.AsProperty(gen: TGen);
 var
   n, t, s: string;
   ro: Boolean;
@@ -175,12 +175,12 @@ begin
   gen.Wrln(s);
 end;
 
-procedure TpbFieldHelper.AsReflection(gen: TGen);
+procedure TFieldHelper.AsReflection(gen: TGen);
 begin
   raise Exception.Create('under consruction');
 end;
 
-procedure TpbFieldHelper.AsInit(gen: TGen);
+procedure TFieldHelper.AsInit(gen: TGen);
 var
   n, t: string;
 begin
@@ -194,13 +194,13 @@ begin
     gen.Wrln('F%s := %s.Create;', [n, t]);
 end;
 
-procedure TpbFieldHelper.AsFree(gen: TGen);
+procedure TFieldHelper.AsFree(gen: TGen);
 begin
   if (Rule = TFieldRule.Repeated) or (obj.typ.form = TTypeMode.tmMap) then
     gen.Wrln('F%s.Free;', [obj.DelphiName]);
 end;
 
-procedure TpbFieldHelper.AsRead(gen: TGen);
+procedure TFieldHelper.AsRead(gen: TGen);
 var
   m, n, s: string;
 begin
@@ -223,9 +223,9 @@ begin
   end;
 end;
 
-procedure TpbFieldHelper.AsWrite(gen: TGen);
+procedure TFieldHelper.AsWrite(gen: TGen);
 var
-  m, f, def: string;
+  m, f: string;
 
   procedure Process;
   begin
@@ -245,10 +245,9 @@ var
   end;
 
 begin
-  m := AsCamel(Self.Msg.Name);
-  f := Self.Typ.DelphiName;
-  def := Self.Options.Default;
-  if def = '' then
+  m := AsCamel(msg.Name);
+  f := obj.AsType;
+  if Default = '' then
     Process
   else
   begin
@@ -265,25 +264,24 @@ end;
 
 {$EndRegion}
 
-{$Region 'PObjHelper'}
+{$Region 'TModuleHelper'}
 
-procedure PObjHelper.AsDeclaration(gen: TGen);
+procedure TModuleHelper.AsDeclaration(gen: TGen);
 var
-  m: PObj;
-  f: TpbField;
+  m, f: PObj;
   i: Integer;
 begin
   // generate nested messages
-  if em.Messages.Count > 0 then
+  if Messages.Count > 0 then
   begin
-    for i := 0 to em.Messages.Count - 1 do
+    for i := 0 to Messages.Count - 1 do
     begin
-      m := em.Messages[i];
-      m.AsDeclaration(gen);
+      m := Messages[i];
+      (m.aux as TModule).AsDeclaration(gen);
     end;
   end;
 
-  gen.Wrln('T%s = class', [DelphiName]);
+  gen.Wrln('T%s = class', [obj.DelphiName]);
 
   // generate field tag definitions
   gen.Wrln('const');
@@ -329,7 +327,7 @@ begin
   gen.Wrln;
 end;
 
-procedure PObjHelper.AsImplementation(gen: TGen);
+procedure TModuleHelper.AsImplementation(gen: TGen);
 var
   i: Integer;
   t, v: string;
@@ -364,7 +362,7 @@ begin
   gen.Wrln;
 end;
 
-procedure PObjHelper.AsRead(gen: TGen);
+procedure TModuleHelper.AsRead(gen: TGen);
 var
   i: Integer;
   f: TpbField;
@@ -377,7 +375,7 @@ begin
   end;
 end;
 
-procedure PObjHelper.AsWrite(gen: TGen);
+procedure TModuleHelper.AsWrite(gen: TGen);
 var
   i: Integer;
   f: TpbField;
@@ -392,9 +390,9 @@ end;
 
 {$EndRegion}
 
-{$Region 'TpbEnumHelper'}
+{$Region 'TEnumHelper'}
 
-procedure TpbEnumHelper.AsDeclaration(gen: TGen);
+procedure TEnumHelper.AsDeclaration(gen: TGen);
 var
   i: Integer;
   ev: TEnumValue;

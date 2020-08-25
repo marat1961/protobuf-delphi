@@ -293,11 +293,14 @@ procedure TpbParser._Enum;
 var
   id: string;
   enum: PObj;
+  typ: PType;
 begin
   Expect(61);
   _Ident(id);
-  tab.NewObj(enum, id, TMode.mEnum);
+  tab.NewObj(enum, id, TMode.mType);
   tab.OpenScope;
+  New(typ); typ.form := TTypeMode.tmEnum;
+  enum.typ := typ;
   Expect(10);
   while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
   begin
@@ -661,7 +664,7 @@ begin
   obj.typ := ftyp;
   Expect(13);
   _FieldNumber(tag);
-  obj.aux := TFieldOptions.Create(obj, tab.TopScope, tag, rule);
+  obj.aux := TFieldOptions.Create(obj, tag, rule);
   if la.kind = 36 then
   begin
     Get;
@@ -735,9 +738,10 @@ var
 begin
   Expect(42);
   _Ident(id);
-  tab.NewObj(obj, id, TMode.mOneOf);
+  tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
   New(typ); typ.form := TTypeMode.tmUnion;
+  obj.typ := typ;
   Expect(10);
   while StartOf(6) do
   begin
@@ -902,7 +906,7 @@ var
   ev: PObj;
 begin
   _Ident(id);
-  tab.NewObj(ev, id, TMode.mEnumValue);
+  tab.NewObj(ev, id, TMode.mConst);
   Expect(13);
   if la.kind = 31 then
   begin
