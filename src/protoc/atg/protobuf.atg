@@ -248,9 +248,7 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 // Fields
 
 Field<var typ: PType>        (. var
-                                  obj: PObj; id: string;
-                                  tag: Integer; rule: TFieldRule;
-                                  ftyp: PType; .)
+                                  rule: TFieldRule; ftyp: PType; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
@@ -367,7 +365,7 @@ Reserved                     (. var obj: PObj; .)
                                 if obj.aux = nil then
                                   obj.aux := TMessageOptions.Create(obj); .)
 ( Ranges<TMessageOptions(obj.aux).Reserved>
-| FieldNames<TMessageOptions(obj.aux).Fields>
+| FieldNames<TMessageOptions(obj.aux).ReservedFields>
 ) ";"
 .
 

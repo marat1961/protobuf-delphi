@@ -104,9 +104,9 @@ type
 
 {$EndRegion}
 
-{$Region 'TModuleHelper'}
+{$Region 'TMessageHelper'}
 
-  TModuleHelper = class helper for TModule
+  TMessageHelper = class helper for TMessageOptions
     procedure AsDeclaration(gen: TGen);
     procedure AsImplementation(gen: TGen);
     procedure AsWrite(gen: TGen);
@@ -202,7 +202,7 @@ end;
 
 procedure TFieldHelper.AsRead(gen: TGen);
 var
-  m, n, s: string;
+  m, n: string;
 begin
   m := Msg.DelphiName;
   n := obj.AsType;
@@ -264,21 +264,25 @@ end;
 
 {$EndRegion}
 
-{$Region 'TModuleHelper'}
+{$Region 'TMessageHelper'}
 
-procedure TModuleHelper.AsDeclaration(gen: TGen);
+procedure TMessageHelper.AsDeclaration(gen: TGen);
 var
-  m, f: PObj;
-  i: Integer;
+  x: PObj;
+  typ: PType;
 begin
   // generate nested messages
-  if Messages.Count > 0 then
+  x := obj.dsc;
+  while x <> nil do
   begin
-    for i := 0 to Messages.Count - 1 do
-    begin
-      m := Messages[i];
-      (m.aux as TModule).AsDeclaration(gen);
-    end;
+    typ := x.typ;
+    if x.cls = TMode.mType then
+      case typ.form of
+        TTypeMode.tmEnum: (obj.aux as TEnumOptions).AsDeclaration(gen);
+        TTypeMode.tmMessage: (obj.aux as TMessageOptions).AsDeclaration(gen);
+        TTypeMode.tmMap: (obj.aux as TMapOptions).AsDeclaration(gen);
+      end;
+    x := x.next;
   end;
 
   gen.Wrln('T%s = class', [obj.DelphiName]);
@@ -286,11 +290,14 @@ begin
   // generate field tag definitions
   gen.Wrln('const');
   gen.Indent;
+  typ := obj.typ;
+  Assert(typ.form = TTypeMode.tmMessage);
   try
-    for i := 0 to Fields.Count - 1 do
+    x := typ.dsc;
+    while x <> nil do
     begin
-      f := Fields[i];
-      f.AsTagDeclarations(gen);
+      (x.aux as TFieldOptions).AsTagDeclarations(gen);
+      x := x.next;
     end;
   finally
     gen.Dedent;
@@ -300,10 +307,11 @@ begin
   gen.Wrln('private');
   gen.Indent;
   try
-    for i := 0 to Fields.Count - 1 do
+    x := typ.dsc;
+    while x <> nil do
     begin
-      f := Fields[i];
-      f.AsDeclaration(gen);
+      (x.aux as TFieldOptions).AsDeclaration(gen);
+      x := x.next;
     end;
   finally
     gen.Dedent;
@@ -315,76 +323,90 @@ begin
     gen.Wrln('constructor Create;');
     gen.Wrln('destructor Destoy; override;');
     gen.Wrln('// properties');
-    for i := 0 to Fields.Count - 1 do
+    x := typ.dsc;
+    while x <> nil do
     begin
-      f := Fields[i];
-      f.AsProperty(gen);
+      (x.aux as TFieldOptions).AsProperty(gen);
+      x := x.next;
     end;
   finally
     gen.Dedent;
   end;
+
   gen.Wrln('end;'); // class
   gen.Wrln;
 end;
 
-procedure TModuleHelper.AsImplementation(gen: TGen);
+procedure TMessageHelper.AsImplementation(gen: TGen);
 var
-  i: Integer;
   t, v: string;
-  f: TpbField;
+  x: PObj;
+  typ: PType;
 begin
+  typ := obj.typ;
   // parameterless constructor
-  t := DelphiName;
+  t := obj.DelphiName;
   gen.Wrln('constructor %s.Create;', [t]);
   gen.Wrln('begin');
   gen.Indent;
   try
     gen.Wrln('inherited Create;');
-    for i := 0 to Fields.Count - 1 do
-      Fields[i].AsInit(gen);
+    x := typ.dsc;
+    while x <> nil do
+    begin
+      (x.aux as TFieldOptions).AsInit(gen);
+      x := x.next;
+    end;
   finally
     gen.Dedent;
   end;
   gen.Wrln('end;');
   gen.Wrln;
 
-  gen.Wrln('destructor %s.Destroy;', [DelphiName]);
+  gen.Wrln('destructor %s.Destroy;', [obj.DelphiName]);
   gen.Wrln('begin');
   gen.Indent;
   try
-    for i := 0 to Fields.Count - 1 do
-      Fields[i].AsFree(gen);
+    x := typ.dsc;
+    while x <> nil do
+    begin
+      (x.aux as TFieldOptions).AsFree(gen);
+      x := x.next;
+    end;
     gen.Wrln('inherited Destroy;');
   finally
     gen.Dedent;
   end;
+
   gen.Wrln('end;');
   gen.Wrln;
 end;
 
-procedure TModuleHelper.AsRead(gen: TGen);
+procedure TMessageHelper.AsRead(gen: TGen);
 var
-  i: Integer;
-  f: TpbField;
-  m: PObj;
+  x: PObj;
+  typ: PType;
 begin
-  for i := 0 to Fields.Count - 1 do
+  typ := obj.typ;
+  x := typ.dsc;
+  while x <> nil do
   begin
-    f := Fields[i];
-    f.AsRead(gen);
+    (x.aux as TFieldOptions).AsRead(gen);
+    x := x.next;
   end;
 end;
 
-procedure TModuleHelper.AsWrite(gen: TGen);
+procedure TMessageHelper.AsWrite(gen: TGen);
 var
-  i: Integer;
-  f: TpbField;
-  m: PObj;
+  x: PObj;
+  typ: PType;
 begin
-  for i := 0 to Fields.Count - 1 do
+  typ := obj.typ;
+  x := typ.dsc;
+  while x <> nil do
   begin
-    f := Fields[i];
-    f.AsWrite(gen);
+    (x.aux as TFieldOptions).AsWrite(gen);
+    x := x.next;
   end;
 end;
 
@@ -394,15 +416,17 @@ end;
 
 procedure TEnumHelper.AsDeclaration(gen: TGen);
 var
-  i: Integer;
-  ev: TEnumValue;
+  x: PObj;
+  n: Integer;
 begin
-  gen.Wrln('T%s = (', [Name]);
-  for i := 0 to EnumValues.Count - 1 do
+  gen.Wrln('T%s = (', [obj.Name]);
+  x := obj.dsc;
+  while x <> nil do
   begin
-    ev := EnumValues[i];
-    gen.Wr('  %s = %d', [ev.Name, ev.IntVal]);
-    if i < EnumValues.Count - 1 then
+    n := x.val;
+    gen.Wr('  %s = %d', [x.Name, n]);
+    x := x.next;
+    if x <> nil then
       gen.Wrln(',')
     else
       gen.Wrln(');');

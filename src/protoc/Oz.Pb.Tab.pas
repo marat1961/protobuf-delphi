@@ -143,7 +143,7 @@ type
 
   TTypeDesc = record
     form: TTypeMode;
-    fields: PObj;
+    dsc: PObj;
     base, value: PType;
     size, len: Integer;
   end;
@@ -211,7 +211,7 @@ type
   TMessageOptions = class(TAux)
   var
     Reserved: TIntSet;
-    Fields: TStringList;
+    ReservedFields: TStringList;
   public
     constructor Create(Obj: PObj);
     destructor Destroy; override;

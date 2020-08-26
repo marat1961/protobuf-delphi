@@ -363,9 +363,7 @@ end;
 
 procedure TpbParser._Field(var typ: PType);
 var
-  obj: PObj; id: string;
-  tag: Integer; rule: TFieldRule;
-  ftyp: PType;
+  rule: TFieldRule; ftyp: PType;
 begin
   rule := TFieldRule.Singular;
   if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
@@ -403,7 +401,7 @@ begin
   end
   else if la.kind = 1 then
   begin
-    _FieldNames(TMessageOptions(obj.aux).Fields);
+    _FieldNames(TMessageOptions(obj.aux).ReservedFields);
   end
   else
     SynErr(63);
