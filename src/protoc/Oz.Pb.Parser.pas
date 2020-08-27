@@ -292,15 +292,15 @@ end;
 procedure TpbParser._Enum;
 var
   id: string;
-  enum: PObj;
+  obj: PObj;
   typ: PType;
 begin
   Expect(61);
   _Ident(id);
-  tab.NewObj(enum, id, TMode.mType);
+  tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
   New(typ); typ.form := TTypeMode.tmEnum;
-  enum.typ := typ;
+  obj.typ := typ;
   Expect(10);
   while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
   begin
@@ -709,8 +709,9 @@ end;
 
 procedure TpbParser._MapType(var typ: PType);
 var
-id: string; obj: PObj;
-key, value: PType;
+ id: string;
+ obj, x: PObj;
+ key, value: PType;
 begin
   Expect(39);
   if la.kind = 1 then
@@ -725,8 +726,12 @@ begin
   if id = '' then
     id := Format('%s_%s', [key, value]);
   tab.NewObj(obj, id, TMode.mType);
+  tab.OpenScope;
   New(typ); typ.form := TTypeMode.tmMap;
-  typ.base := key; typ.value := value;
+  obj.typ := typ;
+  tab.NewObj(x, 'key', TMode.mType); x.typ := key;
+  tab.NewObj(x, 'value', TMode.mType); x.typ := value;
+  tab.CloseScope;
 end;
 
 procedure TpbParser._OneOfType(var typ: PType);

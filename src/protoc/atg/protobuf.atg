@@ -279,8 +279,9 @@ FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule);
 [ "[" FieldOption { ","  FieldOption } "]" ]
 .
 
-MapType<var typ: PType>         (. var
-                                 id: string; obj: PObj;
+MapType<var typ: PType>      (. var
+                                 id: string;
+                                 obj, x: PObj;
                                  key, value: PType; .)
 =
 "map"
@@ -291,8 +292,12 @@ MapType<var typ: PType>         (. var
 ">"                          (. if id = '' then
                                   id := Format('%s_%s', [key, value]);
                                 tab.NewObj(obj, id, TMode.mType);
+                                tab.OpenScope;
                                 New(typ); typ.form := TTypeMode.tmMap;
-                                typ.base := key; typ.value := value; .)
+                                obj.typ := typ;
+                                tab.NewObj(x, 'key', TMode.mType); x.typ := key;
+                                tab.NewObj(x, 'value', TMode.mType); x.typ := value;
+                                tab.CloseScope; .)
 .
 
 OneOfType<var typ: PType>    (. var
@@ -395,11 +400,11 @@ Ident<id>                   (. Fields.Add(id); .)
 
 Enum                         (. var
                                   id: string;
-                                  enum: PObj;
+                                  obj: PObj;
                                   typ: PType; .)
 =
 "enum"
-Ident<id>                    (. tab.NewObj(enum, id, TMode.mType);
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
                                 New(typ); typ.form := TTypeMode.tmEnum;
                                 obj.typ := typ; .)

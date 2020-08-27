@@ -423,7 +423,7 @@ begin
   x := obj.dsc;
   while x <> nil do
   begin
-    n := x.val;
+    n := x.val.AsInt64;
     gen.Wr('  %s = %d', [x.Name, n]);
     x := x.next;
     if x <> nil then
@@ -439,9 +439,22 @@ end;
 {$Region 'TpbMapTypeHelper'}
 
 procedure TpbMapTypeHelper.AsDeclaration(gen: TGen);
+var
+  x: PObj;
+  typ, key, value: PType;
 begin
+  typ := obj.typ;
+  x := typ.dsc;
+  while x <> nil do
+  begin
+    if x.name = 'key' then
+      key := x.typ
+    else if x.name = 'value' then
+      value := x.typ;
+    x := x.next;
+  end;
   gen.Wrln('T%s = ' + MapCollection + ';',
-    [DelphiName, Key.DelphiName, Value.DelphiName]);
+    [obj.DelphiName, key.declaration.DelphiName, Value.declaration.DelphiName]);
 end;
 
 {$EndRegion}

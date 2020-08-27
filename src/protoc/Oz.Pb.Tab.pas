@@ -143,8 +143,9 @@ type
 
   TTypeDesc = record
     form: TTypeMode;
-    dsc: PObj;
-    base, value: PType;
+    declaration: PObj;    // type declaration
+    dsc: PObj;            // fields, enum values, map tuple <key, value>
+    base: PType;
     size, len: Integer;
   end;
 
