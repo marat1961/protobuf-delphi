@@ -477,7 +477,7 @@ procedure TGen.GenerateCode;
 var
   ns: string;
   i: Integer;
-  m: TpbModule;
+  m: TModule;
   enum: PObj;
   map: PType;
 begin
@@ -495,36 +495,46 @@ begin
   Wrln('end;');
 end;
 
+procedure TGen.GenIO;
+begin
+
+end;
+
 procedure TGen.GenDataStructures;
+var
+  obj, x: PObj;
+  typ, key, value: PType;
 begin
   Wrln('type');
   Wrln;
-  // enumerated types
-  for i := 0 to em.Enums.Count - 1 do
+  obj := tab.TopScope;
+  while obj <> nil do
   begin
-    enum := em.Enums[i];
-    enum.AsDeclaration(Self);
+    if obj.cls = TMode.mType then
+    begin
+      typ := obj.typ;
+      case typ.form of
+        TTypeMode.tmEnum: (obj.aux as TEnumOptions).AsDeclaration(gen);
+        TTypeMode.tmMessage: (obj.aux as TMessageOptions).AsDeclaration(gen);
+        TTypeMode.tmMap: (obj.aux as TMapOptions).AsDeclaration(gen);
+      end;
+    end;
+    obj := obj.next;
   end;
 
-  // map types
-  for i := 0 to Tab.Module.MapTypes.Count - 1 do
-  begin
-    map := Tab.Module.MapTypes[i];
-    map.AsDeclaration(Self);
-  end;
-  for i := 0 to em.Messages.Count - 1 do
-  begin
-    m := em.Messages[i];
-    m.AsDeclaration(Self);
-  end;
   Wrln('implementation');
   Wrln;
-  for i := 0 to em.Messages.Count - 1 do
+  obj := tab.TopScope;
+  while obj <> nil do
   begin
-    m := em.Messages[i];
-    m.AsImplementation(Self);
+    if obj.cls = TMode.mType then
+    begin
+      typ := obj.typ;
+      if typ.form = TTypeMode.tmMessage then
+        (obj.aux as TMessageOptions).AsImplementation(gen);
+    end;
+    obj := obj.next;
   end;
-
 end;
 
 function TGen.GetCode: string;
@@ -580,14 +590,21 @@ end;
 
 procedure TGen.LoadMessage(msg: PObj);
 var
-  i: Integer;
-  f: TpbField;
-  m: PObj;
+  obj: PObj;
+  typ: PType;
 begin
-  for i := 0 to msg.em.Messages.Count - 1 do
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  obj := msg;
+  while obj <> nil do
   begin
-    m := msg.em.Messages[i];
-    LoadMessage(m);
+    if obj.cls = TMode.mType then
+    begin
+      typ := obj.typ;
+      if typ.form = TTypeMode.tmMessage then
+        LoadMessage(obj);
+    end;
+    obj := obj.next;
   end;
 end;
 
@@ -618,7 +635,7 @@ begin
   Wrln('begin');
   Indent;
   try
-    msg.AsImplementation(Self);
+    (msg.aux as TMessageOptions).AsImplementation(Self);
   finally
     Dedent;
   end;
@@ -628,21 +645,19 @@ end;
 
 procedure TGen.ReaderInterface(msg: PObj);
 var
-  i: Integer;
-  m: PObj;
+  typ: PType;
   msgType, s, t: string;
 begin
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   msgType := msg.DelphiName;
   Wrln('%sReader = class', [msgType]);
   Wrln('private');
   Wrln('  FPb: TProtoBufInput;');
-  for i := 0 to msg.em.Messages.Count - 1 do
-  begin
-    m := msg.em.Messages[i];
-    s := AsCamel(m.Name);
-    t := m.DelphiName;
-    Wrln('  procedure Load%s(%s: %s);', [s, m.Name, t]);
-  end;
+  (msg.aux as TMessageOptions).AsDeclaration(gen);
+  s := AsCamel(msg.Name);
+  t := msg.DelphiName;
+  Wrln('  procedure Load%s(%s: %s);', [s, msg.Name, t]);
   Wrln('public');
   Wrln('  constructor Create;');
   Wrln('  destructor Destroy; override;');
@@ -657,8 +672,11 @@ end;
 procedure TGen.ReaderImplementation(msg: PObj);
 var
   i: Integer;
-  f: TpbField;
+  f: PObj;
+  typ: PType;
 begin
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   Wrln('function %Reader.GetPb: TProtoBufOutput;', [msg.DelphiName]);
   Wrln('begin');
   Wrln('  Result := FPb;');
@@ -679,14 +697,15 @@ begin
   Wrln('fieldNumber := getTagFieldNumber(tag);');
   Wrln('tag := FPb.readTag;');
   Wrln('case fieldNumber of');
-  for i := 0 to msg.Fields.Count - 1 do
+  f := typ.dsc;
+  while f <> nil do
   begin
-    f := msg.Fields[i];
     Wrln('%s.ft%s:', [msg.DelphiName, AsCamel(f.Name)]);
     Indent;
     Wrln('  %s.%s := FPb.read%s;', [AsCamel(f.Name), AsCamel(f.Name),
-      f.Typ.DelphiName]);
+      f.DelphiName]);
     Dedent;
+    f := f.next;
   end;
   Wrln('else');
   Wrln('  FPb.skipField(tag);');
