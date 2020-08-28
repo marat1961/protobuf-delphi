@@ -291,25 +291,19 @@ type
   TModule = class(TAux)
   private
     FName: string;
-    FTab: TpbTable;
     FWeak: Boolean;
     FSyntax: TSyntaxVersion;
-    FImport: TList<TModule>;
+    FImport: PObj;
     FCurrentPackage: TpbPackage;
-    FMessages: TList<PObj>;
-    FEnums: TList<PObj>;
     function GetNameSpace: string;
-  protected
-    constructor Create(Tab: TpbTable; const Name: string; Weak: Boolean);
   public
+    constructor Create(Obj: PObj; const Name: string; Weak: Boolean);
     destructor Destroy; override;
     // Properties
     property Weak: Boolean read FWeak;
     property Syntax: TSyntaxVersion read FSyntax write FSyntax;
-    property Import: TList<TModule> read FImport;
+    property Import: PObj read FImport;
     property NameSpace: string read GetNameSpace;
-    property Messages: TList<PObj> read FMessages;
-    property Enums: TList<PObj> read FEnums;
   end;
 
 {$EndRegion}
@@ -322,7 +316,7 @@ type
     FTopScope: PObj;
     FUniverse: PObj;
     FGuard: PObj;
-    UnknownType: PType;
+    FUnknownType: PType;
     // root node for the .proto file
     FModule: TModule;
     // predefined types
@@ -464,15 +458,22 @@ end;
 
 {$Region 'TModule'}
 
-constructor TModule.Create(Tab: TpbTable; const Name: string; Weak: Boolean);
+constructor TModule.Create(Obj: PObj; const Name: string; Weak: Boolean);
 begin
-  inherited Create(Name);
-  FImport := TIdents<TModule>.Create;
+  inherited Create(Obj);
+  FName := Name;
+  FWeak := Weak;
 end;
 
 destructor TModule.Destroy;
+var p, q: PObj;
 begin
-  FImport.Free;
+  p := FImport;
+  while p <> nil do
+  begin
+    q := p.next; Dispose(p);
+    p := q;
+  end;
   inherited;
 end;
 
@@ -488,15 +489,14 @@ end;
 constructor TpbTable.Create(Parser: TBaseParser);
 begin
   inherited;
-  FModule := TModule.Create(Self, 'import', {weak=}True);
-  FUnknownTypes := TList<TUnknownType>.Create;
+  FModule := TModule.Create(TopScope, 'import', {weak=}True);
   InitSystem;
 end;
 
 destructor TpbTable.Destroy;
 begin
   FModule.Free;
-  FUnknownTypes.Free;
+  // todo: start using memory regions
   inherited;
 end;
 
