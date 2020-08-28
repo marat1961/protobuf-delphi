@@ -62,8 +62,7 @@ Message                      (. var
 =
 "message" Ident<id>          (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmMessage;
-                                obj.typ := typ; .)
+                                typ := NewType(obj, TTypeMode.tmMessage); .)
 "{" {
   Option
 | Field<typ>
@@ -293,8 +292,7 @@ MapType<var typ: PType>      (. var
                                   id := Format('%s_%s', [key, value]);
                                 tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmMap;
-                                obj.typ := typ;
+                                typ := NewType(obj, TTypeMode.tmMap);
                                 tab.NewObj(x, 'key', TMode.mType); x.typ := key;
                                 tab.NewObj(x, 'value', TMode.mType); x.typ := value;
                                 tab.CloseScope; .)
@@ -307,8 +305,7 @@ OneOfType<var typ: PType>    (. var
 "oneof"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmUnion;
-                                obj.typ := typ; .)
+                                typ := NewType(obj, TTypeMode.tmUnion); .)
 "{" {
   Option
 | OneOfField<typ>
@@ -406,8 +403,7 @@ Enum                         (. var
 "enum"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmEnum;
-                                obj.typ := typ; .)
+                                typ := NewType(obj, TTypeMode.tmEnum); .)
 "{" {
 Option
 | EnumField

@@ -334,6 +334,8 @@ type
     destructor Destroy; override;
     // Add new declaration
     procedure NewObj(var obj: PObj; const id: string; cls: TMode);
+    // Add new type
+    function NewType(const obj: PObj; form: TTypeMode): PType;
     // Find identifier
     procedure Find(var obj: PObj; const id: string);
     // Open scope
@@ -529,6 +531,14 @@ begin
     obj := x.next;
     parser.SemError(1);
   end;
+end;
+
+function TpbTable.NewType(const obj: PObj; form: TTypeMode): PType;
+begin
+  New(typ);
+  typ.form := form;
+  typ.declaration := obj;
+  obj.typ := typ;
 end;
 
 procedure TpbTable.Find(var obj: PObj; const id: string);
