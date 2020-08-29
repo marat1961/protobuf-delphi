@@ -57,15 +57,14 @@ Syntax
 
 Message                      (. var
                                   id: string;
-                                  obj: PObj;
-                                  typ: PType; .)
+                                  obj: PObj; .)
 =
 "message" Ident<id>          (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                typ := NewType(obj, TTypeMode.tmMessage); .)
+                                tab.NewType(obj, TTypeMode.tmMessage); .)
 "{" {
   Option
-| Field<typ>
+| Field<obj.typ>
 | Message
 | Enum
 | Reserved
@@ -93,7 +92,7 @@ Import                       (. var weak: Boolean; .)
 [ "weak"                     (. weak := True; .)
 | "public"
 ]
-strLit                       (.  .)
+strLit                       (. { todo: Process Import Statement } .)
 ";"
 .
 
@@ -131,10 +130,10 @@ ident                        (. id := t.val; .)
 .
 
 Service                      (. var
-                                   id: string;
-                                   service: PObj; .)
+                                  id: string;
+                                  service: PObj; .)
 =
-"service" Ident<id>          (. tab.NewObj(service, id, TMode.mService);
+"service" Ident<id>          (. tab.NewObj(service, id, TMode.mProc);
                                 tab.OpenScope; .)
 "{" {
   Option
@@ -144,18 +143,22 @@ Service                      (. var
 .
 
 Rpc                          (. var
-                                  id: string; typ: TQualIdent; rpc: PObj;
-                                  request, response: PType; .)
+                                  id: string;
+                                  typ: TQualIdent;
+                                  rpc, par: PObj; .)
 =
-"rpc" Ident<id>              (. tab.NewObj(rpc, id, TMode.mService);
+"rpc" Ident<id>              (. tab.NewObj(rpc, id, TMode.mProc);
+                                rpc.aux := TRpcOptions.Create(rpc);
                                 tab.OpenScope; .)
-"(" [ "stream" ]
-UserType<typ>                (. request := tab.FindMessageType(typ); .)
+"(" [ "stream"               (. TRpcOptions(rpc.aux).requestStream := True; .)
+] UserType<typ>              (. tab.NewObj(par, 'request', TMode.mPar);
+                                par.typ := tab.FindMessageType(typ); .)
 ")"
 "returns"
-"(" [ "stream" ]
-UserType<typ>                (. response := tab.FindMessageType(typ); .)
-")"                          (. rpc.aux := TRpcOptions.Create(rpc, request, response); .)
+"(" [ "stream"               (. TRpcOptions(rpc.aux).responseStream := True; .)
+] UserType<typ>              (. tab.NewObj(par, 'response', TMode.mPar);
+                                par.typ := tab.FindMessageType(typ); .)
+")"
 (( "{" {
 Option
 | EmptyStatement
@@ -292,7 +295,7 @@ MapType<var typ: PType>      (. var
                                   id := Format('%s_%s', [key, value]);
                                 tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                typ := NewType(obj, TTypeMode.tmMap);
+                                tab.NewType(obj, TTypeMode.tmMap); typ := obj.typ;
                                 tab.NewObj(x, 'key', TMode.mType); x.typ := key;
                                 tab.NewObj(x, 'value', TMode.mType); x.typ := value;
                                 tab.CloseScope; .)
@@ -305,7 +308,8 @@ OneOfType<var typ: PType>    (. var
 "oneof"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                typ := NewType(obj, TTypeMode.tmUnion); .)
+                                tab.NewType(obj, TTypeMode.tmUnion);
+                                typ := obj.typ; .)
 "{" {
   Option
 | OneOfField<typ>
@@ -397,13 +401,12 @@ Ident<id>                   (. Fields.Add(id); .)
 
 Enum                         (. var
                                   id: string;
-                                  obj: PObj;
-                                  typ: PType; .)
+                                  obj: PObj; .)
 =
 "enum"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                typ := NewType(obj, TTypeMode.tmEnum); .)
+                                tab.NewType(obj, TTypeMode.tmEnum); .)
 "{" {
 Option
 | EnumField

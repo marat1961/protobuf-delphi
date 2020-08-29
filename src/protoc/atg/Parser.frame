@@ -16,15 +16,15 @@ type
 
   -->parser<= class(TBaseParser)
   const
-    ErrorMessages: array [1..5] of string = (
+    ErrorMessages: array [1..6] of string = (
       {1} 'multiple declaration',
       {2} 'undefined ident',
       {3} 'not found this module',
       {4} 'message type not found',
-      {5} 'message type expected'
+      {5} 'message type expected',
+      {6} 'type expected'
       );-->declarations<
 -->constants<  private
-    procedure SemError(n: Integer);
 -->headers<  protected
     function Starts(s, kind: Integer): Boolean; override;
     procedure Get; override;
@@ -35,6 +35,7 @@ type
     gen: TGen;
     constructor Create(scanner: TBaseScanner; listing: TStrings);
     destructor Destroy; override;
+    procedure SemError(n: Integer);
     function ErrorMsg(nr: Integer): string; override;
     procedure Parse; override;
   end;

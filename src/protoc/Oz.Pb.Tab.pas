@@ -85,11 +85,7 @@ type
     mField,     // record field
     mType,      // type
     mProc,      // procedure
-    mPackage,   // proto package
-    mOption,    // proto option
-    // todo: standart procedure
-    mService,   // service declaration
-    mRpc);      // RPC declaration
+    mPackage);  // proto package
 
   // Type mode
   TTypeMode = (
@@ -194,15 +190,17 @@ type
 
   // All additional attributes of the object are placed in auxilary data:
   //  - comments;
-  //  - options;
   //  - additional object fields;
   //  - position in the file for the object declaration.
   TAux = class
   var
     Obj: PObj;
+    comments: string;
+  protected
+    procedure UpdateOption(const id: string; const cv: TConst); virtual;
   public
     constructor Create(Obj: PObj);
-    procedure Update(const Name: string; const Value: TConst); virtual;
+    procedure Update(const id: string; const cv: TConst);
   end;
 
 {$EndRegion}
@@ -256,9 +254,8 @@ type
 
   TRpcOptions = class(TAux)
   var
-    request, response: PType;
-  public
-    constructor Create(Obj: PObj; request, response: PType);
+    requestStream: Boolean;
+    responseStream: Boolean;
   end;
 
 {$EndRegion}
@@ -329,7 +326,7 @@ type
     // Add new declaration
     procedure NewObj(var obj: PObj; const id: string; cls: TMode);
     // Add new type
-    function NewType(const obj: PObj; form: TTypeMode): PType;
+    procedure NewType(const obj: PObj; form: TTypeMode);
     // Find identifier
     procedure Find(var obj: PObj; const id: string);
     // Open scope
@@ -347,13 +344,14 @@ type
     // Update option value
     procedure AddOption(const name: string; const val: TConst);
     // Open and read module from file
-    function OpenModule(const Name: string; Weak: Boolean): TModule;
+    function OpenModule(var obj: PObj; const Name: string; Weak: Boolean): TModule;
     // Convert string to Integer
     function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
     function GenScript: string;
     property TopScope: PObj read FTopScope;
     property Module: TModule read FModule write FModule;
+    property UnknownType: PType read FUnknownType;
   end;
 
 {$EndRegion}
@@ -456,6 +454,56 @@ end;
 
 {$EndRegion}
 
+{$Region 'TAux'}
+
+constructor TAux.Create(Obj: PObj);
+begin
+  inherited Create;
+  Self.Obj := Obj;
+end;
+
+procedure TAux.Update(const id: string; const cv: TConst);
+begin
+  Update(LowerCase(id), cv);
+end;
+
+procedure TAux.UpdateOption(const id: string; const cv: TConst);
+begin
+  if id = 'comment' then
+    comments := cv.val.AsString;
+end;
+
+{$EndRegion}
+
+{$Region 'TMessageOptions'}
+
+constructor TMessageOptions.Create(Obj: PObj);
+begin
+  inherited;
+  Reserved := TIntSet.Create;
+  ReservedFields := TStringList.Create;
+end;
+
+destructor TMessageOptions.Destroy;
+begin
+  Reserved.Free;
+  ReservedFields.Free;
+  inherited;
+end;
+
+{$EndRegion}
+
+{$Region 'TFieldOptions'}
+
+constructor TFieldOptions.Create(Obj: PObj; Tag: Integer; Rule: TFieldRule);
+begin
+  inherited Create(Obj);
+  Self.Tag := Tag;
+  Self.Rule := Rule;
+end;
+
+{$EndRegion}
+
 {$Region 'TModule'}
 
 constructor TModule.Create(Obj: PObj; const Name: string; Weak: Boolean);
@@ -533,7 +581,9 @@ begin
   end;
 end;
 
-function TpbTable.NewType(const obj: PObj; form: TTypeMode): PType;
+procedure TpbTable.NewType(const obj: PObj; form: TTypeMode);
+var
+  typ: PType;
 begin
   New(typ);
   typ.form := form;
@@ -594,62 +644,56 @@ var
   obj: PObj;
 begin
   if id.Package = '' then
-    Find(obj, id)
+    Find(obj, id.Name)
   else
   begin
     // искать пакет, а уже в нём тип
     Find(obj, id.Package);
     if obj.cls = TMode.mPackage then
-      Find(obj, id);
+      Find(obj, id.Name);
   end;
+  Result := FUnknownType;
   if obj.cls = TMode.mType then
     Result := obj.typ
   else if Result.form = TTypeMode.tmUnknown then
     parser.SemError(2)
   else
-    parser.SemError(5);
+    parser.SemError(6);
 end;
 
 function TpbTable.FindMessageType(id: TQualIdent): PType;
 var
-  obj: PObj;
+  typ: PType;
 begin
-  Find(obj, id);
-  Assert(obj.cls = TMode.mType );
-  Result := obj.typ;
+  typ := FindType(id);
+  if typ.form <> TTypeMode.tmMessage then
+    parser.SemError(5);
+  Result := typ;
 end;
 
 procedure TpbTable.AddOption(const name: string; const val: TConst);
-var obj: PObj;
+var
+  obj: PObj;
 begin
   obj := TopScope;
   if obj.aux = nil then
-  begin
-    case obj.cls of
-      TMode.mModule: obj.aux := tab.Module;
-      TMode.mRpc: obj.aux := TRpcOptions.Create(obj);
-      TMode.mField: obj.aux := TFieldOptions.Create(obj);
-      TMode.mType:
-        case obj.typ.form of
-          TTypeMode.tmEnum: obj.aux := TEnumOptions.Create(obj);
-          TTypeMode.tmMessage: obj.aux := TMessageOptions.Create(obj);
-          TTypeMode.tmMap: obj.aux := TMapOptions.Create(obj);
-          TTypeMode.tmUnion:
-            obj.aux := TAux.Create(obj);
-          else
-            raise Exception.Create('AddOption error');
-
-        end;
-      else
-        raise Exception.Create('AddOption error');
-    end;
-  end;
+    if obj.cls <> TMode.mType then
+      raise Exception.Create('AddOption error')
+    else
+      case obj.typ.form of
+        TTypeMode.tmEnum: obj.aux := TEnumOptions.Create(obj);
+        TTypeMode.tmMessage: obj.aux := TMessageOptions.Create(obj);
+        TTypeMode.tmMap: obj.aux := TMapOptions.Create(obj);
+        TTypeMode.tmUnion: obj.aux := TAux.Create(obj);
+        else
+          raise Exception.Create('AddOption error');
+      end;
   obj.aux.Update(name, val);
 end;
 
-function TpbTable.OpenModule(const Name: string; Weak: Boolean): TModule;
+function TpbTable.OpenModule(var obj: PObj; const Name: string; Weak: Boolean): TModule;
 begin
-  Result := TModule.Create(Self, Name, Weak);
+  Result := TModule.Create(obj, Name, Weak);
 end;
 
 function TpbTable.ParseInt(const s: string; base: Integer): Integer;

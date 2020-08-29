@@ -16,12 +16,13 @@ type
 
   TpbParser= class(TBaseParser)
   const
-    ErrorMessages: array [1..5] of string = (
+    ErrorMessages: array [1..6] of string = (
       {1} 'multiple declaration',
       {2} 'undefined ident',
       {3} 'not found this module',
       {4} 'message type not found',
-      {5} 'message type expected'
+      {5} 'message type expected',
+      {6} 'type expected'
       );
     _EOFSym = 0;
     _identSym = 1;
@@ -33,7 +34,6 @@ type
     _badStringSym = 7;
     _charSym = 8;
   private
-    procedure SemError(n: Integer);
     procedure _Pb;
     procedure _Syntax;
     procedure _Import;
@@ -79,6 +79,7 @@ type
     gen: TGen;
     constructor Create(scanner: TBaseScanner; listing: TStrings);
     destructor Destroy; override;
+    procedure SemError(n: Integer);
     function ErrorMsg(nr: Integer): string; override;
     procedure Parse; override;
   end;
@@ -215,7 +216,7 @@ begin
     end;
   end;
   _strLit;
-
+  { todo: Process Import Statement }
   Expect(14);
 end;
 
@@ -247,14 +248,12 @@ procedure TpbParser._Message;
 var
   id: string;
   obj: PObj;
-  typ: PType;
 begin
   Expect(9);
   _Ident(id);
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
-  New(typ); typ.form := TTypeMode.tmMessage;
-  obj.typ := typ;
+  tab.NewType(obj, TTypeMode.tmMessage);
   Expect(10);
   while StartOf(2) do
   begin
@@ -265,7 +264,7 @@ begin
       end;
       1, 22, 33, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
       begin
-        _Field(typ);
+        _Field(obj.typ);
       end;
       9:
       begin
@@ -293,14 +292,12 @@ procedure TpbParser._Enum;
 var
   id: string;
   obj: PObj;
-  typ: PType;
 begin
   Expect(61);
   _Ident(id);
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
-  New(typ); typ.form := TTypeMode.tmEnum;
-  obj.typ := typ;
+  tab.NewType(obj, TTypeMode.tmEnum);
   Expect(10);
   while (la.kind = 1) or (la.kind = 14) or (la.kind = 19) do
   begin
@@ -323,12 +320,12 @@ end;
 
 procedure TpbParser._Service;
 var
-   id: string;
-   service: PObj;
+  id: string;
+  service: PObj;
 begin
   Expect(23);
   _Ident(id);
-  tab.NewObj(service, id, TMode.mService);
+  tab.NewObj(service, id, TMode.mProc);
   tab.OpenScope;
   Expect(10);
   while (la.kind = 14) or (la.kind = 19) or (la.kind = 24) do
@@ -505,31 +502,36 @@ end;
 
 procedure TpbParser._Rpc;
 var
-  id: string; typ: TQualIdent; rpc: PObj;
-  request, response: PType;
+  id: string;
+  typ: TQualIdent;
+  rpc, par: PObj;
 begin
   Expect(24);
   _Ident(id);
-  tab.NewObj(rpc, id, TMode.mService);
+  tab.NewObj(rpc, id, TMode.mProc);
+  rpc.aux := TRpcOptions.Create(rpc);
   tab.OpenScope;
   Expect(20);
   if la.kind = 25 then
   begin
     Get;
+    TRpcOptions(rpc.aux).requestStream := True;
   end;
   _UserType(typ);
-  request := tab.FindMessageType(typ);
+  tab.NewObj(par, 'request', TMode.mPar);
+  par.typ := tab.FindMessageType(typ);
   Expect(21);
   Expect(26);
   Expect(20);
   if la.kind = 25 then
   begin
     Get;
+    TRpcOptions(rpc.aux).responseStream := True;
   end;
   _UserType(typ);
-  response := tab.FindMessageType(typ);
+  tab.NewObj(par, 'response', TMode.mPar);
+  par.typ := tab.FindMessageType(typ);
   Expect(21);
-  rpc.aux := TRpcOptions.Create(rpc, request, response);
   if la.kind = 10 then
   begin
     Get;
@@ -727,8 +729,7 @@ begin
     id := Format('%s_%s', [key, value]);
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
-  New(typ); typ.form := TTypeMode.tmMap;
-  obj.typ := typ;
+  tab.NewType(obj, TTypeMode.tmMap); typ := obj.typ;
   tab.NewObj(x, 'key', TMode.mType); x.typ := key;
   tab.NewObj(x, 'value', TMode.mType); x.typ := value;
   tab.CloseScope;
@@ -743,8 +744,8 @@ begin
   _Ident(id);
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
-  New(typ); typ.form := TTypeMode.tmUnion;
-  obj.typ := typ;
+  tab.NewType(obj, TTypeMode.tmUnion);
+  typ := obj.typ;
   Expect(10);
   while StartOf(6) do
   begin

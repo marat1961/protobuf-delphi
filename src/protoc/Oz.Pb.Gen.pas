@@ -339,7 +339,7 @@ end;
 
 procedure TMessageHelper.AsImplementation(gen: TGen);
 var
-  t, v: string;
+  t: string;
   x: PObj;
   typ: PType;
 begin
@@ -445,6 +445,8 @@ var
 begin
   typ := obj.typ;
   x := typ.dsc;
+  key := gen.tab.UnknownType;
+  value := gen.tab.UnknownType;
   while x <> nil do
   begin
     if x.name = 'key' then
@@ -476,12 +478,7 @@ end;
 procedure TGen.GenerateCode;
 var
   ns: string;
-  i: Integer;
-  m: TModule;
-  enum: PObj;
-  map: PType;
 begin
-  m := Tab.Module;
   ns := Tab.Module.NameSpace;
   Wrln('unit %s;', [ns]);
   Wrln;
@@ -502,8 +499,8 @@ end;
 
 procedure TGen.GenDataStructures;
 var
-  obj, x: PObj;
-  typ, key, value: PType;
+  obj: PObj;
+  typ: PType;
 begin
   Wrln('type');
   Wrln;
@@ -671,7 +668,6 @@ end;
 
 procedure TGen.ReaderImplementation(msg: PObj);
 var
-  i: Integer;
   f: PObj;
   typ: PType;
 begin
