@@ -92,7 +92,7 @@ Import                       (. var weak: Boolean; .)
 [ "weak"                     (. weak := True; .)
 | "public"
 ]
-strLit                       (. { todo: Process Import Statement } .)
+strLit                       (. // todo: Process Import Statement .)
 ";"
 .
 
