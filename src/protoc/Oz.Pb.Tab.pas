@@ -598,11 +598,16 @@ begin
   s := FTopScope; FGuard.name := id;
   repeat
     x := s.next;
-    while x.name <> id do x := x.next;
-    if x.next <> FGuard then exit;
-    if s = FUniverse then
+    while x.name <> id do
+      x := x.next;
+    if x <> FGuard then
     begin
       obj := x;
+      exit;
+    end;
+    if s = FUniverse then
+    begin
+      obj := x; parser.SemError(2);
       exit;
     end;
     s := s.dsc;
@@ -647,7 +652,7 @@ begin
     Find(obj, id.Name)
   else
   begin
-    // искать пакет, а уже в нём тип
+    // search for a package, and already in it the type
     Find(obj, id.Package);
     if obj.cls = TMode.mPackage then
       Find(obj, id.Name);
