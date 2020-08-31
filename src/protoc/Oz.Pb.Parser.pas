@@ -41,6 +41,7 @@ type
     procedure _Option(const obj: PObj);
     procedure _Message;
     procedure _Enum;
+    procedure _MapDecl;
     procedure _Service;
     procedure _EmptyStatement;
     procedure _Ident(var id: string);
@@ -173,6 +174,10 @@ begin
       61:
       begin
         _Enum;
+      end;
+      39:
+      begin
+        _MapDecl;
       end;
       23:
       begin
@@ -318,6 +323,12 @@ begin
   end;
   Expect(11);
   tab.CloseScope;
+end;
+
+procedure TpbParser._MapDecl;
+var typ: PObj;
+begin
+  _MapType(typ);
 end;
 
 procedure TpbParser._Service;
@@ -713,9 +724,9 @@ end;
 
 procedure TpbParser._MapType(var typ: PType);
 var
- id: string;
- obj, x: PObj;
- key, value: PType;
+  id: string;
+  obj, x: PObj;
+  key, value: PType;
 begin
   Expect(39);
   if la.kind = 1 then
@@ -960,7 +971,7 @@ const
   T = true;
   sets: array [0..6] of array [0..63] of Boolean = (
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
-    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
+    (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
     (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,x,T, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
     (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),

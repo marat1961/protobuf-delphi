@@ -51,6 +51,7 @@ Syntax
 | Option<obj>
 | Message
 | Enum
+| MapDecl
 | Service
 | EmptyStatement
 }                            (. tab.CloseScope; .)
@@ -281,6 +282,11 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
 FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule); .)
 [ "[" FieldOption<obj>
 { ","  FieldOption<obj> } "]" ]
+.
+
+MapDecl                      (. var typ: PType; .)
+=
+MapType<typ>
 .
 
 MapType<var typ: PType>      (. var
