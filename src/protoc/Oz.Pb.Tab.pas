@@ -77,7 +77,7 @@ type
   // Obj mode
   TMode = (
     mUnknown,
-    mHead,
+    mHead,      // open scope head
     mModule,    // proto file
     mVar,       // variable declaration
     mPar,       // procedure parameter
@@ -135,6 +135,10 @@ type
     function DelphiName: string;
     // Get delphi type
     function AsType: string;
+    // Check if options are created if it does not create them.
+    // Then check the validity of the name and value,
+    // if all ok then update the option value.
+    procedure AddOption(const name: string; const val: TConst);
   end;
 
   TTypeDesc = record
@@ -297,6 +301,7 @@ type
     constructor Create(Obj: PObj; const Name: string; Weak: Boolean);
     destructor Destroy; override;
     // Properties
+    property Name: string read FName;
     property Weak: Boolean read FWeak;
     property Syntax: TSyntaxVersion read FSyntax write FSyntax;
     property Import: PObj read FImport;
@@ -341,8 +346,6 @@ type
     function FindMessageType(id: TQualIdent): PType;
     // Get embedded type by kind
     function GetBasisType(kind: TTypeMode): PType;
-    // Update option value
-    procedure AddOption(const name: string; const val: TConst);
     // Open and read module from file
     function OpenModule(var obj: PObj; const Name: string; Weak: Boolean): TModule;
     // Convert string to Integer
@@ -444,6 +447,23 @@ begin
   Result := AsCamel(name);
 end;
 
+procedure TObjDesc.AddOption(const name: string; const val: TConst);
+begin
+  if aux = nil then
+    case cls of
+      TMode.mType:
+        case typ.form of
+          TTypeMode.tmEnum: aux := TEnumOptions.Create(@Self);
+          TTypeMode.tmMessage: aux := TMessageOptions.Create(@Self);
+          TTypeMode.tmMap: aux := TMapOptions.Create(@Self);
+          TTypeMode.tmUnion: aux := TAux.Create(@Self);
+        end;
+    end;
+  if aux = nil then
+    raise Exception.Create('AddOption error');
+  aux.Update(name, val);
+end;
+
 function TObjDesc.AsType: string;
 begin
   if Typ.form in [TTypeMode.tmUnknown .. TTypeMode.tmSint64] then
@@ -464,7 +484,7 @@ end;
 
 procedure TAux.Update(const id: string; const cv: TConst);
 begin
-  Update(LowerCase(id), cv);
+  UpdateOption(LowerCase(id), cv);
 end;
 
 procedure TAux.UpdateOption(const id: string; const cv: TConst);
@@ -674,26 +694,6 @@ begin
   if typ.form <> TTypeMode.tmMessage then
     parser.SemError(5);
   Result := typ;
-end;
-
-procedure TpbTable.AddOption(const name: string; const val: TConst);
-var
-  obj: PObj;
-begin
-  obj := TopScope;
-  if obj.aux = nil then
-    if obj.cls <> TMode.mType then
-      raise Exception.Create('AddOption error')
-    else
-      case obj.typ.form of
-        TTypeMode.tmEnum: obj.aux := TEnumOptions.Create(obj);
-        TTypeMode.tmMessage: obj.aux := TMessageOptions.Create(obj);
-        TTypeMode.tmMap: obj.aux := TMapOptions.Create(obj);
-        TTypeMode.tmUnion: obj.aux := TAux.Create(obj);
-        else
-          raise Exception.Create('AddOption error');
-      end;
-  obj.aux.Update(name, val);
 end;
 
 function TpbTable.OpenModule(var obj: PObj; const Name: string; Weak: Boolean): TModule;

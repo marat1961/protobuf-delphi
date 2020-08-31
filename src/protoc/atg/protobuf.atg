@@ -41,13 +41,14 @@ IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
-Pb
-=                            (. tab.OpenScope; .)
+Pb                           (. var obj: PObj; .)
+=                            (. tab.OpenScope;
+                                tab.NewObj(obj, tab.Module.name, TMode.mModule); .)
 Syntax
 {
   Import
 | Package
-| Option
+| Option<obj>
 | Message
 | Enum
 | Service
@@ -63,7 +64,7 @@ Message                      (. var
                                 tab.OpenScope;
                                 tab.NewType(obj, TTypeMode.tmMessage); .)
 "{" {
-  Option
+  Option<obj>
 | Field<obj.typ>
 | Message
 | Enum
@@ -108,13 +109,13 @@ Package                      (. var
 
 // Option
 
-Option                       (. var
+Option<const obj: PObj>      (. var
                                   id: string;
                                   Cv: TConst;  .)
 =
 "option"
 OptionName<id>
-"=" Constant<Cv>             (. tab.AddOption(id, Cv); .)
+"=" Constant<Cv>             (. obj.AddOption(id, Cv); .)
 ";"
 .
 
@@ -136,7 +137,7 @@ Service                      (. var
 "service" Ident<id>          (. tab.NewObj(service, id, TMode.mProc);
                                 tab.OpenScope; .)
 "{" {
-  Option
+  Option<service>
 | Rpc
 | EmptyStatement
 } "}"                        (. tab.CloseScope; .)
@@ -160,7 +161,7 @@ Rpc                          (. var
                                 par.typ := tab.FindMessageType(typ); .)
 ")"
 (( "{" {
-Option
+Option<rpc>
 | EmptyStatement
 } "}" ) | ";")               (. tab.CloseScope; .)
 .
@@ -278,7 +279,8 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
                                 obj.typ := ftyp; .)
 "="
 FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule); .)
-[ "[" FieldOption { ","  FieldOption } "]" ]
+[ "[" FieldOption<obj>
+{ ","  FieldOption<obj> } "]" ]
 .
 
 MapType<var typ: PType>      (. var
@@ -311,7 +313,7 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.NewType(obj, TTypeMode.tmUnion);
                                 typ := obj.typ; .)
 "{" {
-  Option
+  Option<obj>
 | OneOfField<typ>
 | EmptyStatement
 } "}"                        (. tab.CloseScope; .)
@@ -323,13 +325,13 @@ Type<ftyp>
 FieldDecl<ftyp, TFieldRule.Singular>
 .
 
-FieldOption                  (. var
-                                   id: string;
-                                   Cv: TConst; .)
+FieldOption<const obj: PObj> (. var
+                                  id: string;
+                                  Cv: TConst; .)
 =
 OptionName<id>
 "="
-Constant<Cv>                 (. tab.AddOption(id, Cv); .)
+Constant<Cv>                 (. obj.AddOption(id, Cv); .)
 .
 
 FieldNumber<var tag: Integer>
@@ -408,7 +410,7 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
                                 tab.NewType(obj, TTypeMode.tmEnum); .)
 "{" {
-Option
+Option<obj>
 | EnumField
 | EmptyStatement
 } "}"                        (. tab.CloseScope; .)
@@ -417,25 +419,26 @@ Option
 EnumField                    (. var
                                   id: string;
                                   n: Integer;
-                                  ev: PObj; .)
+                                  obj: PObj; .)
 =
-Ident<id>                    (. tab.NewObj(ev, id, TMode.mConst); .)
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mConst); .)
 "="
 [ "-"
 ]
-intLit<n>                    (. ev.val := n; .)
-[ "[" EnumValueOption
-{ ","  EnumValueOption
+intLit<n>                    (. obj.val := n; .)
+[ "[" EnumValueOption<obj>
+{ ","  EnumValueOption<obj>
 } "]" ]";"
 .
 
-EnumValueOption              (. var
+EnumValueOption<const obj: PObj>
+                             (. var
                                   id: string;
                                   Cv: TConst; .)
 =
 OptionName<id>
 "="
-Constant<Cv>                 (. tab.AddOption(id, Cv); .)
+Constant<Cv>                 (. obj.AddOption(id, Cv); .)
 .
 
 END Pb.

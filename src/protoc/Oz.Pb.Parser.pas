@@ -38,7 +38,7 @@ type
     procedure _Syntax;
     procedure _Import;
     procedure _Package;
-    procedure _Option;
+    procedure _Option(const obj: PObj);
     procedure _Message;
     procedure _Enum;
     procedure _Service;
@@ -61,14 +61,14 @@ type
     procedure _MapType(var typ: PType);
     procedure _OneOfType(var typ: PType);
     procedure _FieldNumber(var tag: Integer);
-    procedure _FieldOption;
+    procedure _FieldOption(const obj: PObj);
     procedure _KeyType(var ft: PType);
     procedure _OneOfField(typ: PType);
     procedure _Ranges(Reserved: TIntSet);
     procedure _FieldNames(Fields: TStringList);
     procedure _Range(var lo, hi: Integer);
     procedure _EnumField;
-    procedure _EnumValueOption;
+    procedure _EnumValueOption(const obj: PObj);
   protected
     function Starts(s, kind: Integer): Boolean; override;
     procedure Get; override;
@@ -146,8 +146,10 @@ begin
 end;
 
 procedure TpbParser._Pb;
+var obj: PObj;
 begin
   tab.OpenScope;
+  tab.NewObj(obj, tab.Module.name, TMode.mModule);
   _Syntax;
   while StartOf(1) do
   begin
@@ -162,7 +164,7 @@ begin
       end;
       19:
       begin
-        _Option;
+        _Option(obj);
       end;
       9:
       begin
@@ -231,7 +233,7 @@ begin
   Expect(14);
 end;
 
-procedure TpbParser._Option;
+procedure TpbParser._Option(const obj: PObj);
 var
   id: string;
   Cv: TConst;
@@ -240,7 +242,7 @@ begin
   _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  tab.AddOption(id, Cv);
+  obj.AddOption(id, Cv);
   Expect(14);
 end;
 
@@ -260,7 +262,7 @@ begin
     case la.kind of
       19:
       begin
-        _Option;
+        _Option(obj);
       end;
       1, 22, 33, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
       begin
@@ -303,7 +305,7 @@ begin
   begin
     if la.kind = 19 then
     begin
-      _Option;
+      _Option(obj);
     end
     else if la.kind = 1 then
     begin
@@ -332,7 +334,7 @@ begin
   begin
     if la.kind = 19 then
     begin
-      _Option;
+      _Option(service);
     end
     else if la.kind = 24 then
     begin
@@ -539,7 +541,7 @@ begin
     begin
       if la.kind = 19 then
       begin
-        _Option;
+        _Option(rpc);
       end
       else
       begin
@@ -668,11 +670,11 @@ begin
   if la.kind = 36 then
   begin
     Get;
-    _FieldOption;
+    _FieldOption(obj);
     while la.kind = 37 do
     begin
       Get;
-      _FieldOption;
+      _FieldOption(obj);
     end;
     Expect(38);
   end;
@@ -751,7 +753,7 @@ begin
   begin
     if la.kind = 19 then
     begin
-      _Option;
+      _Option(obj);
     end
     else if StartOf(4) then
     begin
@@ -771,15 +773,15 @@ begin
   _intLit(tag);
 end;
 
-procedure TpbParser._FieldOption;
+procedure TpbParser._FieldOption(const obj: PObj);
 var
-   id: string;
-   Cv: TConst;
+  id: string;
+  Cv: TConst;
 begin
   _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  tab.AddOption(id, Cv);
+  obj.AddOption(id, Cv);
 end;
 
 procedure TpbParser._KeyType(var ft: PType);
@@ -907,32 +909,32 @@ procedure TpbParser._EnumField;
 var
   id: string;
   n: Integer;
-  ev: PObj;
+  obj: PObj;
 begin
   _Ident(id);
-  tab.NewObj(ev, id, TMode.mConst);
+  tab.NewObj(obj, id, TMode.mConst);
   Expect(13);
   if la.kind = 31 then
   begin
     Get;
   end;
   _intLit(n);
-  ev.val := n;
+  obj.val := n;
   if la.kind = 36 then
   begin
     Get;
-    _EnumValueOption;
+    _EnumValueOption(obj);
     while la.kind = 37 do
     begin
       Get;
-      _EnumValueOption;
+      _EnumValueOption(obj);
     end;
     Expect(38);
   end;
   Expect(14);
 end;
 
-procedure TpbParser._EnumValueOption;
+procedure TpbParser._EnumValueOption(const obj: PObj);
 var
   id: string;
   Cv: TConst;
@@ -940,7 +942,7 @@ begin
   _OptionName(id);
   Expect(13);
   _Constant(Cv);
-  tab.AddOption(id, Cv);
+  obj.AddOption(id, Cv);
 end;
 
 procedure TpbParser.Parse;
