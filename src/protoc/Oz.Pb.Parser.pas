@@ -728,7 +728,7 @@ begin
   _Type(value);
   Expect(41);
   if id = '' then
-    id := Format('%s_%s', [key, value]);
+    id := key.declaration.Name + '_' + value.declaration.Name;
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
   tab.NewType(obj, TTypeMode.tmMap); typ := obj.typ;

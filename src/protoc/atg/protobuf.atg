@@ -284,9 +284,9 @@ FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule);
 .
 
 MapType<var typ: PType>      (. var
-                                 id: string;
-                                 obj, x: PObj;
-                                 key, value: PType; .)
+                                  id: string;
+                                  obj, x: PObj;
+                                  key, value: PType; .)
 =
 "map"
 [ Ident<id>
@@ -294,7 +294,7 @@ MapType<var typ: PType>      (. var
 "<" KeyType<key>
 "," Type<value>
 ">"                          (. if id = '' then
-                                  id := Format('%s_%s', [key, value]);
+                                  id := key.declaration.Name + '_' + value.declaration.Name;
                                 tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
                                 tab.NewType(obj, TTypeMode.tmMap); typ := obj.typ;

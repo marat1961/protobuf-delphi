@@ -318,13 +318,13 @@ type
     FTopScope: PObj;
     FUniverse: PObj;
     FGuard: PObj;
-    FUnknownType: PType;
     // root node for the .proto file
     FModule: TModule;
     // predefined types
     FEmbeddedTypes: array [TEmbeddedTypes] of PType;
     // Fill predefined elements
     procedure InitSystem;
+    function GetUnknownType: PType;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -339,7 +339,7 @@ type
     // Open scope
     procedure CloseScope;
     // Enter
-    procedure Enter(cls: TMode; n: Integer; name: string; typ: PType);
+    procedure Enter(cls: TMode; n: Integer; name: string; var typ: PType);
     // Find type
     function FindType(const id: TQualIdent): PType;
     // Find message type
@@ -354,7 +354,7 @@ type
     function GenScript: string;
     property TopScope: PObj read FTopScope;
     property Module: TModule read FModule write FModule;
-    property UnknownType: PType read FUnknownType;
+    property UnknownType: PType read GetUnknownType;
   end;
 
 {$EndRegion}
@@ -362,11 +362,12 @@ type
 function GetWireType(tm: TTypeMode): TWireType;
 
 const
+  // type name in proto file
   EmbeddedTypes: array [TEmbeddedTypes] of string = (
     'unknown', 'double', 'float', 'int64', 'uint64', 'int32',
     'fixed64', 'fixed32', 'bool', 'string', 'bytes',
     'uint32', 'sfixed32', 'sfixed64', 'sint32', 'sint64');
-const
+  // type name in delphi
   DelphiEmbeddedTypes: array [TEmbeddedTypes] of string = (
     'Unknown', 'Double', 'Single', 'Int64', 'UIint64', 'Integer',
     'UInt64', 'UInt32', 'Boolean', 'string', 'bytes',
@@ -649,11 +650,13 @@ begin
   FTopScope := FTopScope.dsc;
 end;
 
-procedure TpbTable.Enter(cls: TMode; n: Integer; name: string; typ: PType);
-var obj: PObj;
+procedure TpbTable.Enter(cls: TMode; n: Integer; name: string; var typ: PType);
+var
+  obj: PObj;
 begin
   New(obj);
-  obj.cls := cls; obj.val := n; obj.name := name; obj.typ := typ;
+  obj.cls := cls; obj.val := n; obj.name := name;
+  NewType(obj, TTypeMode(n)); typ := obj.typ;
   obj.dsc := nil;
   obj.next := FTopScope.next;
   FTopScope.next := obj;
@@ -662,6 +665,11 @@ end;
 function TpbTable.GetBasisType(kind: TTypeMode): PType;
 begin
   Result := FEmbeddedTypes[kind];
+end;
+
+function TpbTable.GetUnknownType: PType;
+begin
+  Result := FEmbeddedTypes[TTypeMode.tmUnknown];
 end;
 
 function TpbTable.FindType(const id: TQualIdent): PType;
@@ -677,7 +685,7 @@ begin
     if obj.cls = TMode.mPackage then
       Find(obj, id.Name);
   end;
-  Result := FUnknownType;
+  Result := GetUnknownType;
   if obj.cls = TMode.mType then
     Result := obj.typ
   else if Result.form = TTypeMode.tmUnknown then
