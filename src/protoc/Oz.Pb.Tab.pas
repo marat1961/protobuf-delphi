@@ -3,7 +3,7 @@ unit Oz.Pb.Tab;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Rtti, Generics.Collections,
+  System.Classes, System.SysUtils, System.Rtti, Generics.Collections, System.IOUtils,
   Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic;
 
 {$SCOPEDENUMS on}
@@ -325,6 +325,7 @@ type
     // Fill predefined elements
     procedure InitSystem;
     function GetUnknownType: PType;
+    function GetModId: string;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -352,7 +353,9 @@ type
     function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
     function GenScript: string;
+    // properties
     property TopScope: PObj read FTopScope;
+    property ModId: string read GetModId;
     property Module: TModule read FModule write FModule;
     property UnknownType: PType read GetUnknownType;
   end;
@@ -685,7 +688,7 @@ begin
     if obj.cls = TMode.mPackage then
       Find(obj, id.Name);
   end;
-  Result := GetUnknownType;
+  Result := UnknownType;
   if obj.cls = TMode.mType then
     Result := obj.typ
   else if Result.form = TTypeMode.tmUnknown then
@@ -738,6 +741,11 @@ begin
     Inc(p);
   until False;
   Result := Result * sign;
+end;
+
+function TpbTable.GetModId: string;
+begin
+  Result := TPath.GetFilenameWithoutExtension(options.SrcName);
 end;
 
 function TpbTable.Dump: string;

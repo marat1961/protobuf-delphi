@@ -504,7 +504,7 @@ var
 begin
   Wrln('type');
   Wrln;
-  obj := tab.TopScope;
+  obj := tab.Module.Obj;
   while obj <> nil do
   begin
     if obj.cls = TMode.mType then

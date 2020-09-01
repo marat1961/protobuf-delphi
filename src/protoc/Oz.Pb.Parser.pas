@@ -147,10 +147,15 @@ begin
 end;
 
 procedure TpbParser._Pb;
-var obj: PObj;
+var
+  id: string;
+  obj: PObj;
 begin
+  id := tab.ModId;
+  tab.NewObj(obj, id, TMode.mModule);
+  tab.Module := TModule.Create(obj, id, {weak=}False);
+  obj.aux := tab.Module;
   tab.OpenScope;
-  tab.NewObj(obj, tab.Module.name, TMode.mModule);
   _Syntax;
   while StartOf(1) do
   begin
@@ -326,7 +331,7 @@ begin
 end;
 
 procedure TpbParser._MapDecl;
-var typ: PObj;
+var typ: PType;
 begin
   _MapType(typ);
 end;

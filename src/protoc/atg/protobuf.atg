@@ -41,9 +41,14 @@ IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
-Pb                           (. var obj: PObj; .)
-=                            (. tab.OpenScope;
-                                tab.NewObj(obj, tab.Module.name, TMode.mModule); .)
+Pb                           (. var
+                                  id: string;
+                                  obj: PObj; .)
+=                            (. id := tab.ModId;
+                                tab.NewObj(obj, id, TMode.mModule);
+                                tab.Module := TModule.Create(obj, id, {weak=}False);
+                                obj.aux := tab.Module;
+                                tab.OpenScope; .)
 Syntax
 {
   Import
