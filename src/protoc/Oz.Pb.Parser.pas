@@ -397,7 +397,6 @@ procedure TpbParser._Field(var typ: PType);
 var
   rule: TFieldRule;
   ftyp: PType;
-  x: PObj;
 begin
   rule := TFieldRule.Singular;
   if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
