@@ -20,7 +20,6 @@ type
     sb: TStringBuilder;
     function GetCode: string;
     // Wrappers for TStringBuilder
-    procedure Wr(const s: string); overload;
     procedure Wr(const f: string; const Args: array of const); overload;
     procedure Wrln; overload;
     procedure Wrln(const s: string); overload;
@@ -78,7 +77,7 @@ type
     // Top level code
     procedure GenDataStructures;
     procedure GenIO;
-    procedure GenComment(const ñ: string);
+    procedure GenComment(const comment: string);
     procedure LoadMessage(msg: PObj);
     procedure WriterInterface(msg: PObj);
     procedure ReaderInterface(msg: PObj);
@@ -178,11 +177,6 @@ begin
   Result := sb.ToString;
 end;
 
-procedure TGen.Wr(const s: string);
-begin
-  sb.Append(Blank(IndentLevel * 2) + s);
-end;
-
 procedure TGen.Wr(const f: string; const Args: array of const);
 begin
   sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
@@ -236,9 +230,8 @@ end;
 procedure TGen.MapDecl(obj: PObj);
 var
   x: PObj;
-  typ, key, value: PType;
+  key, value: PType;
 begin
-  typ := obj.typ;
   x := obj;
   key := gen.tab.UnknownType;
   value := gen.tab.UnknownType;
@@ -544,11 +537,11 @@ begin
   end;
 end;
 
-procedure TGen.GenComment(const ñ: string);
+procedure TGen.GenComment(const comment: string);
 var
   s: string;
 begin
-  for s in ñ.Split([#13#10], TStringSplitOptions.None) do
+  for s in comment.Split([#13#10], TStringSplitOptions.None) do
     Wrln('// ' + s)
 end;
 
