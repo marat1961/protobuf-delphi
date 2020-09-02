@@ -35,6 +35,7 @@ type
     _charSym = 8;
   private
     procedure _Pb;
+    procedure _Module(const id: string; var obj: PObj);
     procedure _Syntax;
     procedure _Import;
     procedure _Package;
@@ -78,11 +79,12 @@ type
     tab: TpbTable;
     listing: TStrings;
     gen: TGen;
-    constructor Create(scanner: TBaseScanner; listing: TStrings);
+    constructor Create(tab: TpbTable; scanner: TBaseScanner; listing: TStrings);
     destructor Destroy; override;
     procedure SemError(n: Integer);
     function ErrorMsg(nr: Integer): string; override;
     procedure Parse; override;
+    procedure ParseImport(const id: string; var obj: PObj);
   end;
 
 {$EndRegion}
@@ -112,17 +114,16 @@ implementation
 
 {$Region 'TpbParser'}
 
-constructor TpbParser.Create(scanner: TBaseScanner; listing: TStrings);
+constructor TpbParser.Create(tab: TpbTable; scanner: TBaseScanner; listing: TStrings);
 begin
   inherited Create(scanner, listing);
+  Self.tab := tab;
   options := GetOptions;
-  tab := TpbTable.Create(Self);
   gen := TGen.Create(Self);
 end;
 
 destructor TpbParser.Destroy;
 begin
-  tab.Free;
   inherited;
 end;
 
@@ -148,13 +149,18 @@ end;
 
 procedure TpbParser._Pb;
 var
-  id: string;
   obj: PObj;
 begin
-  id := tab.ModId;
+  tab.OpenScope;
+  _Module(tab.ModId, obj);
+  tab.Module := TModule(obj.aux);
+  tab.CloseScope;
+end;
+
+procedure TpbParser._Module(const id: string; var obj: PObj);
+begin
   tab.NewObj(obj, id, TMode.mModule);
-  tab.Module := TModule.Create(obj, id, {weak=}False);
-  obj.aux := tab.Module;
+  obj.aux := TModule.Create(obj, id, {weak=}False);
   tab.OpenScope;
   _Syntax;
   while StartOf(1) do
@@ -211,7 +217,9 @@ begin
 end;
 
 procedure TpbParser._Import;
-var weak: Boolean;
+var
+  id: string;
+  weak: Boolean;
 begin
   weak := False;
   Expect(15);
@@ -228,7 +236,8 @@ begin
     end;
   end;
   _strLit;
-  // todo: Process Import Statement
+  id := Unquote(t.val);
+  tab.OpenModule(id, weak);
   Expect(14);
 end;
 
@@ -968,6 +977,11 @@ begin
   Get;
   _Pb;
   Expect(0);
+end;
+
+procedure TpbParser.ParseImport(const id: string; var obj: PObj);
+begin
+  _Module(id, obj);
 end;
 
 function TpbParser.Starts(s, kind: Integer): Boolean;

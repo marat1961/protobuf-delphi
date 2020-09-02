@@ -42,12 +42,15 @@ IGNORE CHR(9) .. CHR(13)
 PRODUCTIONS
 
 Pb                           (. var
-                                  id: string;
                                   obj: PObj; .)
-=                            (. id := tab.ModId;
-                                tab.NewObj(obj, id, TMode.mModule);
-                                tab.Module := TModule.Create(obj, id, {weak=}False);
-                                obj.aux := tab.Module;
+=                            (. tab.OpenScope; .)
+Module<tab.ModId, obj>       (. tab.Module := TModule(obj.aux);
+                                tab.CloseScope; .)
+.
+
+Module<const id: string; var obj: PObj>
+=                            (. tab.NewObj(obj, id, TMode.mModule);
+                                obj.aux := TModule.Create(obj, id, {weak=}False);
                                 tab.OpenScope; .)
 Syntax
 {
@@ -93,13 +96,16 @@ Syntax
 
 // Import Statement
 
-Import                       (. var weak: Boolean; .)
+Import                       (. var
+                                  id: string;
+                                  weak: Boolean; .)
 =                            (. weak := False; .)
  "import"
 [ "weak"                     (. weak := True; .)
 | "public"
 ]
-strLit                       (. // todo: Process Import Statement .)
+strLit                       (. id := Unquote(t.val);
+                                tab.OpenModule(id, weak); .)
 ";"
 .
 

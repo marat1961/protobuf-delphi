@@ -33,11 +33,12 @@ type
     tab: TpbTable;
     listing: TStrings;
     gen: TGen;
-    constructor Create(scanner: TBaseScanner; listing: TStrings);
+    constructor Create(tab: TpbTable; scanner: TBaseScanner; listing: TStrings);
     destructor Destroy; override;
     procedure SemError(n: Integer);
     function ErrorMsg(nr: Integer): string; override;
     procedure Parse; override;
+    procedure ParseImport(const id: string; var obj: PObj);
   end;
 
 {$EndRegion}
@@ -67,17 +68,16 @@ implementation
 
 {$Region '-->parser<'}
 
-constructor -->parser<.Create(scanner: TBaseScanner; listing: TStrings);
+constructor -->parser<.Create(tab: TpbTable; scanner: TBaseScanner; listing: TStrings);
 begin
   inherited Create(scanner, listing);
+  Self.tab := tab;
   options := GetOptions;
-  tab := TpbTable.Create(Self);
   gen := TGen.Create(Self);
 end;
 
 destructor -->parser<.Destroy;
 begin
-  tab.Free;
   inherited;
 end;
 
@@ -107,6 +107,11 @@ begin
   la.val := '';
   Get;
 -->parseRoot<
+end;
+
+procedure -->parser<.ParseImport(const id: string; var obj: PObj);
+begin
+  _Module(id, obj);
 end;
 
 function -->parser<.Starts(s, kind: Integer): Boolean;

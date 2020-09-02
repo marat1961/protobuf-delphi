@@ -327,8 +327,9 @@ type
     function GetUnknownType: PType;
     function GetModId: string;
   public
-    constructor Create(Parser: TBaseParser);
+    constructor Create;
     destructor Destroy; override;
+    procedure Init(Parser: TBaseParser);
     // Add new declaration
     procedure NewObj(var obj: PObj; const id: string; cls: TMode);
     // Add new type
@@ -348,7 +349,7 @@ type
     // Get embedded type by kind
     function GetBasisType(kind: TTypeMode): PType;
     // Open and read module from file
-    function OpenModule(var obj: PObj; const Name: string; Weak: Boolean): TModule;
+    function OpenModule(const id: string; Weak: Boolean): TModule;
     // Convert string to Integer
     function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
@@ -558,16 +559,18 @@ end;
 
 {$Region 'TpbTable'}
 
-constructor TpbTable.Create(Parser: TBaseParser);
+constructor TpbTable.Create;
 begin
-  inherited;
-  FModule := TModule.Create(TopScope, 'import', {weak=}True);
+end;
+
+procedure TpbTable.Init(Parser: TBaseParser);
+begin
+  FParser := Parser;
   InitSystem;
 end;
 
 destructor TpbTable.Destroy;
 begin
-  FModule.Free;
   // todo: start using memory regions
   inherited;
 end;
@@ -707,9 +710,11 @@ begin
   Result := typ;
 end;
 
-function TpbTable.OpenModule(var obj: PObj; const Name: string; Weak: Boolean): TModule;
+function TpbTable.OpenModule(const id: string; Weak: Boolean): TModule;
+var
+  obj: PObj;
 begin
-  Result := TModule.Create(obj, Name, Weak);
+  parser.ParseImport(id, obj);
 end;
 
 function TpbTable.ParseInt(const s: string; base: Integer): Integer;
