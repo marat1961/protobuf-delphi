@@ -36,7 +36,7 @@ type
   private
     procedure _Pb;
     procedure _Module(const id: string; var obj: PObj);
-    procedure _Syntax;
+    procedure _Syntax(var obj: PObj);
     procedure _Import;
     procedure _Package;
     procedure _Option(const obj: PObj);
@@ -153,7 +153,6 @@ var
 begin
   tab.OpenScope;
   _Module(tab.ModId, obj);
-  tab.Module := TModule(obj.aux);
   tab.CloseScope;
 end;
 
@@ -161,8 +160,10 @@ procedure TpbParser._Module(const id: string; var obj: PObj);
 begin
   tab.NewObj(obj, id, TMode.mModule);
   obj.aux := TModule.Create(obj, id, {weak=}False);
+  if tab.Module = nil { root proto file } then
+    tab.Module := TModule(obj.aux);
   tab.OpenScope;
-  _Syntax;
+  _Syntax(obj);
   while StartOf(1) do
   begin
     case la.kind of
@@ -200,17 +201,22 @@ begin
       end;
       end;
   end;
+  // Before closing the current scope we remember the parsed entities.
+  obj.dsc := tab.TopScope;
   tab.CloseScope;
 end;
 
-procedure TpbParser._Syntax;
+procedure TpbParser._Syntax(var obj: PObj);
+var
+  m: TModule;
 begin
   Expect(12);
   Expect(13);
   _strLit;
-  tab.Module.Syntax := TSyntaxVersion.Proto2;
+  m := obj.aux as TModule;
+  m.Syntax := TSyntaxVersion.Proto2;
   if t.val = '"proto3"' then
-    tab.Module.Syntax := TSyntaxVersion.Proto3
+    m.Syntax := TSyntaxVersion.Proto3
   else if t.val <> '"proto2"' then
     SemErr('invalid syntax version');
   Expect(14);
@@ -306,6 +312,8 @@ begin
       end;
   end;
   Expect(11);
+  // Before closing the current scope we remember the parsed entities.
+  obj.dsc := tab.TopScope;
   tab.CloseScope;
 end;
 
@@ -387,7 +395,9 @@ end;
 
 procedure TpbParser._Field(var typ: PType);
 var
-  rule: TFieldRule; ftyp: PType;
+  rule: TFieldRule;
+  ftyp: PType;
+  x: PObj;
 begin
   rule := TFieldRule.Singular;
   if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
@@ -408,7 +418,10 @@ begin
     end;
   end;
   _FieldType(ftyp);
+  tab.OpenScope;
   _FieldDecl(ftyp, rule);
+  tab.Concatenate(typ.dsc);
+  tab.CloseScope;
   Expect(14);
 end;
 
@@ -756,9 +769,12 @@ begin
     id := key.declaration.Name + '_' + value.declaration.Name;
   tab.NewObj(obj, id, TMode.mType);
   tab.OpenScope;
-  tab.NewType(obj, TTypeMode.tmMap); typ := obj.typ;
-  tab.NewObj(x, 'key', TMode.mType); x.typ := key;
-  tab.NewObj(x, 'value', TMode.mType); x.typ := value;
+  tab.NewType(obj, TTypeMode.tmMap);
+  typ := obj.typ;
+  tab.NewObj(x, 'key', TMode.mType);
+  x.typ := key;
+  tab.NewObj(x, 'value', TMode.mType);
+  x.typ := value;
   tab.CloseScope;
 end;
 
@@ -790,6 +806,8 @@ begin
     end;
   end;
   Expect(11);
+  // Before closing the current scope we remember the parsed entities.
+  obj.dsc := tab.TopScope;
   tab.CloseScope;
 end;
 

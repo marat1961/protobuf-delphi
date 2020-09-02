@@ -44,15 +44,16 @@ PRODUCTIONS
 Pb                           (. var
                                   obj: PObj; .)
 =                            (. tab.OpenScope; .)
-Module<tab.ModId, obj>       (. tab.Module := TModule(obj.aux);
-                                tab.CloseScope; .)
+Module<tab.ModId, obj>       (. tab.CloseScope; .)
 .
 
 Module<const id: string; var obj: PObj>
 =                            (. tab.NewObj(obj, id, TMode.mModule);
                                 obj.aux := TModule.Create(obj, id, {weak=}False);
+                                if tab.Module = nil { root proto file } then
+                                  tab.Module := TModule(obj.aux);
                                 tab.OpenScope; .)
-Syntax
+Syntax<obj>
 {
   Import
 | Package
@@ -62,7 +63,9 @@ Syntax
 | MapDecl
 | Service
 | EmptyStatement
-}                            (. tab.CloseScope; .)
+}                            (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
 .
 
 Message                      (. var
@@ -79,16 +82,20 @@ Message                      (. var
 | Enum
 | Reserved
 | EmptyStatement
-} "}"                        (. tab.CloseScope; .)
+} "}"                        (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
 .
 
 // Syntax
 
-Syntax
+Syntax<var obj: PObj>        (. var
+                                  m: TModule; .)
  =
-"syntax" "=" strLit          (. tab.Module.Syntax := TSyntaxVersion.Proto2;
+"syntax" "=" strLit          (. m := obj.aux as TModule;
+                                m.Syntax := TSyntaxVersion.Proto2;
                                 if t.val = '"proto3"' then
-                                  tab.Module.Syntax := TSyntaxVersion.Proto3
+                                  m.Syntax := TSyntaxVersion.Proto3
                                 else if t.val <> '"proto2"' then
                                   SemErr('invalid syntax version'); .)
 ";"
@@ -263,14 +270,17 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 // Fields
 
 Field<var typ: PType>        (. var
-                                  rule: TFieldRule; ftyp: PType; .)
+                                  rule: TFieldRule;
+                                  ftyp: PType;
+                                  x: PObj; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-FieldType<ftyp>
-FieldDecl<ftyp, rule>
+FieldType<ftyp>              (. tab.OpenScope; .)
+FieldDecl<ftyp, rule>        (. tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
 ";"
 .
 
@@ -314,9 +324,12 @@ MapType<var typ: PType>      (. var
                                   id := key.declaration.Name + '_' + value.declaration.Name;
                                 tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                tab.NewType(obj, TTypeMode.tmMap); typ := obj.typ;
-                                tab.NewObj(x, 'key', TMode.mType); x.typ := key;
-                                tab.NewObj(x, 'value', TMode.mType); x.typ := value;
+                                tab.NewType(obj, TTypeMode.tmMap);
+                                typ := obj.typ;
+                                tab.NewObj(x, 'key', TMode.mType);
+                                x.typ := key;
+                                tab.NewObj(x, 'value', TMode.mType);
+                                x.typ := value;
                                 tab.CloseScope; .)
 .
 
@@ -333,7 +346,9 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
   Option<obj>
 | OneOfField<typ>
 | EmptyStatement
-} "}"                        (. tab.CloseScope; .)
+} "}"                        (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
 .
 
 OneOfField<typ: PType>       (. var ftyp: PType;  .)

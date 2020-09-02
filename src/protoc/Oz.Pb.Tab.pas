@@ -131,6 +131,7 @@ type
     idx: Integer;
     aux: TAux;
   public
+    class function GetInstance(cls: TMode): PObj; static;
     // Get delphi name
     function DelphiName: string;
     // Get delphi type
@@ -342,6 +343,8 @@ type
     procedure CloseScope;
     // Enter
     procedure Enter(cls: TMode; n: Integer; name: string; var typ: PType);
+    // Concatenate a := a + TopScope.next (without head)
+    procedure Concatenate(var a: PObj);
     // Find type
     function FindType(const id: TQualIdent): PType;
     // Find message type
@@ -356,6 +359,7 @@ type
     function GenScript: string;
     // properties
     property TopScope: PObj read FTopScope;
+    property Guard: PObj read FGuard;
     property ModId: string read GetModId;
     property Module: TModule read FModule write FModule;
     property UnknownType: PType read GetUnknownType;
@@ -450,6 +454,13 @@ end;
 function TObjDesc.DelphiName: string;
 begin
   Result := AsCamel(name);
+end;
+
+class function TObjDesc.GetInstance(cls: TMode): PObj;
+begin
+  New(Result);
+  Result^ := Default(TObjDesc);
+  Result.cls := TMode.mUnknown;
 end;
 
 procedure TObjDesc.AddOption(const name: string; const val: TConst);
@@ -579,8 +590,7 @@ procedure TpbTable.InitSystem;
 var
   t: TTypeMode;
 begin
-  New(FGuard);
-  FGuard.cls := TMode.mUnknown; FGuard.val := 0;
+  FGuard := TObjDesc.GetInstance(TMode.mUnknown);
   FTopScope := nil;
   OpenScope;
   FUniverse := FTopScope;
@@ -598,7 +608,8 @@ begin
   while x.next.name <> id do x := x.next;
   if x.next = FGuard then
   begin
-    New(n); n.name := id; n.cls := cls; n.next := FGuard;
+    n := TObjDesc.GetInstance(cls);
+    n.name := id; n.cls := cls; n.next := FGuard;
     x.next := n; obj := n;
   end
   else
@@ -608,11 +619,24 @@ begin
   end;
 end;
 
+procedure TpbTable.Concatenate(var a: PObj);
+var x: PObj;
+begin
+  if a = nil then
+    a := FTopScope.next
+  else
+  begin
+    x := a;
+    while x.next <> FGuard do x := x.next;
+    x.next := FTopScope.next;
+  end;
+end;
+
 procedure TpbTable.NewType(const obj: PObj; form: TTypeMode);
 var
   typ: PType;
 begin
-  New(typ);
+  New(typ); typ^ := Default(TTypeDesc);
   typ.form := form;
   typ.declaration := obj;
   obj.typ := typ;
@@ -715,6 +739,7 @@ var
   obj: PObj;
 begin
   parser.ParseImport(id, obj);
+  Result := obj.aux as TModule;
 end;
 
 function TpbTable.ParseInt(const s: string; base: Integer): Integer;

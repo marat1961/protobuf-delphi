@@ -28,6 +28,15 @@ type
     // Indent control
     procedure Indent;
     procedure Dedent;
+    // Enum code
+    procedure EnumDecl(obj: PObj);
+    // Map code
+    procedure MapDecl(obj: PObj);
+    // Message code
+    procedure MessageDecl(msg: PObj);
+    procedure MessageImpl(msg: PObj);
+    procedure MessageWrite(msg: PObj);
+    procedure MessageRead(msg: PObj);
 
     procedure GenDataStructures;
     procedure GenIO;
@@ -100,33 +109,6 @@ type
        under consruction
     *)
     procedure AsReflection(gen: TGen);
-  end;
-
-{$EndRegion}
-
-{$Region 'TMessageHelper'}
-
-  TMessageHelper = class helper for TMessageOptions
-    procedure AsDeclaration(gen: TGen);
-    procedure AsImplementation(gen: TGen);
-    procedure AsWrite(gen: TGen);
-    procedure AsRead(gen: TGen);
-  end;
-
-{$EndRegion}
-
-{$Region 'TEnumHelper'}
-
-  TEnumHelper = class helper for TEnumOptions
-    procedure AsDeclaration(gen: TGen);
-  end;
-
-{$EndRegion}
-
-{$Region 'TpbMapTypeHelper'}
-
-  TpbMapTypeHelper = class helper for TMapOptions
-    procedure AsDeclaration(gen: TGen);
   end;
 
 {$EndRegion}
@@ -264,203 +246,6 @@ end;
 
 {$EndRegion}
 
-{$Region 'TMessageHelper'}
-
-procedure TMessageHelper.AsDeclaration(gen: TGen);
-var
-  x: PObj;
-  typ: PType;
-begin
-  // generate nested messages
-  x := obj.dsc;
-  while x <> nil do
-  begin
-    typ := x.typ;
-    if x.cls = TMode.mType then
-      case typ.form of
-        TTypeMode.tmEnum: (obj.aux as TEnumOptions).AsDeclaration(gen);
-        TTypeMode.tmMessage: (obj.aux as TMessageOptions).AsDeclaration(gen);
-        TTypeMode.tmMap: (obj.aux as TMapOptions).AsDeclaration(gen);
-      end;
-    x := x.next;
-  end;
-
-  gen.Wrln('T%s = class', [obj.DelphiName]);
-
-  // generate field tag definitions
-  gen.Wrln('const');
-  gen.Indent;
-  typ := obj.typ;
-  Assert(typ.form = TTypeMode.tmMessage);
-  try
-    x := typ.dsc;
-    while x <> nil do
-    begin
-      (x.aux as TFieldOptions).AsTagDeclarations(gen);
-      x := x.next;
-    end;
-  finally
-    gen.Dedent;
-  end;
-
-  // generate field declarations
-  gen.Wrln('private');
-  gen.Indent;
-  try
-    x := typ.dsc;
-    while x <> nil do
-    begin
-      (x.aux as TFieldOptions).AsDeclaration(gen);
-      x := x.next;
-    end;
-  finally
-    gen.Dedent;
-  end;
-
-  gen.Wrln('public');
-  gen.Indent;
-  try
-    gen.Wrln('constructor Create;');
-    gen.Wrln('destructor Destoy; override;');
-    gen.Wrln('// properties');
-    x := typ.dsc;
-    while x <> nil do
-    begin
-      (x.aux as TFieldOptions).AsProperty(gen);
-      x := x.next;
-    end;
-  finally
-    gen.Dedent;
-  end;
-
-  gen.Wrln('end;'); // class
-  gen.Wrln;
-end;
-
-procedure TMessageHelper.AsImplementation(gen: TGen);
-var
-  t: string;
-  x: PObj;
-  typ: PType;
-begin
-  typ := obj.typ;
-  // parameterless constructor
-  t := obj.DelphiName;
-  gen.Wrln('constructor %s.Create;', [t]);
-  gen.Wrln('begin');
-  gen.Indent;
-  try
-    gen.Wrln('inherited Create;');
-    x := typ.dsc;
-    while x <> nil do
-    begin
-      (x.aux as TFieldOptions).AsInit(gen);
-      x := x.next;
-    end;
-  finally
-    gen.Dedent;
-  end;
-  gen.Wrln('end;');
-  gen.Wrln;
-
-  gen.Wrln('destructor %s.Destroy;', [obj.DelphiName]);
-  gen.Wrln('begin');
-  gen.Indent;
-  try
-    x := typ.dsc;
-    while x <> nil do
-    begin
-      (x.aux as TFieldOptions).AsFree(gen);
-      x := x.next;
-    end;
-    gen.Wrln('inherited Destroy;');
-  finally
-    gen.Dedent;
-  end;
-
-  gen.Wrln('end;');
-  gen.Wrln;
-end;
-
-procedure TMessageHelper.AsRead(gen: TGen);
-var
-  x: PObj;
-  typ: PType;
-begin
-  typ := obj.typ;
-  x := typ.dsc;
-  while x <> nil do
-  begin
-    (x.aux as TFieldOptions).AsRead(gen);
-    x := x.next;
-  end;
-end;
-
-procedure TMessageHelper.AsWrite(gen: TGen);
-var
-  x: PObj;
-  typ: PType;
-begin
-  typ := obj.typ;
-  x := typ.dsc;
-  while x <> nil do
-  begin
-    (x.aux as TFieldOptions).AsWrite(gen);
-    x := x.next;
-  end;
-end;
-
-{$EndRegion}
-
-{$Region 'TEnumHelper'}
-
-procedure TEnumHelper.AsDeclaration(gen: TGen);
-var
-  x: PObj;
-  n: Integer;
-begin
-  gen.Wrln('T%s = (', [obj.Name]);
-  x := obj.dsc;
-  while x <> nil do
-  begin
-    n := x.val.AsInt64;
-    gen.Wr('  %s = %d', [x.Name, n]);
-    x := x.next;
-    if x <> nil then
-      gen.Wrln(',')
-    else
-      gen.Wrln(');');
-  end;
-  gen.Wrln;
-end;
-
-{$EndRegion}
-
-{$Region 'TpbMapTypeHelper'}
-
-procedure TpbMapTypeHelper.AsDeclaration(gen: TGen);
-var
-  x: PObj;
-  typ, key, value: PType;
-begin
-  typ := obj.typ;
-  x := typ.dsc;
-  key := gen.tab.UnknownType;
-  value := gen.tab.UnknownType;
-  while x <> nil do
-  begin
-    if x.name = 'key' then
-      key := x.typ
-    else if x.name = 'value' then
-      value := x.typ;
-    x := x.next;
-  end;
-  gen.Wrln('T%s = ' + MapCollection + ';',
-    [obj.DelphiName, key.declaration.DelphiName, Value.declaration.DelphiName]);
-end;
-
-{$EndRegion}
-
 {$Region 'TGen'}
 
 constructor TGen.Create(Parser: TBaseParser);
@@ -499,38 +284,39 @@ end;
 
 procedure TGen.GenDataStructures;
 var
-  obj: PObj;
+  obj, x: PObj;
   typ: PType;
 begin
   Wrln('type');
   Wrln;
-  obj := tab.Module.Obj;
-  while obj <> nil do
+  obj := tab.Module.Obj; // root proto file
+  x := obj.dsc;
+  while x <> nil do
   begin
-    if obj.cls = TMode.mType then
+    if x.cls = TMode.mType then
     begin
-      typ := obj.typ;
+      typ := x.typ;
       case typ.form of
-        TTypeMode.tmEnum: (obj.aux as TEnumOptions).AsDeclaration(gen);
-        TTypeMode.tmMessage: (obj.aux as TMessageOptions).AsDeclaration(gen);
-        TTypeMode.tmMap: (obj.aux as TMapOptions).AsDeclaration(gen);
+        TTypeMode.tmEnum: EnumDecl(x);
+        TTypeMode.tmMessage: MessageDecl(x);
+        TTypeMode.tmMap: MapDecl(x);
       end;
     end;
-    obj := obj.next;
+    x := x.next;
   end;
 
   Wrln('implementation');
   Wrln;
-  obj := tab.TopScope;
-  while obj <> nil do
+  x := obj.dsc;
+  while x <> tab.Guard do
   begin
-    if obj.cls = TMode.mType then
+    if x.cls = TMode.mType then
     begin
-      typ := obj.typ;
+      typ := x.typ;
       if typ.form = TTypeMode.tmMessage then
-        (obj.aux as TMessageOptions).AsImplementation(gen);
+        MessageImpl(x);
     end;
-    obj := obj.next;
+    x := x.next;
   end;
 end;
 
@@ -556,8 +342,7 @@ end;
 
 procedure TGen.Wrln(const s: string);
 begin
-  sb.AppendLine(Blank(IndentLevel * 2) + s);
-end;
+  sb.AppendLine(Blank(IndentLevel * 2) + s);end;
 
 procedure TGen.Wrln(const f: string; const Args: array of const);
 begin
@@ -577,6 +362,189 @@ begin
     IndentLevel := 0;
 end;
 
+procedure TGen.EnumDecl(obj: PObj);
+var
+  n: Integer;
+begin
+  Wrln('T%s = (', [obj.Name]);
+  while obj <> tab.Guard do
+  begin
+    n := obj.val.AsInt64;
+    Wr('  %s = %d', [obj.Name, n]);
+    obj := obj.next;
+    if obj <> tab.Guard then
+      Wrln(',')
+    else
+      Wrln(');');
+  end;
+  Wrln;
+end;
+
+procedure TGen.MapDecl(obj: PObj);
+var
+  x: PObj;
+  typ, key, value: PType;
+begin
+  typ := obj.typ;
+  x := obj;
+  key := gen.tab.UnknownType;
+  value := gen.tab.UnknownType;
+  while x <> tab.Guard do
+  begin
+    if x.name = 'key' then
+      key := x.typ
+    else if x.name = 'value' then
+      value := x.typ;
+    x := x.next;
+  end;
+  Wrln('T%s = ' + MapCollection + ';',
+    [obj.DelphiName, key.declaration.DelphiName, Value.declaration.DelphiName]);
+end;
+
+procedure TGen.MessageDecl(msg: PObj);
+var
+  x: PObj;
+  typ: PType;
+begin
+  // generate nested messages
+  x := msg.dsc;
+  while x <> tab.Guard do
+  begin
+    typ := x.typ;
+    if x.cls = TMode.mType then
+      case typ.form of
+        TTypeMode.tmEnum: EnumDecl(x);
+        TTypeMode.tmMessage: MessageDecl(x);
+        TTypeMode.tmMap: MapDecl(x);
+      end;
+    x := x.next;
+  end;
+
+  Wrln('T%s = class', [msg.DelphiName]);
+
+  // generate field tag definitions
+  Wrln('const');
+  Indent;
+  typ := msg.typ;
+  Assert(typ.form = TTypeMode.tmMessage);
+  try
+    x := typ.dsc;
+    while x <> tab.Guard do
+    begin
+      (x.aux as TFieldOptions).AsTagDeclarations(gen);
+      x := x.next;
+    end;
+  finally
+    Dedent;
+  end;
+
+  // generate field declarations
+  Wrln('private');
+  Indent;
+  try
+    x := typ.dsc;
+    while x <> tab.Guard do
+    begin
+      (x.aux as TFieldOptions).AsDeclaration(gen);
+      x := x.next;
+    end;
+  finally
+    Dedent;
+  end;
+
+  Wrln('public');
+  Indent;
+  try
+    Wrln('constructor Create;');
+    Wrln('destructor Destoy; override;');
+    Wrln('// properties');
+    x := typ.dsc;
+    while x <> tab.Guard do
+    begin
+      (x.aux as TFieldOptions).AsProperty(gen);
+      x := x.next;
+    end;
+  finally
+    Dedent;
+  end;
+
+  Wrln('end;'); // class
+  Wrln;
+end;
+
+procedure TGen.MessageImpl(msg: PObj);
+var
+  t: string;
+  x: PObj;
+  typ: PType;
+begin
+  typ := msg.typ;
+  // parameterless constructor
+  t := msg.DelphiName;
+  Wrln('constructor %s.Create;', [t]);
+  Wrln('begin');
+  Indent;
+  try
+    Wrln('inherited Create;');
+    x := typ.dsc;
+    while x <> tab.Guard do
+    begin
+      (x.aux as TFieldOptions).AsInit(gen);
+      x := x.next;
+    end;
+  finally
+    Dedent;
+  end;
+  Wrln('end;');
+  Wrln;
+
+  Wrln('destructor %s.Destroy;', [msg.DelphiName]);
+  Wrln('begin');
+  Indent;
+  try
+    x := typ.dsc;
+    while x <> tab.Guard do
+    begin
+      (x.aux as TFieldOptions).AsFree(gen);
+      x := x.next;
+    end;
+    Wrln('inherited Destroy;');
+  finally
+    Dedent;
+  end;
+
+  Wrln('end;');
+  Wrln;
+end;
+
+procedure TGen.MessageWrite(msg: PObj);
+var
+  x: PObj;
+  typ: PType;
+begin
+  typ := msg.typ;
+  x := typ.dsc;
+  while x <> tab.Guard do
+  begin
+    (x.aux as TFieldOptions).AsWrite(gen);
+    x := x.next;
+  end;
+end;
+
+procedure TGen.MessageRead(msg: PObj);
+var
+  x: PObj;
+  typ: PType;
+begin
+  typ := msg.typ;
+  x := typ.dsc;
+  while x <> tab.Guard do
+  begin
+    (x.aux as TFieldOptions).AsRead(gen);
+    x := x.next;
+  end;
+end;
+
 procedure TGen.GenComment(const ñ: string);
 var
   s: string;
@@ -593,7 +561,7 @@ begin
   typ := msg.typ;
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   obj := msg;
-  while obj <> nil do
+  while obj <> tab.Guard do
   begin
     if obj.cls = TMode.mType then
     begin
@@ -632,7 +600,7 @@ begin
   Wrln('begin');
   Indent;
   try
-    (msg.aux as TMessageOptions).AsImplementation(Self);
+    MessageImpl(msg);
   finally
     Dedent;
   end;
@@ -651,7 +619,7 @@ begin
   Wrln('%sReader = class', [msgType]);
   Wrln('private');
   Wrln('  FPb: TProtoBufInput;');
-  (msg.aux as TMessageOptions).AsDeclaration(gen);
+  MessageDecl(msg);
   s := AsCamel(msg.Name);
   t := msg.DelphiName;
   Wrln('  procedure Load%s(%s: %s);', [s, msg.Name, t]);
@@ -694,7 +662,7 @@ begin
   Wrln('tag := FPb.readTag;');
   Wrln('case fieldNumber of');
   f := typ.dsc;
-  while f <> nil do
+  while f <> tab.Guard do
   begin
     Wrln('%s.ft%s:', [msg.DelphiName, AsCamel(f.Name)]);
     Indent;
