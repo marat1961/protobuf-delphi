@@ -4,6 +4,11 @@ Protocol Buffers for Delphi
 The project has a short name protobuf-delphi and ported some part of the project code from Protocol Buffers for Java.
 At that time, this project seemed to me clearer and cleaner in comparison to other implementations.
 
+Code generator project status
+-----------------------------
+A project for parsing and code generation is under construction. Now we have moved to the phase of code generation.
+You can send your code samples and your vision. Wishes will certainly be considered and welcomed.
+
 Why did this project come into being
 ------------------------------------
 
