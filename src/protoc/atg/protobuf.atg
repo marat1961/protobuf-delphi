@@ -330,6 +330,7 @@ MapType<var typ: PType>      (. var
                                 x.typ := key;
                                 tab.NewObj(x, 'value', TMode.mType);
                                 x.typ := value;
+                                typ.dsc := tab.TopScope.next;
                                 tab.CloseScope; .)
 .
 

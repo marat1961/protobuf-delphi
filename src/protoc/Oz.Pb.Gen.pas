@@ -141,20 +141,25 @@ var
 begin
   Wrln('type');
   Wrln;
-  obj := tab.Module.Obj; // root proto file
-  x := obj.dsc;
-  while x <> nil do
-  begin
-    if x.cls = TMode.mType then
+  Indent;
+  try
+    obj := tab.Module.Obj; // root proto file
+    x := obj.dsc;
+    while x <> nil do
     begin
-      typ := x.typ;
-      case typ.form of
-        TTypeMode.tmEnum: EnumDecl(x);
-        TTypeMode.tmMessage: MessageDecl(x);
-        TTypeMode.tmMap: MapDecl(x);
+      if x.cls = TMode.mType then
+      begin
+        typ := x.typ;
+        case typ.form of
+          TTypeMode.tmEnum: EnumDecl(x);
+          TTypeMode.tmMessage: MessageDecl(x);
+          TTypeMode.tmMap: MapDecl(x);
+        end;
       end;
+      x := x.next;
     end;
-    x := x.next;
+  finally
+    Dedent;
   end;
 
   Wrln('implementation');
@@ -232,7 +237,7 @@ var
   x: PObj;
   key, value: PType;
 begin
-  x := obj;
+  x := obj.typ.dsc;
   key := gen.tab.UnknownType;
   value := gen.tab.UnknownType;
   while x <> tab.Guard do
@@ -243,8 +248,9 @@ begin
       value := x.typ;
     x := x.next;
   end;
-  Wrln('T%s = ' + MapCollection + ';',
-    [obj.DelphiName, key.declaration.DelphiName, Value.declaration.DelphiName]);
+  Wrln('%s = ' + MapCollection + ';',
+    [obj.AsType, key.declaration.AsType, Value.declaration.AsType]);
+  Wrln;
 end;
 
 procedure TGen.MessageDecl(msg: PObj);
@@ -433,7 +439,7 @@ begin
     n := Plural(n);
     t := Format(RepeatedCollection, [t]);
   end;
-  s := Format('%s: %s read F%s', [n, t, n]);
+  s := Format('property %s: %s read F%s', [n, t, n]);
   if ro then
     s := s + ';'
   else

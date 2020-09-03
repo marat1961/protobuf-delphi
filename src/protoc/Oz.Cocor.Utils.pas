@@ -180,10 +180,10 @@ begin
   for i := 1 to Length(s) do
   begin
     c := s[i];
-    if not IsUp then
-      Result := Result + c
-    else if c = '_' then
+    if c = '_' then
       IsUp := True
+    else if not IsUp then
+      Result := Result + c
     else
     begin
       Result := Result + c.ToUpperInvariant;

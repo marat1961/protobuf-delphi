@@ -433,18 +433,10 @@ begin
 end;
 
 function TConst.AsBool(const Value: string): Boolean;
-var
-  s: string;
 begin
-  s := LowerCase(Value);
-  Result := True;
-  if s = 'false' then
-    val := False
-  else if s = 'true' then
-    val := True
-  else
-    Result := False;
+  Result := LowerCase(Value) = 'true';
   typ := TConstType.cBool;
+  val := Result;
 end;
 
 {$EndRegion}
@@ -483,7 +475,7 @@ end;
 function TObjDesc.AsType: string;
 begin
   if Typ.form in [TTypeMode.tmUnknown .. TTypeMode.tmSint64] then
-    Result := DelphiName
+    Result := DelphiEmbeddedTypes[Typ.form]
   else
     Result := 'T' + DelphiName;
 end;
