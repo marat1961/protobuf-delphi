@@ -271,8 +271,7 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 
 Field<var typ: PType>        (. var
                                   rule: TFieldRule;
-                                  ftyp: PType;
-                                  x: PObj; .)
+                                  ftyp: PType; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)

@@ -74,7 +74,7 @@ type
     (* field reflection
        under consruction *)
     procedure FieldReflection(obj: PObj);
-    
+
     // Top level code
     procedure GenDataStructures;
     procedure GenIO;
@@ -226,7 +226,7 @@ var
   x: PObj;
   n: Integer;
 begin
-  Wrln('T%s = (', [obj.Name]);
+  Wrln('%s = (', [obj.AsType]);
   x := obj.typ.dsc;
   while x <> tab.Guard do
   begin
@@ -282,7 +282,7 @@ begin
     x := x.next;
   end;
 
-  Wrln('T%s = class', [msg.DelphiName]);
+  Wrln('%s = class', [msg.AsType]);
 
   // generate field tag definitions
   Wrln('const');
@@ -413,7 +413,7 @@ var
   o: TFieldOptions;
 begin
   o := obj.aux as TFieldOptions;
-  n := obj.DelphiName;
+  n := AsCamel(obj.name);
   if o.Rule = TFieldRule.Repeated then
     n := Plural(n);
   // ftId = 1; ftPhones = 5;
@@ -426,34 +426,38 @@ var
   o: TFieldOptions;
 begin
   o := obj.aux as TFieldOptions;
-  n := obj.DelphiName;
+  n := obj.AsField;
   t := obj.AsType;
   if o.Rule = TFieldRule.Repeated then
     t := Format(RepeatedCollection, [t]);
-  Wrln('F%s: %s;', [n, t]);
+  Wrln('%s: %s;', [n, t]);
 end;
 
 procedure TGen.FieldProperty(obj: PObj);
 var
-  n, t, s: string;
+  n, f, t, s: string;
   ro: Boolean;
   o: TFieldOptions;
 begin
   o := obj.aux as TFieldOptions;
   ro := o.ReadOnly;
   n := obj.DelphiName;
+  f := obj.AsField;
   t := obj.AsType;
   if o.Rule = TFieldRule.Repeated then
   begin
     ro := True;
-    n := Plural(n);
+    n := Plural(obj.name);
     t := Format(RepeatedCollection, [t]);
+    f := 'F' + n;
+    if TObjDesc.Keywords.IndexOf(f) >= 0 then
+      f := '&' + f;
   end;
-  s := Format('property %s: %s read F%s', [n, t, n]);
+  s := Format('property %s: %s read %s', [n, t, f]);
   if ro then
     s := s + ';'
   else
-    s := s + Format(' write F%s;', [n]);
+    s := s + Format(' write %s;', [f]);
   Wrln(s);
 end;
 
@@ -464,27 +468,29 @@ end;
 
 procedure TGen.FieldInit(obj: PObj);
 var
-  n, t: string;
+  f, t: string;
   o: TFieldOptions;
 begin
   o := obj.aux as TFieldOptions;
-  n := obj.DelphiName;
+  f := obj.AsField;
   t := obj.AsType;
   if o.Default <> '' then
-    Wrln('F%s := %s;', [n, o.Default])
+    Wrln('%s := %s;', [f, o.Default])
   else if o.Rule = TFieldRule.Repeated then
-    Wrln('F%s := ' + RepeatedCollection + '.Create;', [n, t])
+    Wrln('%s := ' + RepeatedCollection + '.Create;', [f, t])
   else if obj.typ.form = TTypeMode.tmMap then
-    Wrln('F%s := %s.Create;', [n, t]);
+    Wrln('%s := %s.Create;', [f, t]);
 end;
 
 procedure TGen.FieldFree(obj: PObj);
 var
+  f: string;
   o: TFieldOptions;
 begin
   o := obj.aux as TFieldOptions;
+  f := obj.AsField;
   if (o.Rule = TFieldRule.Repeated) or (obj.typ.form = TTypeMode.tmMap) then
-    Wrln('F%s.Free;', [obj.DelphiName]);
+    Wrln('%s.Free;', [f]);
 end;
 
 procedure TGen.FieldRead(obj: PObj);
@@ -493,8 +499,8 @@ var
   o: TFieldOptions;
 begin
   o := obj.aux as TFieldOptions;
-  m := o.Msg.DelphiName;
-  n := obj.AsType;
+  m := o.Msg.AsType;
+  n := AsCamel(obj.name);
   Wrln('%s.ft%s:', [m, n]);
   Indent;
   try
@@ -514,7 +520,7 @@ end;
 
 procedure TGen.FieldWrite(obj: PObj);
 var
-  m, f: string;
+  m, t: string;
   o: TFieldOptions;
 
   procedure Process;
@@ -522,7 +528,7 @@ var
     case obj.typ.form of
       TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
         Wrln('FPb.Write%s(%s.ft%s, %s.%s);',
-          [obj.DelphiName, m, obj.Name, o.msg.Name, obj.Name]);
+          [AsCamel(obj.name), m, obj.name, o.msg.name, obj.name]);
       TTypeMode.tmEnum:
         Wrln('FPb.Write Enum');
       TTypeMode.tmMessage:
@@ -537,13 +543,13 @@ var
 begin
   o := obj.aux as TFieldOptions;
   m := AsCamel(o.msg.Name);
-  f := obj.AsType;
+  t := obj.AsType;
   if o.Default = '' then
     Process
   else
   begin
     // if Phone.FTyp <> ptHOME then
-    Wrln('if %s.F%s <> %s then', [m, f]);
+    Wrln('if %s.F%s <> %s then', [m, t]);
     Indent;
     try
       Process;

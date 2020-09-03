@@ -121,6 +121,8 @@ type
   PType = ^TTypeDesc;
 
   TObjDesc = record
+  class var
+    Keywords: TStringList;
   var
     cls: TMode;
     lev: Integer;
@@ -134,6 +136,8 @@ type
     class function GetInstance(cls: TMode): PObj; static;
     // Get delphi name
     function DelphiName: string;
+    // Get delphi field
+    function AsField: string;
     // Get delphi type
     function AsType: string;
     // Check if options are created if it does not create them.
@@ -380,6 +384,16 @@ const
     'Unknown', 'Double', 'Single', 'Int64', 'UIint64', 'Integer',
     'UInt64', 'UInt32', 'Boolean', 'string', 'bytes',
     'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
+  DelphiKeywords: array [0 .. 64] of string = (
+    'and', 'array', 'as', 'asm', 'begin', 'case', 'class', 'const',
+    'constructor', 'destructor', 'dispinterface', 'div', 'do', 'downto',
+    'else', 'end', 'except', 'exports', 'file', 'finalization', 'finally',
+    'for', 'function', 'goto', 'if',  'implementation', 'in', 'inherited',
+    'initialization', 'inline', 'interface', 'is', 'label', 'library',
+    'mod', 'nil', 'not', 'object', 'of', 'or', 'out', 'packed', 'procedure',
+    'program', 'property', 'raise', 'record', 'repeat', 'resourcestring',
+    'set', 'shl', 'shr', 'string', 'then', 'threadvar', 'to', 'try',
+    'type', 'unit', 'until', 'uses', 'var', 'while', 'with', 'xor');
 
 implementation
 
@@ -443,16 +457,37 @@ end;
 
 {$Region 'TObjDesc'}
 
-function TObjDesc.DelphiName: string;
-begin
-  Result := AsCamel(name);
-end;
-
 class function TObjDesc.GetInstance(cls: TMode): PObj;
 begin
   New(Result);
   Result^ := Default(TObjDesc);
   Result.cls := TMode.mUnknown;
+end;
+
+function TObjDesc.DelphiName: string;
+begin
+  Result := AsCamel(name);
+  if Keywords.IndexOf(Result) >= 0 then
+    Result := '&' + Result;
+end;
+
+function TObjDesc.AsField: string;
+begin
+  Result := 'F' + AsCamel(name);
+  if Keywords.IndexOf(Result) >= 0 then
+    Result := '&' + Result;
+end;
+
+function TObjDesc.AsType: string;
+begin
+  if Typ.form in [TTypeMode.tmUnknown .. TTypeMode.tmSint64] then
+    Result := DelphiEmbeddedTypes[Typ.form]
+  else
+  begin
+    Result := 'T' + AsCamel(name);
+    if Keywords.IndexOf(Result) >= 0 then
+      Result := '&' + Result;
+  end;
 end;
 
 procedure TObjDesc.AddOption(const name: string; const val: TConst);
@@ -470,14 +505,6 @@ begin
   if aux = nil then
     raise Exception.Create('AddOption error');
   aux.Update(name, val);
-end;
-
-function TObjDesc.AsType: string;
-begin
-  if Typ.form in [TTypeMode.tmUnknown .. TTypeMode.tmSint64] then
-    Result := DelphiEmbeddedTypes[Typ.form]
-  else
-    Result := 'T' + DelphiName;
 end;
 
 {$EndRegion}
@@ -563,7 +590,14 @@ end;
 {$Region 'TpbTable'}
 
 constructor TpbTable.Create;
+var
+  i: Integer;
 begin
+  inherited Create(nil);
+  TObjDesc.Keywords := TStringList.Create;
+  for i := Low(DelphiKeywords) to High(DelphiKeywords) do
+    TObjDesc.Keywords.Add(DelphiKeywords[i]);
+  TObjDesc.Keywords.Sorted := True;
 end;
 
 procedure TpbTable.Init(Parser: TBaseParser);
@@ -574,6 +608,7 @@ end;
 
 destructor TpbTable.Destroy;
 begin
+  TObjDesc.Keywords.Free;
   // todo: start using memory regions
   inherited;
 end;
