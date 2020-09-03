@@ -446,7 +446,8 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
 Option<obj>
 | EnumField
 | EmptyStatement
-} "}"                        (. tab.CloseScope; .)
+} "}"                        (. obj.typ.dsc := tab.TopScope.next;
+                                tab.CloseScope; .)
 .
 
 EnumField                    (. var

@@ -344,6 +344,7 @@ begin
     end;
   end;
   Expect(11);
+  obj.typ.dsc := tab.TopScope.next;
   tab.CloseScope;
 end;
 

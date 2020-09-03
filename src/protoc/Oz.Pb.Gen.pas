@@ -20,6 +20,7 @@ type
     sb: TStringBuilder;
     function GetCode: string;
     // Wrappers for TStringBuilder
+    procedure Wr(const s: string); overload;
     procedure Wr(const f: string; const Args: array of const); overload;
     procedure Wrln; overload;
     procedure Wrln(const s: string); overload;
@@ -182,6 +183,11 @@ begin
   Result := sb.ToString;
 end;
 
+procedure TGen.Wr(const s: string);
+begin
+  sb.Append(s);
+end;
+
 procedure TGen.Wr(const f: string; const Args: array of const);
 begin
   sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
@@ -194,7 +200,8 @@ end;
 
 procedure TGen.Wrln(const s: string);
 begin
-  sb.AppendLine(Blank(IndentLevel * 2) + s);end;
+  sb.AppendLine(Blank(IndentLevel * 2) + s);
+end;
 
 procedure TGen.Wrln(const f: string; const Args: array of const);
 begin
@@ -216,18 +223,21 @@ end;
 
 procedure TGen.EnumDecl(obj: PObj);
 var
+  x: PObj;
   n: Integer;
 begin
   Wrln('T%s = (', [obj.Name]);
-  while obj <> tab.Guard do
+  x := obj.typ.dsc;
+  while x <> tab.Guard do
   begin
-    n := obj.val.AsInt64;
-    Wr('  %s = %d', [obj.Name, n]);
-    obj := obj.next;
-    if obj <> tab.Guard then
-      Wrln(',')
+    n := x.val.AsInt64;
+    Wr('  %s = %d', [x.Name, n]);
+    x := x.next;
+    if x <> tab.Guard then
+      Wr(',')
     else
-      Wrln(');');
+      Wr(');');
+    Wrln;
   end;
   Wrln;
 end;
