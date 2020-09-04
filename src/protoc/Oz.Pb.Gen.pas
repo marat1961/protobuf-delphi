@@ -111,8 +111,13 @@ begin
   Wrln('  System.Classes, System.SysUtils, Generics.Collections,');
   Wrln('  pbPublic, pbInput, pbOutput;');
   Wrln;
-  ModelDecl;
-  IoDecl;
+  Indent;
+  try
+    ModelDecl;
+    IoDecl;
+  finally
+    Dedent;
+  end;
   Wrln('implementation');
   Wrln;
   ModelImpl;
@@ -127,25 +132,20 @@ var
 begin
   Wrln('type');
   Wrln;
-  Indent;
-  try
-    obj := tab.Module.Obj; // root proto file
-    x := obj.dsc;
-    while x <> nil do
+  obj := tab.Module.Obj; // root proto file
+  x := obj.dsc;
+  while x <> nil do
+  begin
+    if x.cls = TMode.mType then
     begin
-      if x.cls = TMode.mType then
-      begin
-        typ := x.typ;
-        case typ.form of
-          TTypeMode.tmEnum: EnumDecl(x);
-          TTypeMode.tmMessage: MessageDecl(x);
-          TTypeMode.tmMap: MapDecl(x);
-        end;
+      typ := x.typ;
+      case typ.form of
+        TTypeMode.tmEnum: EnumDecl(x);
+        TTypeMode.tmMessage: MessageDecl(x);
+        TTypeMode.tmMap: MapDecl(x);
       end;
-      x := x.next;
     end;
-  finally
-    Dedent;
+    x := x.next;
   end;
 end;
 
@@ -380,7 +380,6 @@ begin
   Wrln('%sReader = class', [msgType]);
   Wrln('private');
   Wrln('  FPb: TProtoBufInput;');
-  MessageDecl(msg);
   s := AsCamel(msg.Name);
   t := msg.DelphiName;
   Wrln('  procedure Load%s(%s: %s);', [s, msg.Name, t]);
@@ -461,7 +460,7 @@ begin
   Wrln('  Result := FPb;');
   Wrln('end');
   Wrln;
-  Wrln('procedure %sWriter.Wra%s: %s);', [msg.DelphiName, msg.Name, msg.DelphiName]);
+  Wrln('procedure %sWriter.Write(%s: %s);', [msg.AsType, msg.Name, msg.DelphiName]);
   Wrln('var');
   Wrln('  i: Integer;');
   Wrln('begin');
