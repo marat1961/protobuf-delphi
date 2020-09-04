@@ -332,7 +332,7 @@ var
 begin
   typ := msg.typ;
   // parameterless constructor
-  t := msg.DelphiName;
+  t := msg.AsType;
   Wrln('constructor %s.Create;', [t]);
   Wrln('begin');
   Indent;
@@ -350,7 +350,7 @@ begin
   Wrln('end;');
   Wrln;
 
-  Wrln('destructor %s.Destroy;', [msg.DelphiName]);
+  Wrln('destructor %s.Destroy;', [t]);
   Wrln('begin');
   Indent;
   try
@@ -372,23 +372,20 @@ end;
 procedure TGen.ReaderDecl(msg: PObj);
 var
   typ: PType;
-  msgType, s, t: string;
+  s, t: string;
 begin
   typ := msg.typ;
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  msgType := msg.DelphiName;
-  Wrln('%sReader = class', [msgType]);
+  s := msg.DelphiName;
+  t := msg.AsType;
+  Wrln('%sReader = class', [t]);
   Wrln('private');
   Wrln('  FPb: TProtoBufInput;');
-  s := AsCamel(msg.Name);
-  t := msg.DelphiName;
-  Wrln('  procedure Load%s(%s: %s);', [s, msg.Name, t]);
+  Wrln('  procedure Load%s(%s: %s);', [s, msg.name, t]);
   Wrln('public');
   Wrln('  constructor Create;');
   Wrln('  destructor Destroy; override;');
   Wrln('  function GetPb: TProtoBufInput;');
-  s := AsCamel(msg.Name);
-  t := msg.DelphiName;
   Wrln('  procedure Load(%s: %s);', [s, t]);
   Wrln('end;');
   Wrln;
@@ -398,16 +395,18 @@ procedure TGen.ReaderImpl(msg: PObj);
 var
   x: PObj;
   typ: PType;
+  s, t: string;
 begin
   typ := msg.typ;
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  Wrln('function %sReader.GetPb: TProtoBufOutput;', [msg.DelphiName]);
+  s := msg.DelphiName;
+  t := msg.AsType;
+  Wrln('function %sReader.GetPb: TProtoBufOutput;', [t]);
   Wrln('begin');
   Wrln('  Result := FPb;');
   Wrln('end;');
   Wrln;
-  Wrln('procedure %sReader.Load(%s: %s);',
-    [msg.DelphiName, AsCamel(msg.Name), msg.DelphiName]);
+  Wrln('procedure %sReader.Load(%s: %s);',  [t, s, t]);
   Wrln('var');
   Wrln('  tag, fieldNumber, wireType: integer;');
   Wrln('begin');
@@ -437,8 +436,15 @@ begin
 end;
 
 procedure TGen.WriterDecl(msg: PObj);
+var
+  typ: PType;
+  s, t: string;
 begin
-  Wrln(msg.DelphiName + 'Writer = class');
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  s := msg.DelphiName;
+  t := msg.AsType;
+  Wrln('%sWriter = class', [t]);
   Wrln('private');
   Wrln('  FPb: TProtoBufOutput;');
   Wrln('public');
@@ -454,31 +460,35 @@ procedure TGen.WriterImpl(msg: PObj);
 var
   typ: PType;
   x: PObj;
+  s, t: string;
 begin
-  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [msg.DelphiName]);
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  s := msg.DelphiName;
+  t := msg.AsType;
+  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [t]);
   Wrln('begin');
   Wrln('  Result := FPb;');
   Wrln('end');
   Wrln;
-  Wrln('procedure %sWriter.Write(%s: %s);', [msg.AsType, msg.Name, msg.DelphiName]);
+  Wrln('procedure %sWriter.Write(%s: %s);', [t, s, t]);
   Wrln('var');
   Wrln('  i: Integer;');
   Wrln('begin');
   Indent;
   try
+    typ := msg.typ;
+    x := typ.dsc;
+    while x <> tab.Guard do
+    begin
+      FieldWrite(x);
+      x := x.next;
+    end;
   finally
     Dedent;
   end;
   Wrln('end;');
   Wrln('');
-
-  typ := msg.typ;
-  x := typ.dsc;
-  while x <> tab.Guard do
-  begin
-    FieldWrite(x);
-    x := x.next;
-  end;
 end;
 
 procedure TGen.FieldTagDecl(obj: PObj);
@@ -599,19 +609,15 @@ begin
   o := obj.aux as TFieldOptions;
   n := obj.DelphiName;
   t := obj.typ.declaration.AsType;
-  Wrln('%s.ft%s:', [o.Msg.AsType, n]);
   Indent;
   try
-    Wrln('begin');
+    Wrln('%s.ft%s:', [o.Msg.AsType, n]);
     Indent;
     try
-      Wrln('Assert(wireType = WIRETYPE_LENGTH_DELIMITED);');
-      Wrln('person.Name := pb.readString;', []);
-      Wrln('%s.%s := FPb.read%s;', [o.Msg.name, n, t]);
+      Wrln('%s.%s := FPb.read%s;', [o.Msg.name, n, AsCamel(t)]);
     finally
       Dedent;
     end;
-    Wrln('end;');
   finally
     Dedent;
   end;
@@ -721,8 +727,8 @@ begin
   begin
     if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
     begin
-      WriterImpl(x);
       ReaderImpl(x);
+      WriterImpl(x);
     end;
     x := x.next;
   end;
