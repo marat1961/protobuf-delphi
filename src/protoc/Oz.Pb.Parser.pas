@@ -58,7 +58,7 @@ type
     procedure _floatLit(var n: Double);
     procedure _boolLit;
     procedure _FieldType(var typ: PType);
-    procedure _FieldDecl(ftyp: PType; rule: TFieldRule);
+    procedure _FieldDecl(msg: PObj; ftyp: PType; rule: TFieldRule);
     procedure _Type(var typ: PType);
     procedure _MapType(var typ: PType);
     procedure _OneOfType(var typ: PType);
@@ -398,7 +398,6 @@ procedure TpbParser._Field(var typ: PType);
 var
   rule: TFieldRule;
   ftyp: PType;
-  x: PObj;
 begin
   rule := TFieldRule.Singular;
   if (la.kind = 33) or (la.kind = 34) or (la.kind = 35) then
@@ -420,7 +419,7 @@ begin
   end;
   _FieldType(ftyp);
   tab.OpenScope;
-  _FieldDecl(ftyp, rule);
+  _FieldDecl(typ.declaration, ftyp, rule);
   tab.Concatenate(typ.dsc);
   tab.CloseScope;
   Expect(14);
@@ -694,7 +693,7 @@ begin
     SynErr(71);
 end;
 
-procedure TpbParser._FieldDecl(ftyp: PType; rule: TFieldRule);
+procedure TpbParser._FieldDecl(msg: PObj; ftyp: PType; rule: TFieldRule);
 var
   obj: PObj;
   id: string;
@@ -705,7 +704,7 @@ begin
   obj.typ := ftyp;
   Expect(13);
   _FieldNumber(tag);
-  obj.aux := TFieldOptions.Create(obj, tag, rule);
+  obj.aux := TFieldOptions.Create(obj, msg, tag, rule);
   if la.kind = 36 then
   begin
     Get;
@@ -901,7 +900,7 @@ procedure TpbParser._OneOfField(typ: PType);
 var ftyp: PType;
 begin
   _Type(ftyp);
-  _FieldDecl(ftyp, TFieldRule.Singular);
+  _FieldDecl(typ.declaration, ftyp, TFieldRule.Singular);
 end;
 
 procedure TpbParser._Ranges(Reserved: TIntSet);

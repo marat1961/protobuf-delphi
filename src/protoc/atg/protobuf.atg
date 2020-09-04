@@ -278,7 +278,8 @@ Field<var typ: PType>        (. var
 | "required"
 ]
 FieldType<ftyp>              (. tab.OpenScope; .)
-FieldDecl<ftyp, rule>        (. tab.Concatenate(typ.dsc);
+FieldDecl<typ.declaration, ftyp, rule>
+                             (. tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
 ";"
 .
@@ -290,7 +291,7 @@ FieldType<var typ: PType>
 | OneOfType<typ>
 .
 
-FieldDecl<ftyp: PType; rule: TFieldRule>
+FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
                              (. var
                                   obj: PObj;
                                   id: string;
@@ -299,7 +300,7 @@ FieldDecl<ftyp: PType; rule: TFieldRule>
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
                                 obj.typ := ftyp; .)
 "="
-FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule); .)
+FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, msg, tag, rule); .)
 [ "[" FieldOption<obj>
 { ","  FieldOption<obj> } "]" ]
 .
@@ -354,7 +355,7 @@ Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
 OneOfField<typ: PType>       (. var ftyp: PType;  .)
 =
 Type<ftyp>
-FieldDecl<ftyp, TFieldRule.Singular>
+FieldDecl<typ.declaration, ftyp, TFieldRule.Singular>
 .
 
 FieldOption<const obj: PObj> (. var

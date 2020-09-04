@@ -254,7 +254,7 @@ type
     // The default value for field
     Default: string;
   public
-    constructor Create(Obj: PObj; Tag: Integer; Rule: TFieldRule);
+    constructor Create(Obj, Msg: PObj; Tag: Integer; Rule: TFieldRule);
   end;
 
 {$EndRegion}
@@ -550,9 +550,10 @@ end;
 
 {$Region 'TFieldOptions'}
 
-constructor TFieldOptions.Create(Obj: PObj; Tag: Integer; Rule: TFieldRule);
+constructor TFieldOptions.Create(Obj, Msg: PObj; Tag: Integer; Rule: TFieldRule);
 begin
   inherited Create(Obj);
+  Self.Msg := Msg;
   Self.Tag := Tag;
   Self.Rule := Rule;
 end;

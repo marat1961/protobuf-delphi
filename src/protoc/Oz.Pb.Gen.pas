@@ -35,55 +35,40 @@ type
     // Map code
     procedure MapDecl(obj: PObj);
 
-    // Message code
-    procedure MessageDecl(msg: PObj);
-    procedure MessageImpl(msg: PObj);
-    procedure MessageWrite(msg: PObj);
-    procedure MessageRead(msg: PObj);
-    
     // Field code
     // constant declarations for field tags
     procedure FieldTagDecl(obj: PObj);
     // field declaration
     procedure FieldDecl(obj: PObj);
-    (* field property
-       // here can be field comment
-       Id: Integer read FId write FId; *)
+    // field property
     procedure FieldProperty(obj: PObj);
-    (* Initialize field value
-       We set fields
-       repeating fields
-         FPhones := TList<TPhoneNumber>.Create;
-       map fields
-         FTags := TDictionary<Integer, TpbField>.Create;
-       fields for which the default value is not empty.
-         FTyp := ptHOME; *)
+    // Initialize field value
     procedure FieldInit(obj: PObj);
-    (* Free field *)
+    // Free field
     procedure FieldFree(obj: PObj);
-    (* field read from buffer
-       TPerson.ftName:
-         begin
-           Assert(wireType = TWire.LENGTH_DELIMITED);
-           person.Name := pb.readString;
-         end; *)
+    // Field read from buffer
     procedure FieldRead(obj: PObj);
-    (* field read from buffer
-       pb.writeString(TPerson.ftName, Person.Name); *)
+    // write field to buffer
     procedure FieldWrite(obj: PObj);
-    (* field reflection
-       under consruction *)
+    // field reflection
     procedure FieldReflection(obj: PObj);
 
-    // Top level code
-    procedure GenDataStructures;
-    procedure GenIO;
-    procedure GenComment(const comment: string);
     procedure LoadMessage(msg: PObj);
-    procedure WriterInterface(msg: PObj);
-    procedure ReaderInterface(msg: PObj);
-    procedure WriterImplementation(msg: PObj);
-    procedure ReaderImplementation(msg: PObj);
+    procedure GenComment(const comment: string);
+
+    // Message code
+    procedure MessageDecl(msg: PObj);
+    procedure MessageImpl(msg: PObj);
+    procedure ReaderDecl(msg: PObj);
+    procedure ReaderImpl(msg: PObj);
+    procedure WriterDecl(msg: PObj);
+    procedure WriterImpl(msg: PObj);
+
+    // Top level code
+    procedure ModelDecl;
+    procedure ModelImpl;
+    procedure IoDecl;
+    procedure IoImpl;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -126,16 +111,16 @@ begin
   Wrln('  System.Classes, System.SysUtils, Generics.Collections,');
   Wrln('  pbPublic, pbInput, pbOutput;');
   Wrln;
-  GenDataStructures;
+  ModelDecl;
+  IoDecl;
+  Wrln('implementation');
+  Wrln;
+  ModelImpl;
+  IoImpl;
   Wrln('end;');
 end;
 
-procedure TGen.GenIO;
-begin
-
-end;
-
-procedure TGen.GenDataStructures;
+procedure TGen.ModelDecl;
 var
   obj, x: PObj;
   typ: PType;
@@ -162,9 +147,14 @@ begin
   finally
     Dedent;
   end;
+end;
 
-  Wrln('implementation');
-  Wrln;
+procedure TGen.ModelImpl;
+var
+  obj, x: PObj;
+  typ: PType;
+begin
+  obj := tab.Module.Obj; // root proto file
   x := obj.dsc;
   while x <> tab.Guard do
   begin
@@ -379,11 +369,110 @@ begin
   Wrln;
 end;
 
-procedure TGen.MessageWrite(msg: PObj);
+procedure TGen.ReaderDecl(msg: PObj);
+var
+  typ: PType;
+  msgType, s, t: string;
+begin
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  msgType := msg.DelphiName;
+  Wrln('%sReader = class', [msgType]);
+  Wrln('private');
+  Wrln('  FPb: TProtoBufInput;');
+  MessageDecl(msg);
+  s := AsCamel(msg.Name);
+  t := msg.DelphiName;
+  Wrln('  procedure Load%s(%s: %s);', [s, msg.Name, t]);
+  Wrln('public');
+  Wrln('  constructor Create;');
+  Wrln('  destructor Destroy; override;');
+  Wrln('  function GetPb: TProtoBufInput;');
+  s := AsCamel(msg.Name);
+  t := msg.DelphiName;
+  Wrln('  procedure Load(%s: %s);', [s, t]);
+  Wrln('end;');
+  Wrln;
+end;
+
+procedure TGen.ReaderImpl(msg: PObj);
 var
   x: PObj;
   typ: PType;
 begin
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  Wrln('function %sReader.GetPb: TProtoBufOutput;', [msg.DelphiName]);
+  Wrln('begin');
+  Wrln('  Result := FPb;');
+  Wrln('end;');
+  Wrln;
+  Wrln('procedure %sReader.Load(%s: %s);',
+    [msg.DelphiName, AsCamel(msg.Name), msg.DelphiName]);
+  Wrln('var');
+  Wrln('  tag, fieldNumber, wireType: integer;');
+  Wrln('begin');
+  Indent;
+  LoadMessage(msg);
+  Wrln('tag := FPb.readTag;');
+  Wrln('while tag <> 0 do');
+  Wrln('begin');
+  Indent;
+  Wrln('wireType := getTagWireType(tag);');
+  Wrln('fieldNumber := getTagFieldNumber(tag);');
+  Wrln('tag := FPb.readTag;');
+  Wrln('case fieldNumber of');
+  x := typ.dsc;
+  while x <> tab.Guard do
+  begin
+    FieldRead(x);
+    x := x.next;
+  end;
+  Wrln('else');
+  Wrln('  FPb.skipField(tag);');
+  Dedent;
+  Wrln('end;');
+  Dedent;
+  Wrln('end;');
+  Wrln('');
+end;
+
+procedure TGen.WriterDecl(msg: PObj);
+begin
+  Wrln(msg.DelphiName + 'Writer = class');
+  Wrln('private');
+  Wrln('  FPb: TProtoBufOutput;');
+  Wrln('public');
+  Wrln('  constructor Create;');
+  Wrln('  destructor Destroy; override;');
+  Wrln('  function GetPb: TProtoBufOutput;');
+  Wrln('  procedure Write(' + AsCamel(msg.Name) + ': ' + msg.DelphiName + ');');
+  Wrln('end;');
+  Wrln;
+end;
+
+procedure TGen.WriterImpl(msg: PObj);
+var
+  typ: PType;
+  x: PObj;
+begin
+  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [msg.DelphiName]);
+  Wrln('begin');
+  Wrln('  Result := FPb;');
+  Wrln('end');
+  Wrln;
+  Wrln('procedure %sWriter.Wra%s: %s);', [msg.DelphiName, msg.Name, msg.DelphiName]);
+  Wrln('var');
+  Wrln('  i: Integer;');
+  Wrln('begin');
+  Indent;
+  try
+  finally
+    Dedent;
+  end;
+  Wrln('end;');
+  Wrln('');
+
   typ := msg.typ;
   x := typ.dsc;
   while x <> tab.Guard do
@@ -393,30 +482,18 @@ begin
   end;
 end;
 
-procedure TGen.MessageRead(msg: PObj);
-var
-  x: PObj;
-  typ: PType;
-begin
-  typ := msg.typ;
-  x := typ.dsc;
-  while x <> tab.Guard do
-  begin
-    FieldRead(x);
-    x := x.next;
-  end;
-end;
-
 procedure TGen.FieldTagDecl(obj: PObj);
 var 
   n: string;
   o: TFieldOptions;
 begin
+(*
+   ftId = 1;
+*)
   o := obj.aux as TFieldOptions;
   n := AsCamel(obj.name);
   if o.Rule = TFieldRule.Repeated then
     n := Plural(n);
-  // ftId = 1; ftPhones = 5;
   Wrln('ft%s = %d;', [n, o.Tag]);
 end;
 
@@ -425,6 +502,9 @@ var
   n, t: string;
   o: TFieldOptions;
 begin
+(*
+   FId: Integer;
+*)
   o := obj.aux as TFieldOptions;
   n := obj.AsField;
   t := obj.AsType;
@@ -439,6 +519,10 @@ var
   ro: Boolean;
   o: TFieldOptions;
 begin
+(*
+  // here can be field comment
+  Id: Integer read FId write FId;
+*)
   o := obj.aux as TFieldOptions;
   ro := o.ReadOnly;
   n := obj.DelphiName;
@@ -461,16 +545,19 @@ begin
   Wrln(s);
 end;
 
-procedure TGen.FieldReflection(obj: PObj);
-begin
-  raise Exception.Create('under consruction');
-end;
-
 procedure TGen.FieldInit(obj: PObj);
 var
   f, t: string;
   o: TFieldOptions;
 begin
+(*
+   repeating fields
+     FPhones := TList<TPhoneNumber>.Create;
+   map fields
+     FTags := TDictionary<Integer, TpbField>.Create;
+   fields for which the default value is not empty.
+     FTyp := ptHOME;
+*)
   o := obj.aux as TFieldOptions;
   f := obj.AsField;
   t := obj.AsType;
@@ -495,13 +582,25 @@ end;
 
 procedure TGen.FieldRead(obj: PObj);
 var
-  m, n: string;
+  n, t: string;
   o: TFieldOptions;
 begin
+(*
+  TPerson.ftName:
+    begin
+      Assert(wireType = TWire.LENGTH_DELIMITED);
+      person.Name := pb.readString;
+    end;
+
+    Wrln('%s.ft%s:', [msg.DelphiName, AsCamel(x.Name)]);
+    Indent;
+    Dedent;
+
+*)
   o := obj.aux as TFieldOptions;
-  m := o.Msg.AsType;
-  n := AsCamel(obj.name);
-  Wrln('%s.ft%s:', [m, n]);
+  n := obj.DelphiName;
+  t := obj.typ.declaration.AsType;
+  Wrln('%s.ft%s:', [o.Msg.AsType, n]);
   Indent;
   try
     Wrln('begin');
@@ -509,6 +608,7 @@ begin
     try
       Wrln('Assert(wireType = WIRETYPE_LENGTH_DELIMITED);');
       Wrln('person.Name := pb.readString;', []);
+      Wrln('%s.%s := FPb.read%s;', [o.Msg.name, n, t]);
     finally
       Dedent;
     end;
@@ -541,8 +641,11 @@ var
   end;
 
 begin
+(*
+  FPb.WriteString(TPerson.ftName, Person.Name);
+*)
   o := obj.aux as TFieldOptions;
-  m := AsCamel(o.msg.Name);
+  m := AsCamel(o.Msg.Name);
   t := obj.AsType;
   if o.Default = '' then
     Process
@@ -557,6 +660,11 @@ begin
       Dedent;
     end;
   end;
+end;
+
+procedure TGen.FieldReflection(obj: PObj);
+begin
+  raise Exception.Create('under consruction');
 end;
 
 procedure TGen.GenComment(const comment: string);
@@ -581,117 +689,44 @@ begin
     begin
       typ := obj.typ;
       if typ.form = TTypeMode.tmMessage then
-        LoadMessage(obj);
+//        LoadMessage(obj);
     end;
     obj := obj.next;
   end;
 end;
 
-procedure TGen.WriterInterface(msg: PObj);
-begin
-  Wrln(msg.DelphiName + 'Writer = class');
-  Wrln('private');
-  Wrln('  FPb: TProtoBufOutput;');
-  Wrln('public');
-  Wrln('  constructor Create;');
-  Wrln('  destructor Destroy; override;');
-  Wrln('  function GetPb: TProtoBufOutput;');
-  Wrln('  procedure Write(' + AsCamel(msg.Name) + ': ' + msg.DelphiName + ');');
-  Wrln('end;');
-  Wrln;
-end;
-
-procedure TGen.WriterImplementation(msg: PObj);
-begin
-  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [msg.DelphiName]);
-  Wrln('begin');
-  Wrln('  Result := FPb;');
-  Wrln('end');
-  Wrln;
-  Wrln('procedure %sWriter.Wra%s: %s);', [msg.DelphiName, msg.Name, msg.DelphiName]);
-  Wrln('var');
-  Wrln('  i: Integer;');
-  Wrln('begin');
-  Indent;
-  try
-    MessageImpl(msg);
-  finally
-    Dedent;
-  end;
-  Wrln('end;');
-  Wrln('');
-end;
-
-procedure TGen.ReaderInterface(msg: PObj);
+procedure TGen.IoDecl;
 var
-  typ: PType;
-  msgType, s, t: string;
+  obj, x: PObj;
 begin
-  typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  msgType := msg.DelphiName;
-  Wrln('%sReader = class', [msgType]);
-  Wrln('private');
-  Wrln('  FPb: TProtoBufInput;');
-  MessageDecl(msg);
-  s := AsCamel(msg.Name);
-  t := msg.DelphiName;
-  Wrln('  procedure Load%s(%s: %s);', [s, msg.Name, t]);
-  Wrln('public');
-  Wrln('  constructor Create;');
-  Wrln('  destructor Destroy; override;');
-  Wrln('  function GetPb: TProtoBufInput;');
-  s := AsCamel(msg.Name);
-  t := msg.DelphiName;
-  Wrln('  procedure Load(%s: %s);', [s, t]);
-  Wrln('end;');
-  Wrln;
-end;
-
-procedure TGen.ReaderImplementation(msg: PObj);
-var
-  f: PObj;
-  typ: PType;
-begin
-  typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  Wrln('function %Reader.GetPb: TProtoBufOutput;', [msg.DelphiName]);
-  Wrln('begin');
-  Wrln('  Result := FPb;');
-  Wrln('end;');
-  Wrln;
-  Wrln('procedure %sReader.Load(%s: %s);',
-    [msg.DelphiName, AsCamel(msg.Name), msg.DelphiName]);
-  Wrln('var');
-  Wrln('  tag, fieldNumber, wireType: integer;');
-  Wrln('begin');
-  Indent;
-  LoadMessage(msg);
-  Wrln('tag := FPb.readTag;');
-  Wrln('while tag <> 0 do');
-  Wrln('begin');
-  Indent;
-  Wrln('wireType := getTagWireType(tag);');
-  Wrln('fieldNumber := getTagFieldNumber(tag);');
-  Wrln('tag := FPb.readTag;');
-  Wrln('case fieldNumber of');
-  f := typ.dsc;
-  while f <> tab.Guard do
+  obj := tab.Module.Obj; // root proto file
+  x := obj.dsc;
+  while x <> nil do
   begin
-    Wrln('%s.ft%s:', [msg.DelphiName, AsCamel(f.Name)]);
-    Indent;
-    Wrln('  %s.%s := FPb.read%s;', [AsCamel(f.Name), AsCamel(f.Name),
-      f.DelphiName]);
-    Dedent;
-    f := f.next;
+    if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
+    begin
+      ReaderDecl(x);
+      WriterDecl(x);
+    end;
+    x := x.next;
   end;
-  Wrln('else');
-  Wrln('  FPb.skipField(tag);');
-  Dedent;
-  Wrln('end;');
-  Dedent;
-  Wrln('end;');
-  Wrln('');
+end;
+
+procedure TGen.IoImpl;
+var
+  obj, x: PObj;
+begin
+  obj := tab.Module.Obj; // root proto file
+  x := obj.dsc;
+  while x <> nil do
+  begin
+    if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
+    begin
+      WriterImpl(x);
+      ReaderImpl(x);
+    end;
+    x := x.next;
+  end;
 end;
 
 {$EndRegion}
