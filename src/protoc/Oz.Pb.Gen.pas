@@ -111,6 +111,8 @@ begin
   Wrln('  System.Classes, System.SysUtils, Generics.Collections,');
   Wrln('  pbPublic, pbInput, pbOutput;');
   Wrln;
+  Wrln('type');
+  Wrln;
   Indent;
   try
     ModelDecl;
@@ -130,8 +132,6 @@ var
   obj, x: PObj;
   typ: PType;
 begin
-  Wrln('type');
-  Wrln;
   obj := tab.Module.Obj; // root proto file
   x := obj.dsc;
   while x <> nil do
@@ -308,7 +308,7 @@ begin
   Indent;
   try
     Wrln('constructor Create;');
-    Wrln('destructor Destoy; override;');
+    Wrln('destructor Destroy; override;');
     Wrln('// properties');
     x := typ.dsc;
     while x <> tab.Guard do
@@ -518,7 +518,10 @@ begin
   n := obj.AsField;
   t := obj.AsType;
   if o.Rule = TFieldRule.Repeated then
+  begin
+    n := Plural(n);
     t := Format(RepeatedCollection, [t]);
+  end;
   Wrln('%s: %s;', [n, t]);
 end;
 

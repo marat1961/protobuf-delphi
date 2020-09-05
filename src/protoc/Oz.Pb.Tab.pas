@@ -484,7 +484,7 @@ begin
     Result := DelphiEmbeddedTypes[Typ.form]
   else
   begin
-    Result := 'T' + AsCamel(name);
+    Result := 'T' + AsCamel(typ.declaration.name);
     if Keywords.IndexOf(Result) >= 0 then
       Result := '&' + Result;
   end;
