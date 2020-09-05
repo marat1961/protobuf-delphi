@@ -35,10 +35,11 @@ type
     // Map code
     procedure MapDecl(obj: PObj);
 
-    // Field code
-    // constant declarations for field tags
+    // Field tag ident
+    function FieldTag(obj: PObj): string;
+    // Field tag declaration
     procedure FieldTagDecl(obj: PObj);
-    // field declaration
+    // Field declaration
     procedure FieldDecl(obj: PObj);
     // field property
     procedure FieldProperty(obj: PObj);
@@ -102,14 +103,13 @@ procedure TGen.GenerateCode;
 var
   ns: string;
 begin
-  ns := Tab.Module.NameSpace;
+  ns := AsCamel(Tab.Module.Name);
   Wrln('unit %s;', [ns]);
   Wrln;
   Wrln('interface');
   Wrln;
   Wrln('uses');
-  Wrln('  System.Classes, System.SysUtils, Generics.Collections,');
-  Wrln('  pbPublic, pbInput, pbOutput;');
+  Wrln('  System.Classes, System.SysUtils, Generics.Collections, Oz.Pb.Classes;');
   Wrln;
   Wrln('type');
   Wrln;
@@ -378,14 +378,12 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('%sReader = class', [t]);
+  Wrln('%sReader = class(TpbCustomReader)', [t]);
   Wrln('private');
-  Wrln('  FPb: TProtoBufInput;');
   Wrln('  procedure Load%s(%s: %s);', [s, msg.name, t]);
   Wrln('public');
   Wrln('  constructor Create;');
   Wrln('  destructor Destroy; override;');
-  Wrln('  function GetPb: TProtoBufInput;');
   Wrln('  procedure Load(%s: %s);', [s, t]);
   Wrln('end;');
   Wrln;
@@ -401,24 +399,20 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('function %sReader.GetPb: TProtoBufOutput;', [t]);
-  Wrln('begin');
-  Wrln('  Result := FPb;');
-  Wrln('end;');
-  Wrln;
   Wrln('procedure %sReader.Load(%s: %s);',  [t, s, t]);
   Wrln('var');
-  Wrln('  tag, fieldNumber, wireType: integer;');
+  Wrln('  tag: TpbTag;');
+  Wrln('  fieldNumber, wireType: integer;');
   Wrln('begin');
   Indent;
   LoadMessage(msg);
-  Wrln('tag := FPb.readTag;');
-  Wrln('while tag <> 0 do');
+  Wrln('tag := Pb.readTag;');
+  Wrln('while tag.v <> 0 do');
   Wrln('begin');
   Indent;
-  Wrln('wireType := getTagWireType(tag);');
-  Wrln('fieldNumber := getTagFieldNumber(tag);');
-  Wrln('tag := FPb.readTag;');
+  Wrln('wireType := tag.WireType;');
+  Wrln('fieldNumber := tag.FieldNumber;');
+  Wrln('tag := Pb.readTag;');
   Wrln('case fieldNumber of');
   x := typ.dsc;
   while x <> tab.Guard do
@@ -427,7 +421,7 @@ begin
     x := x.next;
   end;
   Wrln('else');
-  Wrln('  FPb.skipField(tag);');
+  Wrln('  Pb.skipField(tag);');
   Dedent;
   Wrln('end;');
   Dedent;
@@ -444,14 +438,11 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('%sWriter = class', [t]);
-  Wrln('private');
-  Wrln('  FPb: TProtoBufOutput;');
+  Wrln('%sWriter = class(TpbCustomWriter)', [t]);
   Wrln('public');
   Wrln('  constructor Create;');
   Wrln('  destructor Destroy; override;');
-  Wrln('  function GetPb: TProtoBufOutput;');
-  Wrln('  procedure Write(' + AsCamel(msg.Name) + ': ' + msg.DelphiName + ');');
+  Wrln('  procedure Save(%s: %s);', [s, t]);
   Wrln('end;');
   Wrln;
 end;
@@ -466,12 +457,7 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('function %sWriter.GetPb: TProtoBufOutput;', [t]);
-  Wrln('begin');
-  Wrln('  Result := FPb;');
-  Wrln('end');
-  Wrln;
-  Wrln('procedure %sWriter.Write(%s: %s);', [t, s, t]);
+  Wrln('procedure %sWriter.Save(%s: %s);', [t, s, t]);
   Wrln('var');
   Wrln('  i: Integer;');
   Wrln('begin');
@@ -491,19 +477,29 @@ begin
   Wrln('');
 end;
 
-procedure TGen.FieldTagDecl(obj: PObj);
-var 
+function TGen.FieldTag(obj: PObj): string;
+var
   n: string;
   o: TFieldOptions;
 begin
 (*
-   ftId = 1;
+   ftId | ftPhones
 *)
   o := obj.aux as TFieldOptions;
   n := AsCamel(obj.name);
   if o.Rule = TFieldRule.Repeated then
     n := Plural(n);
-  Wrln('ft%s = %d;', [n, o.Tag]);
+  Result := 'ft' + n;
+end;
+
+procedure TGen.FieldTagDecl(obj: PObj);
+var o: TFieldOptions;
+begin
+(*
+   ftId = 1;
+*)
+  o := obj.aux as TFieldOptions;
+  Wrln('%s = %d;', [FieldTag(obj), o.Tag]);
 end;
 
 procedure TGen.FieldDecl(obj: PObj);
@@ -576,7 +572,7 @@ begin
   if o.Default <> '' then
     Wrln('%s := %s;', [f, o.Default])
   else if o.Rule = TFieldRule.Repeated then
-    Wrln('%s := ' + RepeatedCollection + '.Create;', [f, t])
+    Wrln('%s := ' + RepeatedCollection + '.Create;', [Plural(f), t])
   else if obj.typ.form = TTypeMode.tmMap then
     Wrln('%s := %s.Create;', [f, t]);
 end;
@@ -588,8 +584,10 @@ var
 begin
   o := obj.aux as TFieldOptions;
   f := obj.AsField;
-  if (o.Rule = TFieldRule.Repeated) or (obj.typ.form = TTypeMode.tmMap) then
-    Wrln('%s.Free;', [f]);
+  if o.Rule = TFieldRule.Repeated then
+    Wrln('%s.Free;', [Plural(f)])
+  else if obj.typ.form = TTypeMode.tmMap then
+    Wrln('%s.Free;', [f])
 end;
 
 procedure TGen.FieldRead(obj: PObj);
@@ -604,23 +602,31 @@ begin
       person.Name := pb.readString;
     end;
 
-    Wrln('%s.ft%s:', [msg.DelphiName, AsCamel(x.Name)]);
-    Indent;
-    Dedent;
-
 *)
   o := obj.aux as TFieldOptions;
   n := obj.DelphiName;
-  t := obj.typ.declaration.AsType;
+  t := obj.typ.declaration.name;
   Indent;
   try
-    Wrln('%s.ft%s:', [o.Msg.AsType, n]);
+    Wrln('%s.%s:', [o.Msg.AsType, FieldTag(obj)]);
+    Wrln('begin');
     Indent;
     try
-      Wrln('%s.%s := FPb.read%s;', [o.Msg.name, n, AsCamel(t)]);
+      if o.Rule = TFieldRule.Repeated then
+      begin
+        Wrln('// %s.%s := Pb.read%s;', [o.Msg.name, n, AsCamel(t)]);
+        Wrln('var %s := %s.Create;', [n, obj.typ.declaration.AsType]);
+        Wrln('Person.FPhones.Add(%s);');
+        Wrln('LoadPhone(Phone);');
+      end
+      else
+      begin
+        Wrln('%s.%s := Pb.read%s;', [o.Msg.name, n, AsCamel(t)]);
+      end;
     finally
       Dedent;
     end;
+    Wrln('end;');
   finally
     Dedent;
   end;
@@ -635,14 +641,14 @@ var
   begin
     case obj.typ.form of
       TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
-        Wrln('FPb.Write%s(%s.ft%s, %s.%s);',
+        Wrln('Pb.Write%s(%s.ft%s, %s.%s);',
           [AsCamel(obj.name), m, obj.name, o.msg.name, obj.name]);
       TTypeMode.tmEnum:
-        Wrln('FPb.Write Enum');
+        Wrln('Pb.Write Enum');
       TTypeMode.tmMessage:
-        Wrln('FPb.Write Message');
+        Wrln('Pb.Write Message');
       TTypeMode.tmMap:
-        Wrln('FPb.Write Map');
+        Wrln('Pb.Write Map');
       else
         raise Exception.Create('unsupported field type');
     end;
@@ -650,7 +656,7 @@ var
 
 begin
 (*
-  FPb.WriteString(TPerson.ftName, Person.Name);
+  Pb.WriteString(TPerson.ftName, Person.Name);
 *)
   o := obj.aux as TFieldOptions;
   m := AsCamel(o.Msg.Name);
