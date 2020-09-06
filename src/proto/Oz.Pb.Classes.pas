@@ -200,30 +200,20 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbCustomReader: Basic class for reading the object state from the buffer'}
+{$Region 'TpbCustomReader: Base class for a builder'}
 
-  TpbCustomReader = class
+  // Builder to download or save the object using the protocol buffer.
+  TpbCustomBuilder = class
   private
-    FPb: TpbInput;
-    function GetPb: PpbInput;
+    Fpbi: TpbInput;
+    Fpbo: TpbOutput;
+    function GetPbi: PpbInput;
+    function GetPbo: PpbOutput;
   public
     constructor Create;
     destructor Destroy; override;
-    property Pb: PpbInput read GetPb;
-  end;
-
-{$EndRegion}
-
-{$Region 'TpbCustomWriter: Basic class for writing the object state into the buffer'}
-
-  TpbCustomWriter = class
-  private
-    FPb: TpbOutput;
-    function GetPb: PpbOutput;
-  public
-    constructor Create;
-    destructor Destroy; override;
-    property Pb: PpbOutput read GetPb;
+    property Pbi: PpbInput read GetPbi;
+    property Pbo: PpbOutput read GetPbo;
   end;
 
 {$EndRegion}
@@ -611,7 +601,7 @@ var
   tag: TpbTag;
 begin
   tag.MakeTag(fieldNumber, wireType);
-  writeRawVarint32(tag);
+  writeRawVarint32(tag.v);
 end;
 
 procedure TpbOutput.writeRawVarint32(value: Integer);
@@ -733,44 +723,30 @@ end;
 
 {$EndRegion}
 
-{$Region 'TpbCustomReader: Basic class for reading the object state from the buffer'}
+{$Region 'TpbCustomBuilder'}
 
-constructor TpbCustomReader.Create;
+constructor TpbCustomBuilder.Create;
 begin
   inherited;
-  FPb.Init;
+  FPbi.Init;
+  FPbo := TpbOutput.From;
 end;
 
-destructor TpbCustomReader.Destroy;
+destructor TpbCustomBuilder.Destroy;
 begin
-  FPb.Free;
-  inherited;
-end;
-
-function TpbCustomReader.GetPb: PpbInput;
-begin
-  Result := @FPb;
-end;
-
-{$EndRegion}
-
-{$Region 'TpbCustomWriter'}
-
-constructor TpbCustomWriter.Create;
-begin
-  inherited Create;
-  FPb := TpbOutput.From;
-end;
-
-destructor TpbCustomWriter.Destroy;
-begin
-  FPb.Free;
+  FPbi.Free;
+  FPbo.Free;
   inherited;
 end;
 
-function TpbCustomWriter.GetPb: PpbOutput;
+function TpbCustomBuilder.GetPbi: PpbInput;
 begin
-  Result := @FPb;
+  Result := @FPbi;
+end;
+
+function TpbCustomBuilder.GetPbo: PpbOutput;
+begin
+  Result := @FPbo;
 end;
 
 {$EndRegion}
