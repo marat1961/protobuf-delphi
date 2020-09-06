@@ -53,23 +53,22 @@ type
     procedure FieldWrite(obj: PObj);
     // field reflection
     procedure FieldReflection(obj: PObj);
-
-    procedure LoadMessage(msg: PObj);
     procedure GenComment(const comment: string);
 
     // Message code
+    procedure LocalVars(msg: PObj);
     procedure MessageDecl(msg: PObj);
     procedure MessageImpl(msg: PObj);
-    procedure ReaderDecl(msg: PObj);
-    procedure ReaderImpl(msg: PObj);
-    procedure WriterDecl(msg: PObj);
-    procedure WriterImpl(msg: PObj);
+    procedure LoadDecl(msg: PObj);
+    procedure SaveDecl(msg: PObj);
+    procedure LoadImpl(msg: PObj);
+    procedure SaveImpl(msg: PObj);
 
     // Top level code
     procedure ModelDecl;
     procedure ModelImpl;
-    procedure IoDecl;
-    procedure IoImpl;
+    procedure BuilderDecl;
+    procedure BuilderImpl;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -116,14 +115,14 @@ begin
   Indent;
   try
     ModelDecl;
-    IoDecl;
+    BuilderDecl;
   finally
     Dedent;
   end;
   Wrln('implementation');
   Wrln;
   ModelImpl;
-  IoImpl;
+  BuilderImpl;
   Wrln('end;');
 end;
 
@@ -369,27 +368,43 @@ begin
   Wrln;
 end;
 
-procedure TGen.ReaderDecl(msg: PObj);
+procedure TGen.LoadDecl(msg: PObj);
 var
   typ: PType;
-  s, t: string;
+  x: PObj;
 begin
   typ := msg.typ;
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  s := msg.DelphiName;
-  t := msg.AsType;
-  Wrln('%sReader = class(TpbCustomReader)', [t]);
-  Wrln('private');
-  Wrln('  procedure Load%s(%s: %s);', [s, msg.name, t]);
-  Wrln('public');
-  Wrln('  constructor Create;');
-  Wrln('  destructor Destroy; override;');
-  Wrln('  procedure Load(%s: %s);', [s, t]);
-  Wrln('end;');
-  Wrln;
+  Wrln('procedure Load%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+  x := msg.dsc;
+  while x <> tab.Guard do
+  begin
+    typ := x.typ;
+    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
+      LoadDecl(x);
+    x := x.next;
+  end;
 end;
 
-procedure TGen.ReaderImpl(msg: PObj);
+procedure TGen.SaveDecl(msg: PObj);
+var
+  typ: PType;
+  x: PObj;
+begin
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+  x := msg.dsc;
+  while x <> tab.Guard do
+  begin
+    typ := x.typ;
+    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
+      SaveDecl(x);
+    x := x.next;
+  end;
+end;
+
+procedure TGen.LoadImpl(msg: PObj);
 var
   x: PObj;
   typ: PType;
@@ -399,20 +414,17 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('procedure %sReader.Load(%s: %s);',  [t, s, t]);
-  Wrln('var');
-  Wrln('  tag: TpbTag;');
-  Wrln('  fieldNumber, wireType: integer;');
+  Wrln('procedure TpbBuilder.Load%s(%s: %s);',  [s, msg.name, t]);
+  LocalVars(msg);
   Wrln('begin');
   Indent;
-  LoadMessage(msg);
-  Wrln('tag := Pb.readTag;');
+  Wrln('tag := Pbi.readTag;');
   Wrln('while tag.v <> 0 do');
   Wrln('begin');
   Indent;
   Wrln('wireType := tag.WireType;');
   Wrln('fieldNumber := tag.FieldNumber;');
-  Wrln('tag := Pb.readTag;');
+  Wrln('tag := Pbi.readTag;');
   Wrln('case fieldNumber of');
   x := typ.dsc;
   while x <> tab.Guard do
@@ -420,8 +432,8 @@ begin
     FieldRead(x);
     x := x.next;
   end;
-  Wrln('else');
-  Wrln('  Pb.skipField(tag);');
+  Wrln('  else Pbi.skipField(tag);');
+  Wrln('end;');
   Dedent;
   Wrln('end;');
   Dedent;
@@ -429,25 +441,7 @@ begin
   Wrln('');
 end;
 
-procedure TGen.WriterDecl(msg: PObj);
-var
-  typ: PType;
-  s, t: string;
-begin
-  typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  s := msg.DelphiName;
-  t := msg.AsType;
-  Wrln('%sWriter = class(TpbCustomWriter)', [t]);
-  Wrln('public');
-  Wrln('  constructor Create;');
-  Wrln('  destructor Destroy; override;');
-  Wrln('  procedure Save(%s: %s);', [s, t]);
-  Wrln('end;');
-  Wrln;
-end;
-
-procedure TGen.WriterImpl(msg: PObj);
+procedure TGen.SaveImpl(msg: PObj);
 var
   typ: PType;
   x: PObj;
@@ -457,7 +451,7 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('procedure %sWriter.Save(%s: %s);', [t, s, t]);
+  Wrln('procedure TpbBuilder.Save%s(%s: %s);',  [s, msg.name, t]);
   Wrln('var');
   Wrln('  i: Integer;');
   Wrln('begin');
@@ -592,20 +586,21 @@ end;
 
 procedure TGen.FieldRead(obj: PObj);
 var
-  n, t: string;
   o: TFieldOptions;
+  msg: PObj;
+  m, n: string;
 begin
 (*
   TPerson.ftName:
     begin
       Assert(wireType = TWire.LENGTH_DELIMITED);
-      person.Name := pb.readString;
+      person.Name := Pbo.readString;
     end;
-
 *)
   o := obj.aux as TFieldOptions;
+  msg := obj.typ.declaration;
+  m := msg.name;
   n := obj.DelphiName;
-  t := obj.typ.declaration.name;
   Indent;
   try
     Wrln('%s.%s:', [o.Msg.AsType, FieldTag(obj)]);
@@ -614,14 +609,14 @@ begin
     try
       if o.Rule = TFieldRule.Repeated then
       begin
-        Wrln('// %s.%s := Pb.read%s;', [o.Msg.name, n, AsCamel(t)]);
-        Wrln('var %s := %s.Create;', [n, obj.typ.declaration.AsType]);
-        Wrln('Person.FPhones.Add(%s);');
-        Wrln('LoadPhone(Phone);');
+        n := 'F' + Plural(obj.name);
+        Wrln('%s := %s.Create;', [m, msg.AsType]);
+        Wrln('%s.%s.Add(%s);', [o.Msg.name, n, m]);
+        Wrln('Load%s(%s);', [m, m]);
       end
       else
       begin
-        Wrln('%s.%s := Pb.read%s;', [o.Msg.name, n, AsCamel(t)]);
+        Wrln('%s.%s := Pbi.read%s;', [o.Msg.name, n, AsCamel(m)]);
       end;
     finally
       Dedent;
@@ -641,14 +636,14 @@ var
   begin
     case obj.typ.form of
       TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
-        Wrln('Pb.Write%s(%s.ft%s, %s.%s);',
+        Wrln('Pbo.Write%s(%s.ft%s, %s.%s);',
           [AsCamel(obj.name), m, obj.name, o.msg.name, obj.name]);
       TTypeMode.tmEnum:
-        Wrln('Pb.Write Enum');
+        Wrln('Pbo.Write Enum');
       TTypeMode.tmMessage:
-        Wrln('Pb.Write Message');
+        Wrln('Pbo.Write Message');
       TTypeMode.tmMap:
-        Wrln('Pb.Write Map');
+        Wrln('Pbo.Write Map');
       else
         raise Exception.Create('unsupported field type');
     end;
@@ -656,7 +651,7 @@ var
 
 begin
 (*
-  Pb.WriteString(TPerson.ftName, Person.Name);
+  Pbo.WriteString(TPerson.ftName, Person.Name);
 *)
   o := obj.aux as TFieldOptions;
   m := AsCamel(o.Msg.Name);
@@ -689,44 +684,51 @@ begin
     Wrln('// ' + s)
 end;
 
-procedure TGen.LoadMessage(msg: PObj);
+procedure TGen.LocalVars(msg: PObj);
 var
-  obj: PObj;
+  x: PObj;
   typ: PType;
 begin
-  typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  obj := msg;
-  while obj <> tab.Guard do
+  Wrln('var');
+  Wrln('  fieldNumber, wireType: integer;');
+  Wrln('  tag: TpbTag;');
+  x := msg.dsc;
+  while x <> tab.Guard do
   begin
-    if obj.cls = TMode.mType then
-    begin
-      typ := obj.typ;
-      if typ.form = TTypeMode.tmMessage then
-//        LoadMessage(obj);
-    end;
-    obj := obj.next;
-  end;
-end;
-
-procedure TGen.IoDecl;
-var
-  obj, x: PObj;
-begin
-  obj := tab.Module.Obj; // root proto file
-  x := obj.dsc;
-  while x <> nil do
-  begin
-    if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
-    begin
-      ReaderDecl(x);
-      WriterDecl(x);
-    end;
+    typ := x.typ;
+    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
+      Wrln('  %s: %s;', [x.name, x.AsType]);
     x := x.next;
   end;
 end;
 
-procedure TGen.IoImpl;
+procedure TGen.BuilderDecl;
+var
+  obj, x: PObj;
+begin
+  Wrln('TPbBuilder = class(TpbCustomBuilder)');
+  Wrln('public');
+  Indent;
+  try
+    obj := tab.Module.Obj; // root proto file
+    x := obj.dsc;
+    while x <> nil do
+    begin
+      if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
+      begin
+        LoadDecl(x);
+        SaveDecl(x);
+      end;
+      x := x.next;
+    end;
+  finally
+    Dedent;
+  end;
+  Wrln('end;');
+  Wrln;
+end;
+
+procedure TGen.BuilderImpl;
 var
   obj, x: PObj;
 begin
@@ -736,8 +738,8 @@ begin
   begin
     if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
     begin
-      ReaderImpl(x);
-      WriterImpl(x);
+      LoadImpl(x);
+      SaveImpl(x);
     end;
     x := x.next;
   end;
