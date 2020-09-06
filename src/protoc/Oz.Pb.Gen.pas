@@ -454,6 +454,7 @@ begin
   Wrln('procedure TpbBuilder.Save%s(%s: %s);',  [s, msg.name, t]);
   Wrln('var');
   Wrln('  i: Integer;');
+  Wrln('  pb: TpbOutput;');
   Wrln('begin');
   Indent;
   try
@@ -588,7 +589,7 @@ procedure TGen.FieldRead(obj: PObj);
 var
   o: TFieldOptions;
   msg: PObj;
-  m, n: string;
+  w, m, n: string;
 begin
 (*
   TPerson.ftName:
@@ -599,6 +600,7 @@ begin
 *)
   o := obj.aux as TFieldOptions;
   msg := obj.typ.declaration;
+  w := TWire.Names[GetWireType(obj.typ.form)];
   m := msg.name;
   n := obj.DelphiName;
   Indent;
@@ -616,6 +618,7 @@ begin
       end
       else
       begin
+        Wrln('Assert(wireType = TWire.%s);', [w]);
         Wrln('%s.%s := Pbi.read%s;', [o.Msg.name, n, AsCamel(m)]);
       end;
     finally
@@ -629,46 +632,56 @@ end;
 
 procedure TGen.FieldWrite(obj: PObj);
 var
-  m, t: string;
   o: TFieldOptions;
-
-  procedure Process;
-  begin
-    case obj.typ.form of
-      TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
-        Wrln('Pbo.Write%s(%s.ft%s, %s.%s);',
-          [AsCamel(obj.name), m, obj.name, o.msg.name, obj.name]);
-      TTypeMode.tmEnum:
-        Wrln('Pbo.Write Enum');
-      TTypeMode.tmMessage:
-        Wrln('Pbo.Write Message');
-      TTypeMode.tmMap:
-        Wrln('Pbo.Write Map');
-      else
-        raise Exception.Create('unsupported field type');
-    end;
-  end;
-
+  msg: PObj;
+  m, mn, mt, n, t: string;
 begin
 (*
-  Pbo.WriteString(TPerson.ftName, Person.Name);
+  Pbo.writeString(TPerson.ftName, Person.Name);
 *)
   o := obj.aux as TFieldOptions;
-  m := AsCamel(o.Msg.Name);
+  msg := obj.typ.declaration;
+  m := msg.name;
+  mn := o.Msg.DelphiName;
+  mt := o.Msg.AsType;
+  n := obj.name;
   t := obj.AsType;
-  if o.Default = '' then
-    Process
-  else
+  if o.Default <> '' then
   begin
-    // if Phone.FTyp <> ptHOME then
     Wrln('if %s.F%s <> %s then', [m, t]);
     Indent;
-    try
-      Process;
-    finally
-      Dedent;
-    end;
   end;
+  case obj.typ.form of
+    TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
+      Wrln('Pbo.write%s(%s.%s, %s.%s);',
+        [AsCamel(m), mt, FieldTag(obj), mn, n]);
+    TTypeMode.tmMessage:
+      begin
+        n := AsCamel(Plural(n));
+        Wrln('if %s.F%s.Count > 0 then', [mn, n]);
+        Wrln('begin');
+        Wrln('  pb := TpbOutput.From;');
+        Wrln('  try');
+        Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
+        Wrln('    begin');
+        Wrln('      pb.Clear;');
+        Wrln('      SavePhoneNumber(Person.Phones[i]);');
+        Wrln('      Pbo.writeMessage(TPerson.ftPhones, pb);');
+        Wrln('    end;');
+        Wrln('  finally');
+        Wrln('    pb.Free;');
+        Wrln('  end;');
+        Wrln('end');
+      end;
+    TTypeMode.tmEnum:
+      Wrln('Pbo.write Enum');
+    TTypeMode.tmMap:
+      Wrln('Pbo.write Map');
+    else
+      raise Exception.Create('unsupported field type');
+  end;
+  if o.Default <> '' then
+    Dedent;
 end;
 
 procedure TGen.FieldReflection(obj: PObj);
