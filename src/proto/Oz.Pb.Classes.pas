@@ -13,6 +13,26 @@ const
 
 type
 
+{$Region 'EProtobufError'}
+
+  EProtobufError = class(Exception)
+  const
+    NotImplemented = 0;
+    InvalidEndTag = 1;
+    InvalidWireType = 2;
+    InvalidSize = 3;
+    RecursionLimitExceeded = 4;
+    MalformedVarint = 5;
+    EofEncounterd = 6;
+    NegativeSize = 7;
+    TruncatedMessage = 8;
+    Impossible = 99;
+  public
+    constructor Create(ErrNo: Integer); overload;
+  end;
+
+{$EndRegion}
+
 {$Region 'TWire'}
 
   TWireType = 0..7;
@@ -227,9 +247,6 @@ function decodeZigZag64(n: Int64): Int64;
 
 implementation
 
-const
-  ProtoBufException = 'Protocol buffer exception: ';
-
 {$Region 'procedures'}
 
 function decodeZigZag32(n: Integer): Integer;
@@ -240,6 +257,29 @@ end;
 function decodeZigZag64(n: Int64): Int64;
 begin
   Result := (n shr 1) xor -(n and 1);
+end;
+
+{$EndRegion}
+
+{$Region 'EProtobufError'}
+
+constructor EProtobufError.Create(ErrNo: Integer);
+var Msg: string;
+begin
+  case ErrNo of
+    NotImplemented: Msg := 'Not implemented';
+    InvalidEndTag: Msg := 'Pb: invalid end tag';
+    InvalidWireType: Msg := 'Pb: invalid wire type';
+    InvalidSize: Msg := 'Pb: readString (size <= 0)';
+    RecursionLimitExceeded: Msg := 'Pb: recursion Limit Exceeded';
+    MalformedVarint: Msg := 'Pb: malformed Varint';
+    EofEncounterd: Msg := 'Pb: eof encounterd';
+    NegativeSize: Msg := 'Pb: negative Size';
+    TruncatedMessage: Msg := 'Pb: truncated Message';
+    Impossible: Msg := 'Impossible';
+    else Msg := 'Error: ' + IntToStr(ErrNo);
+  end;
+  Create(Msg);
 end;
 
 {$EndRegion}
@@ -322,7 +362,8 @@ end;
 
 procedure TpbInput.checkLastTagWas(value: Integer);
 begin
-  Assert(FLastTag.v = value, ProtoBufException + 'invalid end tag');
+  if FLastTag.v <> value then
+    EProtobufError.Create(EProtobufError.InvalidEndTag);
 end;
 
 function TpbInput.skipField(tag: TpbTag): Boolean;
@@ -338,7 +379,7 @@ begin
     TWire.FIXED32:
       readRawLittleEndian32;
     else
-      raise Exception.Create('InvalidProtocolBufferException.invalidWireType');
+      raise EProtobufError.Create('Protocol buffer: invalid WireType');
   end;
 end;
 
@@ -391,7 +432,8 @@ var
   buf, text: TBytes;
 begin
   size := readRawVarint32;
-  Assert(size > 0, ProtoBufException + 'readString (size <= 0)');
+  if size <= 0 then
+     EProtobufError.Create(EProtobufError.InvalidSize);
   // Decode utf8 to string
   buf := readBytes(size);
   text := TEncoding.UTF8.Convert(TEncoding.UTF8, TEncoding.Unicode, buf);
@@ -401,8 +443,8 @@ end;
 procedure TpbInput.readMessage(builder: PpbInput);
 begin
   readRawVarint32;
-  Assert(FRecursionDepth < RECURSION_LIMIT,
-    ProtoBufException + 'recursion Limit Exceeded');
+  if FRecursionDepth >= RECURSION_LIMIT then
+    EProtobufError.Create(EProtobufError.RecursionLimitExceeded);
   Inc(FRecursionDepth);
   builder.mergeFrom(Self);
   checkLastTagWas(0);
@@ -448,7 +490,8 @@ begin
   Result := 0;
   repeat
     // for negative numbers number value may be to 10 byte
-    Assert(shift < 64, ProtoBufException + 'malformed Varint');
+    if shift >= 64 then
+      EProtobufError.Create(EProtobufError.MalformedVarint);
     tmp := readRawByte;
     Result := Result or ((tmp and $7f) shl shift);
     Inc(shift, 7);
@@ -465,7 +508,8 @@ begin
   Result := 0;
   repeat
     Inc(shift, 7);
-    Assert(shift < 64, ProtoBufException + 'malformed Varint');
+    if shift >= 64 then
+      EProtobufError.Create(EProtobufError.MalformedVarint);
     tmp := readRawByte;
     i64 := tmp and $7f;
     i64 := i64 shl shift;
@@ -485,21 +529,24 @@ end;
 
 function TpbInput.readRawByte: ShortInt;
 begin
-  Assert(FPos < FLen, ProtoBufException + 'eof encounterd');
+  if FPos >= FLen then
+    EProtobufError.Create(EProtobufError.EofEncounterd);
   Result := ShortInt(FBuffer[FPos]);
   Inc(FPos);
 end;
 
 procedure TpbInput.readRawBytes(var data; size: Integer);
 begin
-  Assert(FPos + size <= FLen, ProtoBufException + 'eof encounterd');
+  if FPos + size > FLen then
+    EProtobufError.Create(EProtobufError.EofEncounterd);
   Move(FBuffer[FPos], data, size);
   Inc(FPos, size);
 end;
 
 function TpbInput.readBytes(size: Integer): TBytes;
 begin
-  Assert(FPos + size <= FLen, ProtoBufException + 'eof encounterd');
+  if FPos + size > FLen then
+    EProtobufError.Create(EProtobufError.EofEncounterd);
   SetLength(Result, size);
   Move(FBuffer[FPos], Pointer(Result)^, size);
   Inc(FPos, size);
@@ -507,8 +554,10 @@ end;
 
 procedure TpbInput.skipRawBytes(size: Integer);
 begin
-  Assert(size >= 0, ProtoBufException + 'negative Size');
-  Assert(FPos + size <= FLen, ProtoBufException + 'truncated Message');
+  if size < 0 then
+    EProtobufError.Create(EProtobufError.NegativeSize);
+  if FPos + size > FLen then
+    EProtobufError.Create(EProtobufError.TruncatedMessage);
   Inc(FPos, size);
 end;
 
@@ -554,7 +603,7 @@ end;
 
 procedure TpbInput.mergeFrom(const builder: TpbInput);
 begin
-  Assert(False, 'under conctruction');
+  EProtobufError.Create(EProtobufError.NotImplemented);
 end;
 
 procedure TpbInput.setPos(Pos: Integer);
