@@ -616,6 +616,11 @@ begin
         Wrln('%s.%s.Add(%s);', [o.Msg.name, n, m]);
         Wrln('Load%s(%s);', [m, m]);
       end
+      else if obj.typ.form = TTypeMode.tmEnum then
+      begin
+        Wrln('Assert(wireType = TWire.%s);', [w]);
+        Wrln('%s.%s := T%s(Pbi.readInt32);', [o.Msg.name, n, AsCamel(m)]);
+      end
       else
       begin
         Wrln('Assert(wireType = TWire.%s);', [w]);
@@ -653,8 +658,7 @@ begin
   end;
   case obj.typ.form of
     TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
-      Wrln('Pbo.write%s(%s.%s, %s.%s);',
-        [AsCamel(m), mt, FieldTag(obj), mn, n]);
+      Wrln('Pbo.write%s(%s.%s, %s.%s);', [AsCamel(m), mt, FieldTag(obj), mn, n]);
     TTypeMode.tmMessage:
       begin
         n := AsCamel(Plural(n));
@@ -665,8 +669,8 @@ begin
         Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
         Wrln('    begin');
         Wrln('      pb.Clear;');
-        Wrln('      SavePhoneNumber(Person.Phones[i]);');
-        Wrln('      Pbo.writeMessage(TPerson.ftPhones, pb);');
+        Wrln('      Save%s(%s.%s[i]);', [m, mn, n]);
+        Wrln('      Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
         Wrln('    end;');
         Wrln('  finally');
         Wrln('    pb.Free;');
@@ -674,7 +678,7 @@ begin
         Wrln('end');
       end;
     TTypeMode.tmEnum:
-      Wrln('Pbo.write Enum');
+      Wrln('Pbo.writeInt32(%s.%s, Ord(%s.%s));', [mt, FieldTag(obj), mn, AsCamel(n)]);
     TTypeMode.tmMap:
       Wrln('Pbo.write Map');
     else
