@@ -125,7 +125,7 @@ begin
   Wrln;
   ModelImpl;
   BuilderImpl;
-  Wrln('end;');
+  Wrln('end.');
 end;
 
 procedure TGen.ModelDecl;
@@ -419,7 +419,9 @@ begin
   s := msg.DelphiName;
   t := msg.AsType;
   Wrln('function TpbBuilder.Load%s(%s: %s): %s;', [s, msg.name, t, t]);
-  LocalVars(msg);
+  Wrln('var');
+  Wrln('  fieldNumber, wireType: integer;');
+  Wrln('  tag: TpbTag;');
   Wrln('begin');
   Indent;
   Wrln('Result := %s;', [s]);
@@ -626,14 +628,12 @@ var
   begin
     if o.Rule <> TFieldRule.Repeated then
     begin
-      Wrln('  %s := %s;', [m, GetRead(obj)]);
+      Wrln('  %s.F%s := %s;', [o.Msg.name, n, GetRead(obj)]);
     end
     else
     begin
       n := 'F' + Plural(obj.name);
-      Wrln('  begin');
-      Wrln('    %s := %s.%s.Add(%s);', [m, o.Msg.name, n, GetRead(obj)]);
-      Wrln('  end;');
+      Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
     end;
   end;
 
@@ -684,10 +684,70 @@ var
   o: TFieldOptions;
   msg: PObj;
   m, mn, mt, n, t: string;
+
+  // Embedded types
+  procedure GenType;
+  begin
+    // Pbo.writeString(TPerson.ftName, Person.Name);
+    Wrln('Pbo.write%s(%s.%s, %s.%s);', [AsCamel(m), mt, FieldTag(obj), mn, n]);
+  end;
+
+  procedure GenEnum;
+  begin
+    Wrln('Pbo.writeInt32(%s.%s, Ord(%s.%s));', [mt, FieldTag(obj), mn, AsCamel(n)]);
+  end;
+
+  procedure GenMessage;
+  begin
+    if o.Rule <> TFieldRule.Repeated then
+    begin
+      Wrln('if %s.F%s <> nil then', [mn, n]);
+      Wrln('begin');
+      Wrln('  pb := TpbOutput.From;');
+      Wrln('  try');
+      Wrln('    Save%s(%s.%s);', [m, mn, n]);
+      Wrln('    Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
+      Wrln('  finally');
+      Wrln('    pb.Free;');
+      Wrln('  end;');
+      Wrln('end;');
+    end
+    else
+    begin
+      n := AsCamel(Plural(n));
+      Wrln('if %s.F%s.Count > 0 then', [mn, n]);
+      Wrln('begin');
+      Wrln('  pb := TpbOutput.From;');
+      Wrln('  try');
+      Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
+      Wrln('    begin');
+      Wrln('      pb.Clear;');
+      Wrln('      Save%s(%s.%s[i]);', [m, mn, n]);
+      Wrln('      Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
+      Wrln('    end;');
+      Wrln('  finally');
+      Wrln('    pb.Free;');
+      Wrln('  end;');
+      Wrln('end;');
+    end;
+  end;
+
+  procedure GenMap;
+  begin
+    Wrln('pb := TpbOutput.From;');
+    Wrln('try');
+    Wrln('  for Item in %s.F%s do', [mn, n]);
+    Wrln('  begin');
+    Wrln('    pb.Clear;');
+    Wrln('    Save%s(Item);', [AsCamel(m)]);
+    Wrln('    Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
+    Wrln('  end;');
+    Wrln('finally');
+    Wrln('  pb.Free;');
+    Wrln('end;');
+  end;
+
 begin
-(*
-  Pbo.writeString(TPerson.ftName, Person.Name);
-*)
   o := obj.aux as TFieldOptions;
   msg := obj.typ.declaration;
   m := msg.name;
@@ -701,41 +761,14 @@ begin
     Indent;
   end;
   case obj.typ.form of
-    TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
-      Wrln('Pbo.write%s(%s.%s, %s.%s);', [AsCamel(m), mt, FieldTag(obj), mn, n]);
-    TTypeMode.tmMessage:
-      if o.Rule <> TFieldRule.Repeated then
-      begin
-        Wrln('pb := TpbOutput.From;');
-        Wrln('try');
-        Wrln('  Save%s(%s.%s[i]);', [m, mn, n]);
-        Wrln('  Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
-        Wrln('finally');
-        Wrln('  pb.Free;');
-        Wrln('end;');
-      end
-      else
-      begin
-        n := AsCamel(Plural(n));
-        Wrln('if %s.F%s.Count > 0 then', [mn, n]);
-        Wrln('begin');
-        Wrln('  pb := TpbOutput.From;');
-        Wrln('  try');
-        Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
-        Wrln('    begin');
-        Wrln('      pb.Clear;');
-        Wrln('      Save%s(%s.%s[i]);', [m, mn, n]);
-        Wrln('      Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
-        Wrln('    end;');
-        Wrln('  finally');
-        Wrln('    pb.Free;');
-        Wrln('  end;');
-        Wrln('end;');
-      end;
+    TTypeMode.tmDouble .. TTypeMode.tmSint64:
+      GenType;
     TTypeMode.tmEnum:
-      Wrln('Pbo.writeInt32(%s.%s, Ord(%s.%s));', [mt, FieldTag(obj), mn, AsCamel(n)]);
+      GenEnum;
+    TTypeMode.tmMessage:
+      GenMessage;
     TTypeMode.tmMap:
-      Wrln('Pbo.write Map');
+      GenMap;
     else
       raise Exception.Create('unsupported field type');
   end;
@@ -761,9 +794,6 @@ var
   x: PObj;
   typ: PType;
 begin
-  Wrln('var');
-  Wrln('  fieldNumber, wireType: integer;');
-  Wrln('  tag: TpbTag;');
   x := msg.dsc;
   while x <> tab.Guard do
   begin
