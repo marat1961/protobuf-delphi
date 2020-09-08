@@ -47,6 +47,8 @@ type
     procedure FieldInit(obj: PObj);
     // Free field
     procedure FieldFree(obj: PObj);
+    // get read statement
+    function GetRead(obj: PObj): string;
     // Field read from buffer
     procedure FieldRead(obj: PObj);
     // write field to buffer
@@ -372,10 +374,12 @@ procedure TGen.LoadDecl(msg: PObj);
 var
   typ: PType;
   x: PObj;
+  t: string;
 begin
   typ := msg.typ;
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  Wrln('procedure Load%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+  t := msg.AsType;
+  Wrln('function Load%s(%s: %s): %s;', [msg.DelphiName, msg.name, t, t]);
   x := msg.dsc;
   while x <> tab.Guard do
   begin
@@ -414,10 +418,11 @@ begin
   Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('procedure TpbBuilder.Load%s(%s: %s);',  [s, msg.name, t]);
+  Wrln('function TpbBuilder.Load%s(%s: %s): %s;', [s, msg.name, t, t]);
   LocalVars(msg);
   Wrln('begin');
   Indent;
+  Wrln('Result := %s;', [s]);
   Wrln('tag := Pbi.readTag;');
   Wrln('while tag.v <> 0 do');
   Wrln('begin');
@@ -432,7 +437,8 @@ begin
     FieldRead(x);
     x := x.next;
   end;
-  Wrln('  else Pbi.skipField(tag);');
+  Wrln('  else');
+  Wrln('    Pbi.skipField(tag);');
   Wrln('end;');
   Dedent;
   Wrln('end;');
@@ -585,51 +591,89 @@ begin
     Wrln('%s.Free;', [f])
 end;
 
+function TGen.GetRead(obj: PObj): string;
+var
+  msg: PObj;
+  m, n: string;
+  key, value: PObj;
+begin
+  msg := obj.typ.declaration;
+  m := msg.DelphiName;
+  n := obj.DelphiName;
+  case obj.typ.form of
+    TTypeMode.tmMessage:
+      Result := Format('Load%s(%s.Create)', [m, msg.AsType]);
+    TTypeMode.tmEnum:
+      Result := Format('T%s(Pbi.readInt32)', [m]);
+    TTypeMode.tmMap:
+      begin
+        key := obj.typ.dsc;
+        value := key.next;
+        Result := Format('%s, %s', [GetRead(key), GetRead(value)]);
+      end;
+    else
+      Result := Format('Pbi.read%s', [AsCamel(msg.name)]);
+  end;
+end;
+
 procedure TGen.FieldRead(obj: PObj);
 var
   o: TFieldOptions;
   msg: PObj;
-  w, m, n: string;
-begin
-(*
-  TPerson.ftName:
+  w, mt, m, n: string;
+
+  procedure GenMessage;
+  begin
+    if o.Rule <> TFieldRule.Repeated then
     begin
-      Assert(wireType = TWire.LENGTH_DELIMITED);
-      person.Name := Pbo.readString;
+      Wrln('  %s := %s;', [m, GetRead(obj)]);
+    end
+    else
+    begin
+      n := 'F' + Plural(obj.name);
+      Wrln('  begin');
+      Wrln('    %s := %s.%s.Add(%s);', [m, o.Msg.name, n, GetRead(obj)]);
+      Wrln('  end;');
     end;
-*)
+  end;
+
+  procedure GenMap;
+  begin
+    Wrln('  %s.%s.AddOrSetValue(%s);', [o.Msg.name, n, GetRead(obj)]);
+  end;
+
+  procedure GenEnum;
+  begin
+    Wrln('  begin');
+    Wrln('    Assert(wireType = TWire.%s);', [w]);
+    Wrln('    %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
+    Wrln('  end;');
+  end;
+
+  procedure GenType;
+  begin
+    Wrln('  begin');
+    Wrln('    Assert(wireType = TWire.%s);', [w]);
+    Wrln('    %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
+    Wrln('  end;');
+  end;
+
+begin
   o := obj.aux as TFieldOptions;
+  mt := o.Msg.AsType;
   msg := obj.typ.declaration;
   w := TWire.Names[GetWireType(obj.typ.form)];
-  m := msg.name;
+  m := msg.DelphiName;
   n := obj.DelphiName;
   Indent;
   try
-    Wrln('%s.%s:', [o.Msg.AsType, FieldTag(obj)]);
-    Wrln('begin');
-    Indent;
-    try
-      if o.Rule = TFieldRule.Repeated then
-      begin
-        n := 'F' + Plural(obj.name);
-        Wrln('%s := %s.Create;', [m, msg.AsType]);
-        Wrln('%s.%s.Add(%s);', [o.Msg.name, n, m]);
-        Wrln('Load%s(%s);', [m, m]);
-      end
-      else if obj.typ.form = TTypeMode.tmEnum then
-      begin
-        Wrln('Assert(wireType = TWire.%s);', [w]);
-        Wrln('%s.%s := T%s(Pbi.readInt32);', [o.Msg.name, n, AsCamel(m)]);
-      end
-      else
-      begin
-        Wrln('Assert(wireType = TWire.%s);', [w]);
-        Wrln('%s.%s := Pbi.read%s;', [o.Msg.name, n, AsCamel(m)]);
-      end;
-    finally
-      Dedent;
+    Wrln('%s.%s:', [mt, FieldTag(obj)]);
+    case obj.typ.form of
+      TTypeMode.tmMessage: GenMessage;
+      TTypeMode.tmEnum: GenEnum;
+      TTypeMode.tmMap: GenMap;
+      else GenType;
     end;
-    Wrln('end;');
   finally
     Dedent;
   end;
@@ -649,7 +693,7 @@ begin
   m := msg.name;
   mn := o.Msg.DelphiName;
   mt := o.Msg.AsType;
-  n := obj.name;
+  n := obj.DelphiName;
   t := obj.AsType;
   if o.Default <> '' then
   begin
@@ -660,6 +704,17 @@ begin
     TTypeMode.tmDouble .. TTypeMode.tmSint64: // Embedded types
       Wrln('Pbo.write%s(%s.%s, %s.%s);', [AsCamel(m), mt, FieldTag(obj), mn, n]);
     TTypeMode.tmMessage:
+      if o.Rule <> TFieldRule.Repeated then
+      begin
+        Wrln('pb := TpbOutput.From;');
+        Wrln('try');
+        Wrln('  Save%s(%s.%s[i]);', [m, mn, n]);
+        Wrln('  Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
+        Wrln('finally');
+        Wrln('  pb.Free;');
+        Wrln('end;');
+      end
+      else
       begin
         n := AsCamel(Plural(n));
         Wrln('if %s.F%s.Count > 0 then', [mn, n]);
@@ -675,7 +730,7 @@ begin
         Wrln('  finally');
         Wrln('    pb.Free;');
         Wrln('  end;');
-        Wrln('end');
+        Wrln('end;');
       end;
     TTypeMode.tmEnum:
       Wrln('Pbo.writeInt32(%s.%s, Ord(%s.%s));', [mt, FieldTag(obj), mn, AsCamel(n)]);
