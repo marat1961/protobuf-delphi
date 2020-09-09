@@ -69,7 +69,7 @@ end;
 function TOptions.GetVersion: string;
 begin
   Result := Format(
-    'Protoc - Protocl buffer code generator, V%s'#13#10 +
+    'Protoc - Protocîl buffer code generator, V%s'#13#10 +
     'Delphi version by Marat Shaimardanov %s'#13#10,
     [Version, ReleaseDate]);
 end;

@@ -25,22 +25,22 @@ type
     procedure Free;
     procedure Clear;
 
-    procedure SaveToStream(Stream: TStream);
-    procedure SaveToFile(const FileName: string);
+    procedure SaveToStream(Stream: TStream); inline;
+    procedure SaveToFile(const FileName: string); inline;
 
     // Encode and write varint
     procedure writeRawVarint32(value: Integer);
     // Encode and write varint
     procedure writeRawVarint64(value: Int64);
     // Encode and write tag
-    procedure writeTag(fieldNumber: Integer; wireType: Integer);
+    procedure writeTag(fieldNumber: Integer; wireType: Integer); inline;
     // Encode and write single byte
-    procedure writeRawByte(value: ShortInt);
+    procedure writeRawByte(value: ShortInt); inline;
     // Write the data with specified size
-    procedure writeRawData(const p: Pointer; size: Integer);
+    procedure writeRawData(const p: Pointer; size: Integer); inline;
 
     // Get the result as a bytes
-    function GetBytes: TBytes;
+    function GetBytes: TBytes; inline;
     // Write a Double field, including tag
     procedure writeDouble(fieldNumber: Integer; value: Double);
     // Write a Single field, including tag

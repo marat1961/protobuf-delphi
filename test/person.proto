@@ -17,7 +17,7 @@ message Person {
   }
 
   repeated PhoneNumber phone = 4;
-
+  PhoneNumber my_phone = 5;
 }
 
 enum AccessModifier {
@@ -35,5 +35,6 @@ map Idtab<string, Ident>;
 
 message Table {
   string name = 1;
-  map<string, Ident> projects = 2;
+  map<string, Ident> work_projects = 2;
+  Idtab my_projects = 3;
 }

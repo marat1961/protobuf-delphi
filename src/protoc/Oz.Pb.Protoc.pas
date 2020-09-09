@@ -18,6 +18,7 @@ var
   str: TStringList;
   parser: TpbParser;
   src, stem, filename: string;
+  tab: TpbTable;
 begin
   options := GetOptions;
   Writeln(options.GetVersion);
@@ -36,7 +37,9 @@ begin
         str.Free;
       end;
       str := TStringList.Create;
-      parser := TpbParser.Create(TpbScanner.Create(src), str);
+      tab := TpbTable.Create;
+      parser := TpbParser.Create(tab, TpbScanner.Create(src), str);
+      tab.Init(parser);
       try
         parser.Parse;
         Writeln(parser.errors.count, ' errors detected');

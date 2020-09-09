@@ -140,6 +140,7 @@ type
 
 function Between(ch, lo, hi: Char): Boolean;
 function ToChar(i: Integer): string;
+function Unquote(const s: string): string;
 function AsCamel(const s: string): string;
 function Plural(const s: string): string;
 
@@ -158,6 +159,16 @@ begin
     Result := Format('#%d', [i]);
 end;
 
+function Unquote(const s: string): string;
+var
+  n: Integer;
+begin
+  n := s.Length;
+  Assert(s[1] = '"');
+  Assert(s[n] = '"');
+  Result := Copy(s, 2, n - 1);
+end;
+
 function AsCamel(const s: string): string;
 var
   i: Integer;
@@ -169,10 +180,10 @@ begin
   for i := 1 to Length(s) do
   begin
     c := s[i];
-    if not IsUp then
-      Result := Result + c
-    else if c = '_' then
+    if c = '_' then
       IsUp := True
+    else if not IsUp then
+      Result := Result + c
     else
     begin
       Result := Result + c.ToUpperInvariant;

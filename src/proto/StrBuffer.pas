@@ -4,7 +4,9 @@
 // Frunze 131/1, 56, Russia, Tomsk, 634021
 // then you can use this code in self project.
 
-//
+// People are not grateful.
+// The programs have been downloaded many times, but I have not received a single postcard
+
 // The buffer for strings.
 // The main purpose of the rapid format of long string.
 // Features:
@@ -26,11 +28,11 @@ const
 
 type
 
-{
-  If you do not have enough space in the string than
+{$Region 'TStrBuffer: Unsegmented buffer'}
+
+{ If you do not have enough space in the string than
   is taken a piece of memory twice the size
-  and copies the data in this chunk of memory
-}
+  and copies the data in this chunk of memory }
   TStrBuffer = class
   private
     FCount: Integer;
@@ -53,6 +55,10 @@ type
     property Bytes: TBytes read GetBytes;
   end;
 
+{$EndRegion}
+
+{$Region 'TSegmentBuffer: add memory done by segments'}
+
   PSegment = ^TSegment;
   TSegment = record
     Next: PSegment;
@@ -61,7 +67,6 @@ type
     Data: array[0..0] of AnsiChar;
   end;
 
-  { add memory done by segments }
   TSegmentBuffer = class
   private
     FCount: Integer;
@@ -87,11 +92,13 @@ type
     property Bytes: TBytes read GetBytes;
   end;
 
+{$EndRegion}
+
 implementation
 
 {$RANGECHECKS OFF}
 
-{ TStrBuffer }
+{$Region 'TStrBuffer'}
 
 class procedure TStrBuffer.Error(const Msg: string; Data: Integer);
 
@@ -201,7 +208,9 @@ begin
   Add(bytes);
 end;
 
-{ TSegmentBuffer }
+{$EndRegion}
+
+{$Region 'TSegmentBuffer'}
 
 class procedure TSegmentBuffer.Error(const Msg: string; Data: Integer);
 
@@ -370,6 +379,8 @@ begin
   Stream.Read(Pointer(bytes)^, size);
   Add(bytes);
 end;
+
+{$EndRegion}
 
 {$RANGECHECKS ON}
 

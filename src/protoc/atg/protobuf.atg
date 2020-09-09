@@ -41,46 +41,61 @@ IGNORE CHR(9) .. CHR(13)
 
 PRODUCTIONS
 
-Pb
+Pb                           (. var
+                                  obj: PObj; .)
 =                            (. tab.OpenScope; .)
-Syntax
+Module<tab.ModId, obj>       (. tab.CloseScope; .)
+.
+
+Module<const id: string; var obj: PObj>
+=                            (. tab.NewObj(obj, id, TMode.mModule);
+                                obj.aux := TModule.Create(obj, id, {weak=}False);
+                                if tab.Module = nil { root proto file } then
+                                  tab.Module := TModule(obj.aux);
+                                tab.OpenScope; .)
+Syntax<obj>
 {
   Import
 | Package
-| Option
+| Option<obj>
 | Message
 | Enum
+| MapDecl
 | Service
 | EmptyStatement
-}                            (. tab.CloseScope; .)
+}                            (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
 .
 
 Message                      (. var
                                   id: string;
-                                  obj: PObj;
-                                  typ: PType; .)
+                                  obj: PObj; .)
 =
 "message" Ident<id>          (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmMessage;
-                                obj.typ := typ; .)
+                                tab.NewType(obj, TTypeMode.tmMessage); .)
 "{" {
-  Option
-| Field<typ>
+  Option<obj>
+| Field<obj.typ>
 | Message
 | Enum
 | Reserved
 | EmptyStatement
-} "}"                        (. tab.CloseScope; .)
+} "}"                        (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
 .
 
 // Syntax
 
-Syntax
+Syntax<var obj: PObj>        (. var
+                                  m: TModule; .)
  =
-"syntax" "=" strLit          (. tab.Module.Syntax := TSyntaxVersion.Proto2;
+"syntax" "=" strLit          (. m := obj.aux as TModule;
+                                m.Syntax := TSyntaxVersion.Proto2;
                                 if t.val = '"proto3"' then
-                                  tab.Module.Syntax := TSyntaxVersion.Proto3
+                                  m.Syntax := TSyntaxVersion.Proto3
                                 else if t.val <> '"proto2"' then
                                   SemErr('invalid syntax version'); .)
 ";"
@@ -88,13 +103,16 @@ Syntax
 
 // Import Statement
 
-Import                       (. var weak: Boolean; .)
+Import                       (. var
+                                  id: string;
+                                  weak: Boolean; .)
 =                            (. weak := False; .)
  "import"
 [ "weak"                     (. weak := True; .)
 | "public"
 ]
-strLit                       (.  .)
+strLit                       (. id := Unquote(t.val);
+                                tab.OpenModule(id, weak); .)
 ";"
 .
 
@@ -110,13 +128,13 @@ Package                      (. var
 
 // Option
 
-Option                       (. var
+Option<const obj: PObj>      (. var
                                   id: string;
                                   Cv: TConst;  .)
 =
 "option"
 OptionName<id>
-"=" Constant<Cv>             (. tab.AddOption(id, Cv); .)
+"=" Constant<Cv>             (. obj.AddOption(id, Cv); .)
 ";"
 .
 
@@ -132,33 +150,37 @@ ident                        (. id := t.val; .)
 .
 
 Service                      (. var
-                                   id: string;
-                                   service: PObj; .)
+                                  id: string;
+                                  service: PObj; .)
 =
-"service" Ident<id>          (. tab.NewObj(service, id, TMode.mService);
+"service" Ident<id>          (. tab.NewObj(service, id, TMode.mProc);
                                 tab.OpenScope; .)
 "{" {
-  Option
+  Option<service>
 | Rpc
 | EmptyStatement
 } "}"                        (. tab.CloseScope; .)
 .
 
 Rpc                          (. var
-                                  id: string; typ: TQualIdent; rpc: PObj;
-                                  request, response: PType; .)
+                                  id: string;
+                                  typ: TQualIdent;
+                                  rpc, par: PObj; .)
 =
-"rpc" Ident<id>              (. tab.NewObj(rpc, id, TMode.mService);
+"rpc" Ident<id>              (. tab.NewObj(rpc, id, TMode.mProc);
+                                rpc.aux := TRpcOptions.Create(rpc);
                                 tab.OpenScope; .)
-"(" [ "stream" ]
-UserType<typ>                (. request := tab.FindMessageType(typ); .)
+"(" [ "stream"               (. TRpcOptions(rpc.aux).requestStream := True; .)
+] UserType<typ>              (. tab.NewObj(par, 'request', TMode.mPar);
+                                par.typ := tab.FindMessageType(typ); .)
 ")"
 "returns"
-"(" [ "stream" ]
-UserType<typ>                (. response := tab.FindMessageType(typ); .)
-")"                          (. rpc.aux := TRpcOptions.Create(rpc, request, response); .)
+"(" [ "stream"               (. TRpcOptions(rpc.aux).responseStream := True; .)
+] UserType<typ>              (. tab.NewObj(par, 'response', TMode.mPar);
+                                par.typ := tab.FindMessageType(typ); .)
+")"
 (( "{" {
-Option
+Option<rpc>
 | EmptyStatement
 } "}" ) | ";")               (. tab.CloseScope; .)
 .
@@ -248,14 +270,17 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 // Fields
 
 Field<var typ: PType>        (. var
-                                  rule: TFieldRule; ftyp: PType; .)
+                                  rule: TFieldRule;
+                                  ftyp: PType; .)
 =                            (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-FieldType<ftyp>
-FieldDecl<ftyp, rule>
+FieldType<ftyp>              (. tab.OpenScope; .)
+FieldDecl<typ.declaration, ftyp, rule>
+                             (. tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
 ";"
 .
 
@@ -266,7 +291,7 @@ FieldType<var typ: PType>
 | OneOfType<typ>
 .
 
-FieldDecl<ftyp: PType; rule: TFieldRule>
+FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
                              (. var
                                   obj: PObj;
                                   id: string;
@@ -275,14 +300,20 @@ FieldDecl<ftyp: PType; rule: TFieldRule>
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
                                 obj.typ := ftyp; .)
 "="
-FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, tag, rule); .)
-[ "[" FieldOption { ","  FieldOption } "]" ]
+FieldNumber<tag>             (. obj.aux := TFieldOptions.Create(obj, msg, tag, rule); .)
+[ "[" FieldOption<obj>
+{ ","  FieldOption<obj> } "]" ]
+.
+
+MapDecl                      (. var typ: PType; .)
+=
+MapType<typ>
 .
 
 MapType<var typ: PType>      (. var
-                                 id: string;
-                                 obj, x: PObj;
-                                 key, value: PType; .)
+                                  id: string;
+                                  obj, x: PObj;
+                                  key, value: PType; .)
 =
 "map"
 [ Ident<id>
@@ -290,13 +321,16 @@ MapType<var typ: PType>      (. var
 "<" KeyType<key>
 "," Type<value>
 ">"                          (. if id = '' then
-                                  id := Format('%s_%s', [key, value]);
+                                  id := key.declaration.Name + '_' + value.declaration.Name;
                                 tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmMap;
-                                obj.typ := typ;
-                                tab.NewObj(x, 'key', TMode.mType); x.typ := key;
-                                tab.NewObj(x, 'value', TMode.mType); x.typ := value;
+                                tab.NewType(obj, TTypeMode.tmMap);
+                                typ := obj.typ;
+                                tab.NewObj(x, 'key', TMode.mType);
+                                x.typ := key;
+                                tab.NewObj(x, 'value', TMode.mType);
+                                x.typ := value;
+                                typ.dsc := tab.TopScope.next;
                                 tab.CloseScope; .)
 .
 
@@ -307,28 +341,30 @@ OneOfType<var typ: PType>    (. var
 "oneof"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmUnion;
-                                obj.typ := typ; .)
+                                tab.NewType(obj, TTypeMode.tmUnion);
+                                typ := obj.typ; .)
 "{" {
-  Option
+  Option<obj>
 | OneOfField<typ>
 | EmptyStatement
-} "}"                        (. tab.CloseScope; .)
+} "}"                        (. // Before closing the current scope we remember the parsed entities.
+                                obj.dsc := tab.TopScope;
+                                tab.CloseScope; .)
 .
 
 OneOfField<typ: PType>       (. var ftyp: PType;  .)
 =
 Type<ftyp>
-FieldDecl<ftyp, TFieldRule.Singular>
+FieldDecl<typ.declaration, ftyp, TFieldRule.Singular>
 .
 
-FieldOption                  (. var
-                                   id: string;
-                                   Cv: TConst; .)
+FieldOption<const obj: PObj> (. var
+                                  id: string;
+                                  Cv: TConst; .)
 =
 OptionName<id>
 "="
-Constant<Cv>                 (. tab.AddOption(id, Cv); .)
+Constant<Cv>                 (. obj.AddOption(id, Cv); .)
 .
 
 FieldNumber<var tag: Integer>
@@ -400,43 +436,43 @@ Ident<id>                   (. Fields.Add(id); .)
 
 Enum                         (. var
                                   id: string;
-                                  obj: PObj;
-                                  typ: PType; .)
+                                  obj: PObj; .)
 =
 "enum"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
                                 tab.OpenScope;
-                                New(typ); typ.form := TTypeMode.tmEnum;
-                                obj.typ := typ; .)
+                                tab.NewType(obj, TTypeMode.tmEnum); .)
 "{" {
-Option
+Option<obj>
 | EnumField
 | EmptyStatement
-} "}"                        (. tab.CloseScope; .)
+} "}"                        (. obj.typ.dsc := tab.TopScope.next;
+                                tab.CloseScope; .)
 .
 
 EnumField                    (. var
                                   id: string;
                                   n: Integer;
-                                  ev: PObj; .)
+                                  obj: PObj; .)
 =
-Ident<id>                    (. tab.NewObj(ev, id, TMode.mConst); .)
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mConst); .)
 "="
 [ "-"
 ]
-intLit<n>                    (. ev.val := n; .)
-[ "[" EnumValueOption
-{ ","  EnumValueOption
+intLit<n>                    (. obj.val := n; .)
+[ "[" EnumValueOption<obj>
+{ ","  EnumValueOption<obj>
 } "]" ]";"
 .
 
-EnumValueOption              (. var
+EnumValueOption<const obj: PObj>
+                             (. var
                                   id: string;
                                   Cv: TConst; .)
 =
 OptionName<id>
 "="
-Constant<Cv>                 (. tab.AddOption(id, Cv); .)
+Constant<Cv>                 (. obj.AddOption(id, Cv); .)
 .
 
 END Pb.
