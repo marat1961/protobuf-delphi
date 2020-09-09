@@ -3,7 +3,7 @@ unit Oz.Pb.Gen;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Math,
+  System.Classes, System.SysUtils, System.Math, Generics.Collections,
   Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic, Oz.Pb.Tab;
 
 const
@@ -18,6 +18,7 @@ type
   private
     IndentLevel: Integer;
     sb: TStringBuilder;
+    mapvars: TList<PType>;
     function GetCode: string;
     // Wrappers for TStringBuilder
     procedure Wr(const s: string); overload;
@@ -58,7 +59,7 @@ type
     procedure GenComment(const comment: string);
 
     // Message code
-    procedure LocalVars(msg: PObj);
+    function GetPair(msg: PObj; onlyIdent: Boolean): string;
     procedure MessageDecl(msg: PObj);
     procedure MessageImpl(msg: PObj);
     procedure LoadDecl(msg: PObj);
@@ -92,10 +93,12 @@ constructor TGen.Create(Parser: TBaseParser);
 begin
   inherited;
   sb := TStringBuilder.Create;
+  mapvars := TList<PType>.Create;
 end;
 
 destructor TGen.Destroy;
 begin
+  mapvars.Free;
   sb.Free;
   inherited;
 end;
@@ -377,7 +380,8 @@ var
   t: string;
 begin
   typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  if msg.cls <> TMode.mType then exit;
+  if typ.form <> TTypeMode.tmMessage then exit;
   t := msg.AsType;
   Wrln('function Load%s(%s: %s): %s;', [msg.DelphiName, msg.name, t, t]);
   x := msg.dsc;
@@ -396,15 +400,21 @@ var
   x: PObj;
 begin
   typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
-  x := msg.dsc;
-  while x <> tab.Guard do
-  begin
-    typ := x.typ;
-    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
-      SaveDecl(x);
-    x := x.next;
+  if msg.cls <> TMode.mType then exit;
+  case typ.form of
+    TTypeMode.tmMap:
+      Wrln('procedure Save%s(%s);',  [msg.DelphiName, GetPair(msg, False)]);
+    TTypeMode.tmMessage:
+      begin
+        Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+        x := msg.dsc;
+        while x <> tab.Guard do
+        begin
+          typ := x.typ;
+          if x.cls = TMode.mType then SaveDecl(x);
+          x := x.next;
+        end;
+      end;
   end;
 end;
 
@@ -415,7 +425,8 @@ var
   s, t: string;
 begin
   typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  if msg.cls <> TMode.mType then exit;
+  if typ.form <> TTypeMode.tmMessage then exit;
   s := msg.DelphiName;
   t := msg.AsType;
   Wrln('function TpbBuilder.Load%s(%s: %s): %s;', [s, msg.name, t, t]);
@@ -452,32 +463,57 @@ end;
 procedure TGen.SaveImpl(msg: PObj);
 var
   typ: PType;
-  x: PObj;
-  s, t: string;
-begin
-  typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  s := msg.DelphiName;
-  t := msg.AsType;
-  Wrln('procedure TpbBuilder.Save%s(%s: %s);',  [s, msg.name, t]);
-  Wrln('var');
-  Wrln('  i: Integer;');
-  Wrln('  pb: TpbOutput;');
-  Wrln('begin');
-  Indent;
-  try
-    typ := msg.typ;
-    x := typ.dsc;
+
+  procedure SaveMessage;
+  var
+    s, t: string;
+    x: PObj;
+  begin
+    s := msg.DelphiName;
+    t := msg.AsType;
+    Wrln('procedure TpbBuilder.Save%s(%s: %s);',  [s, msg.name, t]);
+    Wrln('var');
+    Wrln('  i: Integer;');
+    Wrln('  pb: TpbOutput;');
+    mapvars.Clear;
+    x := msg.dsc;
     while x <> tab.Guard do
     begin
-      FieldWrite(x);
+      typ := x.typ;
+      if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMap) and
+         (mapvars.IndexOf(typ) < 0) then
+      begin
+        mapvars.Add(typ);
+        Wrln('  ' + GetPair(x, False) + ';');
+      end;
       x := x.next;
     end;
-  finally
-    Dedent;
+    Wrln('begin');
+    Indent;
+    try
+      typ := msg.typ;
+      x := typ.dsc;
+      while x <> tab.Guard do
+      begin
+        FieldWrite(x);
+        x := x.next;
+      end;
+    finally
+      Dedent;
+    end;
+    Wrln('end;');
+    Wrln('');
   end;
-  Wrln('end;');
-  Wrln('');
+
+begin
+  if msg.cls = TMode.mType then
+  begin
+    typ := msg.typ;
+    case typ.form of
+      TTypeMode.tmMessage: SaveMessage;
+      TTypeMode.tmMap: ;
+    end;
+  end;
 end;
 
 function TGen.FieldTag(obj: PObj): string;
@@ -733,10 +769,12 @@ var
   end;
 
   procedure GenMap;
+  var s: string;
   begin
+    s := GetPair(msg, True);
     Wrln('pb := TpbOutput.From;');
     Wrln('try');
-    Wrln('  for Item in %s.F%s do', [mn, n]);
+    Wrln('  for %s in %s.F%s do', [s, mn, n]);
     Wrln('  begin');
     Wrln('    pb.Clear;');
     Wrln('    Save%s(Item);', [AsCamel(m)]);
@@ -789,19 +827,21 @@ begin
     Wrln('// ' + s)
 end;
 
-procedure TGen.LocalVars(msg: PObj);
+function TGen.GetPair(msg: PObj; onlyIdent: Boolean): string;
 var
-  x: PObj;
+  key, value: PObj;
   typ: PType;
+  i: Integer;
+  s: string;
 begin
-  x := msg.dsc;
-  while x <> tab.Guard do
-  begin
-    typ := x.typ;
-    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
-      Wrln('  %s: %s;', [x.name, x.AsType]);
-    x := x.next;
-  end;
+  typ := msg.typ;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMap));
+  i := mapvars.IndexOf(typ);
+  if i > 0 then s := Format('Item%d', [i]) else s := 'Item';
+  if onlyIdent then exit(s);
+  key := typ.dsc;
+  value := key.next;
+  Result := Format('%s: TPair<%s, %s>', [s, key.AsType, value.AsType]);
 end;
 
 procedure TGen.BuilderDecl;
@@ -816,7 +856,7 @@ begin
     x := obj.dsc;
     while x <> nil do
     begin
-      if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
+      if x.cls = TMode.mType then
       begin
         LoadDecl(x);
         SaveDecl(x);
@@ -838,7 +878,7 @@ begin
   x := obj.dsc;
   while x <> nil do
   begin
-    if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
+    if x.cls = TMode.mType then
     begin
       LoadImpl(x);
       SaveImpl(x);
