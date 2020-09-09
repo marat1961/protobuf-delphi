@@ -18,7 +18,7 @@ uses
   DUnitTestRunner,
   TestExample1 in 'TestExample1.pas',
   Example1 in '..\Example1.pas',
-  StrBuffer in '..\..\proto\StrBuffer.pas',
+  Oz.Pb.StrBuffer in '..\..\proto\Oz.Pb.StrBuffer.pas',
   pbInput in '..\..\proto\pbInput.pas',
   pbOutput in '..\..\proto\pbOutput.pas',
   pbPublic in '..\..\proto\pbPublic.pas';

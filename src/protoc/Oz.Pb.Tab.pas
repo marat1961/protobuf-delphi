@@ -4,7 +4,7 @@ interface
 
 uses
   System.Classes, System.SysUtils, System.Rtti, Generics.Collections, System.IOUtils,
-  Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic;
+  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Classes;
 
 {$SCOPEDENUMS on}
 

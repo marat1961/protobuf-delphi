@@ -11,7 +11,7 @@
 // 2. One-time allocation of the specified size
 // 3. The class is not multi-thread safe
 
-unit StrBuffer;
+unit Oz.Pb.StrBuffer;
 
 interface
 

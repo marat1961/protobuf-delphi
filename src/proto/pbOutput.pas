@@ -13,7 +13,7 @@ unit pbOutput;
 interface
 
 uses
-  Classes, SysUtils, StrBuffer, pbPublic;
+  Classes, SysUtils, Oz.Pb.StrBuffer, pbPublic;
 
 type
 

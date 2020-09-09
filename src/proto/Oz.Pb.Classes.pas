@@ -3,7 +3,7 @@ unit Oz.Pb.Classes;
 interface
 
 uses
-  Classes, SysUtils, StrBuffer;
+  Classes, SysUtils, Oz.Pb.StrBuffer;
 
 const
   TAG_TYPE_BITS = 3;

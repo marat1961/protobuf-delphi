@@ -9,7 +9,6 @@ program Project1;
 {$APPTYPE CONSOLE}
 
 uses
-  FastMM4, // Always in the first place!
   SysUtils,
   TypInfo,
   Example1 in 'Example1.pas',
@@ -17,7 +16,7 @@ uses
   pbInput in '..\proto\pbInput.pas',
   pbOutput in '..\proto\pbOutput.pas',
   pbPublic in '..\proto\pbPublic.pas',
-  StrBuffer in '..\proto\StrBuffer.pas';
+  Oz.Pb.StrBuffer in '..\proto\Oz.Pb.StrBuffer.pas';
 
 {$R *.RES}
 

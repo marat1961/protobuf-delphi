@@ -4,7 +4,7 @@ interface
 
 uses
   System.Classes, System.SysUtils, System.Math, Generics.Collections,
-  Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic, Oz.Pb.Tab;
+  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Tab, Oz.Pb.Classes;
 
 const
   RepeatedCollection = 'TList<%s>';
