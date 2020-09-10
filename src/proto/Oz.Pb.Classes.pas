@@ -220,20 +220,30 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbCustomReader: Base class for a builder'}
+{$Region 'TpbLoader: load object'}
 
-  // Builder to download or save the object using the protocol buffer.
-  TpbCustomBuilder = class
+  TpbLoader = record
   private
-    Fpbi: TpbInput;
-    Fpbo: TpbOutput;
-    function GetPbi: PpbInput;
-    function GetPbo: PpbOutput;
+    Fpb: TpbInput;
+    function GetPb: PpbInput; inline;
   public
-    constructor Create;
-    destructor Destroy; override;
-    property Pbi: PpbInput read GetPbi;
-    property Pbo: PpbOutput read GetPbo;
+    procedure Init; inline;
+    procedure Free; inline;
+    property Pb: PpbInput read GetPb;
+  end;
+
+{$EndRegion}
+
+{$Region 'TpbSaver: save a object'}
+
+  TpbSaver = record
+  private
+    Fpb: TpbOutput;
+    function GetPb: PpbOutput; inline;
+  public
+    procedure Init; inline;
+    procedure Free; inline;
+    property Pb: PpbOutput read GetPb;
   end;
 
 {$EndRegion}
@@ -772,30 +782,40 @@ end;
 
 {$EndRegion}
 
-{$Region 'TpbCustomBuilder'}
+{$Region 'TpbCustomLoader: Base class for a load object'}
 
-constructor TpbCustomBuilder.Create;
+procedure TpbLoader.Init;
 begin
-  inherited;
-  FPbi.Init;
-  FPbo := TpbOutput.From;
+  FPb.Init;
 end;
 
-destructor TpbCustomBuilder.Destroy;
+procedure TpbLoader.Free;
 begin
-  FPbi.Free;
-  FPbo.Free;
-  inherited;
+  FPb.Free;
 end;
 
-function TpbCustomBuilder.GetPbi: PpbInput;
+function TpbLoader.GetPb: PpbInput;
 begin
-  Result := @FPbi;
+  Result := @FPb;
 end;
 
-function TpbCustomBuilder.GetPbo: PpbOutput;
+{$EndRegion}
+
+{$Region 'TpbSaver: Base class save a object'}
+
+procedure TpbSaver.Init;
 begin
-  Result := @FPbo;
+  FPb := TpbOutput.From;
+end;
+
+procedure TpbSaver.Free;
+begin
+  FPb.Free;
+end;
+
+function TpbSaver.GetPb: PpbOutput;
+begin
+  Result := @FPb;
 end;
 
 {$EndRegion}
