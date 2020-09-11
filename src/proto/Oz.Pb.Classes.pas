@@ -243,6 +243,7 @@ type
   public
     procedure Init; inline;
     procedure Free; inline;
+    procedure Clear; inline;
     property Pb: PpbOutput read GetPb;
   end;
 
@@ -811,6 +812,11 @@ end;
 procedure TpbSaver.Free;
 begin
   FPb.Free;
+end;
+
+procedure TpbSaver.Clear;
+begin
+  FPb.Clear;
 end;
 
 function TpbSaver.GetPb: PpbOutput;
