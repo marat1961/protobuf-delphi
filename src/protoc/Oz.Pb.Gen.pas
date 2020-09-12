@@ -3,8 +3,8 @@ unit Oz.Pb.Gen;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Math,
-  Oz.Cocor.Utils, Oz.Cocor.Lib, pbPublic, Oz.Pb.Tab;
+  System.Classes, System.SysUtils, System.Math, Generics.Collections,
+  Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Tab, Oz.Pb.Classes;
 
 const
   RepeatedCollection = 'TList<%s>';
@@ -14,10 +14,19 @@ type
 
 {$Region 'TGen: code generator for delphi'}
 
+  TMapTypes = TList<PType>;
+  TGetMap = (
+    asVarDecl,
+    asParam,
+    asVarUsing);
   TGen = class(TCocoPart)
   private
     IndentLevel: Integer;
     sb: TStringBuilder;
+    maps: TMapTypes;
+    mapvars: TMapTypes;
+    pairMessage: TObjDesc;
+    pairType: TTypeDesc;
     function GetCode: string;
     // Wrappers for TStringBuilder
     procedure Wr(const s: string); overload;
@@ -58,19 +67,21 @@ type
     procedure GenComment(const comment: string);
 
     // Message code
-    procedure LocalVars(msg: PObj);
+    function GetPair(maptypes: TMapTypes; typ: PType; mas: TGetMap): string;
     procedure MessageDecl(msg: PObj);
     procedure MessageImpl(msg: PObj);
     procedure LoadDecl(msg: PObj);
     procedure SaveDecl(msg: PObj);
     procedure LoadImpl(msg: PObj);
     procedure SaveImpl(msg: PObj);
+    procedure SaveMaps;
 
     // Top level code
     procedure ModelDecl;
     procedure ModelImpl;
-    procedure BuilderDecl;
-    procedure BuilderImpl;
+    procedure BuilderDecl(Load: Boolean);
+    procedure BuilderImpl(Load: Boolean);
+    function GetBuilderName(Load: Boolean): string;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -92,10 +103,14 @@ constructor TGen.Create(Parser: TBaseParser);
 begin
   inherited;
   sb := TStringBuilder.Create;
+  maps := TList<PType>.Create;
+  mapvars := TList<PType>.Create;
 end;
 
 destructor TGen.Destroy;
 begin
+  mapvars.Free;
+  maps.Free;
   sb.Free;
   inherited;
 end;
@@ -117,14 +132,16 @@ begin
   Indent;
   try
     ModelDecl;
-    BuilderDecl;
+    BuilderDecl({Load=}True);
+    BuilderDecl({Load=}False);
   finally
     Dedent;
   end;
   Wrln('implementation');
   Wrln;
   ModelImpl;
-  BuilderImpl;
+  BuilderImpl(True);
+  BuilderImpl(False);
   Wrln('end.');
 end;
 
@@ -331,6 +348,19 @@ var
   x: PObj;
   typ: PType;
 begin
+  // generate nested messages
+  x := msg.dsc;
+  while x <> tab.Guard do
+  begin
+    typ := x.typ;
+    if x.cls = TMode.mType then
+      case typ.form of
+        TTypeMode.tmMessage: MessageImpl(x);
+//        TTypeMode.tmMap: MapDecl(x);
+      end;
+    x := x.next;
+  end;
+
   typ := msg.typ;
   // parameterless constructor
   t := msg.AsType;
@@ -377,7 +407,8 @@ var
   t: string;
 begin
   typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  if msg.cls <> TMode.mType then exit;
+  if typ.form <> TTypeMode.tmMessage then exit;
   t := msg.AsType;
   Wrln('function Load%s(%s: %s): %s;', [msg.DelphiName, msg.name, t, t]);
   x := msg.dsc;
@@ -396,15 +427,21 @@ var
   x: PObj;
 begin
   typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
-  x := msg.dsc;
-  while x <> tab.Guard do
-  begin
-    typ := x.typ;
-    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
-      SaveDecl(x);
-    x := x.next;
+  if msg.cls <> TMode.mType then exit;
+  case typ.form of
+    TTypeMode.tmMap:
+      if maps.IndexOf(typ) < 0 then
+        maps.Add(typ);
+    TTypeMode.tmMessage:
+      begin
+        Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+        x := msg.dsc;
+        while x <> tab.Guard do
+        begin
+          if x.cls = TMode.mType then SaveDecl(x);
+          x := x.next;
+        end;
+      end;
   end;
 end;
 
@@ -414,24 +451,35 @@ var
   typ: PType;
   s, t: string;
 begin
+  // generate nested messages
+  x := msg.dsc;
+  while x <> nil {tab.Guard} do
+  begin
+    typ := x.typ;
+    if x.cls = TMode.mType then
+      if typ.form = TTypeMode.tmMessage then
+        LoadImpl(x);
+    x := x.next;
+  end;
   typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
+  if msg.cls <> TMode.mType then exit;
+  if typ.form <> TTypeMode.tmMessage then exit;
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('function TpbBuilder.Load%s(%s: %s): %s;', [s, msg.name, t, t]);
+  Wrln('function %s.Load%s(%s: %s): %s;', [GetBuilderName(True), s, msg.name, t, t]);
   Wrln('var');
   Wrln('  fieldNumber, wireType: integer;');
   Wrln('  tag: TpbTag;');
   Wrln('begin');
   Indent;
   Wrln('Result := %s;', [s]);
-  Wrln('tag := Pbi.readTag;');
+  Wrln('tag := Pb.readTag;');
   Wrln('while tag.v <> 0 do');
   Wrln('begin');
   Indent;
   Wrln('wireType := tag.WireType;');
   Wrln('fieldNumber := tag.FieldNumber;');
-  Wrln('tag := Pbi.readTag;');
+  Wrln('tag := Pb.readTag;');
   Wrln('case fieldNumber of');
   x := typ.dsc;
   while x <> tab.Guard do
@@ -440,7 +488,7 @@ begin
     x := x.next;
   end;
   Wrln('  else');
-  Wrln('    Pbi.skipField(tag);');
+  Wrln('    Pb.skipField(tag);');
   Wrln('end;');
   Dedent;
   Wrln('end;');
@@ -453,31 +501,261 @@ procedure TGen.SaveImpl(msg: PObj);
 var
   typ: PType;
   x: PObj;
-  s, t: string;
-begin
-  typ := msg.typ;
-  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage));
-  s := msg.DelphiName;
-  t := msg.AsType;
-  Wrln('procedure TpbBuilder.Save%s(%s: %s);',  [s, msg.name, t]);
-  Wrln('var');
-  Wrln('  i: Integer;');
-  Wrln('  pb: TpbOutput;');
-  Wrln('begin');
-  Indent;
-  try
-    typ := msg.typ;
-    x := typ.dsc;
+
+  function HasRepeatedVars(x: PObj): Boolean;
+  begin
     while x <> tab.Guard do
     begin
-      FieldWrite(x);
+      if TFieldOptions(x.aux).Rule = TFieldRule.Repeated then
+        exit(True);
       x := x.next;
     end;
-  finally
-    Dedent;
+    Result := False;
   end;
-  Wrln('end;');
-  Wrln('');
+
+  procedure SaveMessage;
+  var
+    s, t: string;
+    x: PObj;
+    typ: PType;
+  begin
+    s := msg.DelphiName;
+    t := msg.AsType;
+    Wrln('procedure %s.Save%s(%s: %s);', [GetBuilderName(False), s, msg.name, t]);
+    mapvars.Clear;
+    x := msg.dsc;
+    while x <> tab.Guard do
+    begin
+      typ := x.typ;
+      if x.cls = TMode.mType then
+        case typ.form of
+          TTypeMode.tmMap:
+            if mapvars.IndexOf(typ) < 0 then
+              mapvars.Add(typ);
+        end;
+      x := x.next;
+    end;
+    if HasRepeatedVars(msg.typ.dsc) or (mapvars.Count > 0) then
+    begin
+      Wrln('var');
+      begin
+        if HasRepeatedVars(msg.typ.dsc) then
+          Wrln('  i: Integer;');
+        Wrln('  h: TpbSaver;');
+      end;
+      for typ in mapvars do
+        Wrln('  ' + GetPair(mapvars, typ, TGetMap.asVarDecl) + ';');
+    end;
+    Wrln('begin');
+    Indent;
+    try
+      typ := msg.typ;
+      x := typ.dsc;
+      while x <> tab.Guard do
+      begin
+        FieldWrite(x);
+        x := x.next;
+      end;
+    finally
+      Dedent;
+    end;
+    Wrln('end;');
+    Wrln('');
+  end;
+
+begin
+  // generate nested messages
+  x := msg.dsc;
+  while x <> nil {tab.Guard} do
+  begin
+    typ := x.typ;
+    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
+      SaveImpl(x);
+    x := x.next;
+  end;
+  typ := msg.typ;
+  if (msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
+    SaveMessage;
+end;
+
+type
+  TFieldGen = record
+  var
+    g: TGen;
+    obj: PObj;
+    o: TFieldOptions;
+    ft: string;
+    m, mn, mt, n, t: string;
+    function GetTag: string;
+    // Embedded types
+    procedure GenType;
+    procedure GenEnum;
+    procedure GenMap(const pair: string);
+    procedure GenMessage;
+  public
+    procedure Init(g: TGen; obj: PObj; o: TFieldOptions; const ft: string);
+    procedure Gen;
+  end;
+
+procedure TFieldGen.Init(g: TGen; obj: PObj; o: TFieldOptions; const ft: string);
+begin
+  Self.g := g;
+  Self.obj := obj;
+  Self.m := obj.typ.declaration.name;
+  Self.o := o;
+  Self.ft := ft;
+  mn := o.Msg.DelphiName;
+  mt := o.Msg.AsType;
+  n := obj.DelphiName;
+  t := obj.AsType;
+end;
+
+procedure TFieldGen.Gen;
+begin
+  if o.Default <> '' then
+  begin
+    g.Wrln('if %s.F%s <> %s then', [m, t, o.Default]);
+    g.Indent;
+  end;
+  case obj.typ.form of
+    TTypeMode.tmDouble .. TTypeMode.tmSint64:
+      GenType;
+    TTypeMode.tmEnum:
+      GenEnum;
+    TTypeMode.tmMessage:
+      GenMessage;
+    TTypeMode.tmMap:
+      GenMap(g.GetPair(g.mapvars, obj.typ, TGetMap.asVarUsing));
+    else
+      raise Exception.Create('unsupported field type');
+  end;
+  if o.Default <> '' then
+    g.Dedent;
+end;
+
+function TFieldGen.GetTag: string;
+begin
+  if (ft = '1') or (ft = '2') then
+    Result := ft
+  else
+    Result := mt + '.' + ft;
+end;
+
+procedure TFieldGen.GenType;
+begin
+  // Pb.writeString(TPerson.ftName, Person.Name);
+  g.Wrln('Pb.write%s(%s, %s.%s);', [AsCamel(m), GetTag, mn, n]);
+end;
+
+procedure TFieldGen.GenEnum;
+begin
+  g.Wrln('Pb.writeInt32(%s, Ord(%s.%s));', [GetTag, mn, AsCamel(n)]);
+end;
+
+procedure TFieldGen.GenMessage;
+var s: string;
+begin
+  if o.rule <> TFieldRule.Repeated then
+  begin
+    if ft <> '2' then
+    begin
+      g.Wrln('if %s.F%s <> nil then', [mn, n]);
+      g.Wrln('begin');
+      g.Indent;
+    end;
+    g.Wrln('h.Init;');
+    g.Wrln('try');
+    g.Wrln('  h.Save%s(%s.%s);', [m, mn, n]);
+    s := Format('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln(s);
+    g.Wrln('finally');
+    g.Wrln('  h.Free;');
+    g.Wrln('end;');
+    if ft <> '2' then
+    begin
+      g.Dedent;
+      g.Wrln('end;');
+    end;
+  end
+  else
+  begin
+    n := AsCamel(Plural(n));
+    g.Wrln('if %s.F%s.Count > 0 then', [mn, n]);
+    g.Wrln('begin');
+    g.Wrln('  h.Init;');
+    g.Wrln('  try');
+    g.Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
+    g.Wrln('    begin');
+    g.Wrln('      h.Clear;');
+    g.Wrln('      Save%s(%s.%s[i]);', [m, mn, n]);
+    g.Wrln('      Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('    end;');
+    g.Wrln('  finally');
+    g.Wrln('    h.Free;');
+    g.Wrln('  end;');
+    g.Wrln('end;');
+  end;
+end;
+
+procedure TFieldGen.GenMap(const pair: string);
+begin
+  g.Wrln('h.Init;');
+  g.Wrln('try');
+  g.Wrln('  for %s in %s.F%s do', [pair, mn, n]);
+  g.Wrln('  begin');
+  g.Wrln('    h.Clear;');
+  g.Wrln('    h.Save%s(Item);', [AsCamel(m)]);
+  g.Wrln('    Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+  g.Wrln('  end;');
+  g.Wrln('finally');
+  g.Wrln('  h.Free;');
+  g.Wrln('end;');
+end;
+
+procedure TGen.SaveMaps;
+var
+  typ: PType;
+  map, key, value: PObj;
+  s, t: string;
+  ko, vo: TFieldOptions;
+
+  procedure G(obj: PObj; o: TFieldOptions; const ft: string);
+  var fg: TFieldGen;
+  begin
+    fg.Init(Self, obj, o, ft);
+    fg.Gen;
+  end;
+
+begin
+  pairMessage.cls := TMode.mType;
+  pairMessage.name := 'Item';
+  pairMessage.typ := @pairType;
+  pairType.form := TTypeMode.tmMessage;
+  pairType.declaration := @pairMessage;
+  for typ in maps do
+  begin
+    map := typ.declaration;
+    s := map.DelphiName;
+    t := map.AsType;
+    Wrln('procedure %s.Save%s(%s);',
+      [GetBuilderName(False), map.DelphiName, GetPair(maps, typ, TGetMap.asParam)]);
+    Wrln('var');
+    Wrln('  h: TpbSaver;');
+    Wrln('begin');
+    Indent;
+    try
+      key := typ.dsc;
+      ko := TFieldOptions.Create(key, @pairMessage, 1, TFieldRule.Singular);
+      G(key, ko, '1');
+      value := key.next;
+      vo := TFieldOptions.Create(value, @pairMessage, 2, TFieldRule.Singular);
+      G(value, vo, '2');
+    finally
+      Dedent;
+    end;
+    Wrln('end;');
+    Wrln('');
+  end;
 end;
 
 function TGen.FieldTag(obj: PObj): string;
@@ -606,7 +884,7 @@ begin
     TTypeMode.tmMessage:
       Result := Format('Load%s(%s.Create)', [m, msg.AsType]);
     TTypeMode.tmEnum:
-      Result := Format('T%s(Pbi.readInt32)', [m]);
+      Result := Format('T%s(Pb.readInt32)', [m]);
     TTypeMode.tmMap:
       begin
         key := obj.typ.dsc;
@@ -614,7 +892,7 @@ begin
         Result := Format('%s, %s', [GetRead(key), GetRead(value)]);
       end;
     else
-      Result := Format('Pbi.read%s', [AsCamel(msg.name)]);
+      Result := Format('Pb.read%s', [AsCamel(msg.name)]);
   end;
 end;
 
@@ -681,99 +959,11 @@ end;
 
 procedure TGen.FieldWrite(obj: PObj);
 var
-  o: TFieldOptions;
-  msg: PObj;
-  m, mn, mt, n, t: string;
-
-  // Embedded types
-  procedure GenType;
-  begin
-    // Pbo.writeString(TPerson.ftName, Person.Name);
-    Wrln('Pbo.write%s(%s.%s, %s.%s);', [AsCamel(m), mt, FieldTag(obj), mn, n]);
-  end;
-
-  procedure GenEnum;
-  begin
-    Wrln('Pbo.writeInt32(%s.%s, Ord(%s.%s));', [mt, FieldTag(obj), mn, AsCamel(n)]);
-  end;
-
-  procedure GenMessage;
-  begin
-    if o.Rule <> TFieldRule.Repeated then
-    begin
-      Wrln('if %s.F%s <> nil then', [mn, n]);
-      Wrln('begin');
-      Wrln('  pb := TpbOutput.From;');
-      Wrln('  try');
-      Wrln('    Save%s(%s.%s);', [m, mn, n]);
-      Wrln('    Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
-      Wrln('  finally');
-      Wrln('    pb.Free;');
-      Wrln('  end;');
-      Wrln('end;');
-    end
-    else
-    begin
-      n := AsCamel(Plural(n));
-      Wrln('if %s.F%s.Count > 0 then', [mn, n]);
-      Wrln('begin');
-      Wrln('  pb := TpbOutput.From;');
-      Wrln('  try');
-      Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
-      Wrln('    begin');
-      Wrln('      pb.Clear;');
-      Wrln('      Save%s(%s.%s[i]);', [m, mn, n]);
-      Wrln('      Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
-      Wrln('    end;');
-      Wrln('  finally');
-      Wrln('    pb.Free;');
-      Wrln('  end;');
-      Wrln('end;');
-    end;
-  end;
-
-  procedure GenMap;
-  begin
-    Wrln('pb := TpbOutput.From;');
-    Wrln('try');
-    Wrln('  for Item in %s.F%s do', [mn, n]);
-    Wrln('  begin');
-    Wrln('    pb.Clear;');
-    Wrln('    Save%s(Item);', [AsCamel(m)]);
-    Wrln('    Pbo.writeMessage(%s.ft%s, pb);', [mt, n]);
-    Wrln('  end;');
-    Wrln('finally');
-    Wrln('  pb.Free;');
-    Wrln('end;');
-  end;
-
+  fg: TFieldGen;
 begin
-  o := obj.aux as TFieldOptions;
-  msg := obj.typ.declaration;
-  m := msg.name;
-  mn := o.Msg.DelphiName;
-  mt := o.Msg.AsType;
-  n := obj.DelphiName;
-  t := obj.AsType;
-  if o.Default <> '' then
-  begin
-    Wrln('if %s.F%s <> %s then', [m, t]);
-    Indent;
-  end;
-  case obj.typ.form of
-    TTypeMode.tmDouble .. TTypeMode.tmSint64:
-      GenType;
-    TTypeMode.tmEnum:
-      GenEnum;
-    TTypeMode.tmMessage:
-      GenMessage;
-    TTypeMode.tmMap:
-      GenMap;
-    else
-      raise Exception.Create('unsupported field type');
-  end;
-  if o.Default <> '' then
-    Dedent;
+  Assert(obj.cls = TMode.mField);
+  fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
+  fg.Gen;
 end;
 
 procedure TGen.FieldReflection(obj: PObj);
@@ -789,40 +979,64 @@ begin
     Wrln('// ' + s)
 end;
 
-procedure TGen.LocalVars(msg: PObj);
+function TGen.GetPair(maptypes: TMapTypes; typ: PType; mas: TGetMap): string;
 var
-  x: PObj;
-  typ: PType;
+  msg, key, value: PObj;
+  i: Integer;
+  s: string;
 begin
-  x := msg.dsc;
-  while x <> tab.Guard do
-  begin
-    typ := x.typ;
-    if (x.cls = TMode.mType) and (typ.form = TTypeMode.tmMessage) then
-      Wrln('  %s: %s;', [x.name, x.AsType]);
-    x := x.next;
-  end;
+  msg := typ.declaration;
+  Assert((msg.cls = TMode.mType) and (typ.form = TTypeMode.tmMap));
+  i := maptypes.IndexOf(typ);
+  if (i > 0) and (mas = TGetMap.asVarUsing) then
+    s := Format('Item%d', [i])
+  else
+    s := 'Item';
+  if mas = TGetMap.asVarUsing then exit(s);
+  key := typ.dsc;
+  value := key.next;
+  Result := Format('%s: TPair<%s, %s>', [s, key.AsType, value.AsType]);
 end;
 
-procedure TGen.BuilderDecl;
-var
-  obj, x: PObj;
+function TGen.GetBuilderName(Load: Boolean): string;
 begin
-  Wrln('TPbBuilder = class(TpbCustomBuilder)');
+  if Load then
+    Result := 'TLoadHelper'
+  else
+    Result := 'TSaveHelper';
+end;
+
+procedure TGen.BuilderDecl(Load: Boolean);
+const
+  Names: array [Boolean] of string = ('TpbSaver', 'TpbLoader');
+var
+  obj, x, m: PObj;
+  typ: PType;
+  s: string;
+begin
+  Wrln('%s = record helper for %s', [GetBuilderName(Load), Names[Load]]);
   Wrln('public');
   Indent;
   try
+    maps.Clear;
     obj := tab.Module.Obj; // root proto file
     x := obj.dsc;
     while x <> nil do
     begin
-      if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
-      begin
-        LoadDecl(x);
-        SaveDecl(x);
-      end;
+      if x.cls = TMode.mType then
+        if Load then
+          LoadDecl(x)
+        else
+          SaveDecl(x);
       x := x.next;
     end;
+    if not Load then
+      for typ in maps do
+      begin
+        m := typ.declaration;
+        s := GetPair(maps, typ, TGetMap.asParam);
+        Wrln('procedure Save%s(%s);', [m.DelphiName, s]);
+      end;
   finally
     Dedent;
   end;
@@ -838,13 +1052,15 @@ begin
   x := obj.dsc;
   while x <> nil do
   begin
-    if (x.cls = TMode.mType) and (x.typ.form = TTypeMode.tmMessage) then
-    begin
-      LoadImpl(x);
-      SaveImpl(x);
-    end;
+    if x.cls = TMode.mType then
+      if Load then
+        LoadImpl(x)
+      else
+        SaveImpl(x);
     x := x.next;
   end;
+  if not Load then
+    SaveMaps;
 end;
 
 {$EndRegion}

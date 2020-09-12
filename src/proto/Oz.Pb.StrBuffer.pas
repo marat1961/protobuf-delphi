@@ -1,11 +1,8 @@
 ﻿// Author  - Marat Shaimardanov, Tomsk 2001 .. 2020
-//
+
 // Send any postcards with postage stamp to my address:
 // Frunze 131/1, 56, Russia, Tomsk, 634021
 // then you can use this code in self project.
-
-// People are not grateful.
-// The programs have been downloaded many times, but I have not received a single postcard
 
 // The buffer for strings.
 // The main purpose of the rapid format of long string.
@@ -14,7 +11,7 @@
 // 2. One-time allocation of the specified size
 // 3. The class is not multi-thread safe
 
-unit StrBuffer;
+unit Oz.Pb.StrBuffer;
 
 interface
 
