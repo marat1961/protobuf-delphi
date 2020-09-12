@@ -80,12 +80,13 @@ type
     RECURSION_LIMIT = 64;
     SIZE_LIMIT = 64 shl 20;  // 64 mb
   private var
-    FLen: Integer;
-    FBuffer: PByte;
-    FPos: Integer;
+    FBuf: PByte;
+    FLast: PByte;
+    FCurrent: PByte;
     FLastTag: TpbTag;
     FOwnsData: Boolean;
     FRecursionDepth: ShortInt;
+    FStack: array [0 .. RECURSION_LIMIT - 1] of PByte;
   public
     procedure Init; overload;
     procedure Init(const pb: TpbInput); overload;
@@ -102,10 +103,6 @@ type
     procedure LoadFromStream(Stream: TStream);
     // Merge messages
     procedure mergeFrom(const builder: TpbInput);
-    // Set buffer posititon
-    procedure setPos(Pos: Integer);
-    // Get buffer posititon
-    function getPos: Integer;
     // Attempt to read a field tag, returning zero if we have reached EOF
     function readTag: TpbTag;
     // Check whether the latter match the value read tag
@@ -133,6 +130,10 @@ type
     function readString: string;
     // Read nested message
     procedure readMessage(builder: PpbInput);
+    // Read message length, push current FLast to stack, and calc new FLast
+    procedure Push;
+    // Restore FLast
+    procedure Pop;
     // Read a uint32 field value
     function readUInt32: Integer;
     // Read a enum field value
@@ -323,24 +324,25 @@ end;
 
 procedure TpbInput.Init(Buf: PByte; BufSize: Integer; OwnsData: Boolean);
 begin
-  FLen := BufSize;
-  FPos := 0;
   FOwnsData := OwnsData;
   FRecursionDepth := 0;
   if not OwnsData then
-    FBuffer := Buf
+    FBuf := Buf
   else
   begin
     // allocate a buffer and copy the data
-    GetMem(FBuffer, FLen);
-    Move(Buf^, FBuffer^, FLen);
+    GetMem(FBuf, BufSize);
+    Move(Buf^, FBuf^, BufSize);
   end;
+  FCurrent := FBuf;
+  FLast := FBuf + BufSize;
 end;
 
 procedure TpbInput.Init(const pb: TpbInput);
 begin
-  Self.FBuffer := pb.FBuffer;
-  Self.FPos := 0;
+  FBuf := pb.FBuf;
+  FCurrent := FBuf;
+  FLast := pb.FLast;
   Self.FOwnsData := False;
 end;
 
@@ -358,13 +360,13 @@ end;
 procedure TpbInput.Free;
 begin
   if FOwnsData then
-    FreeMem(FBuffer, FLen);
+    FreeMem(FBuf);
   Self := Default(TpbInput);
 end;
 
 function TpbInput.readTag: TpbTag;
 begin
-  if FPos < FLen then
+  if FCurrent < FLast then
     FLastTag.v := readRawVarint32
   else
     FLastTag.v := 0;
@@ -540,36 +542,36 @@ end;
 
 function TpbInput.readRawByte: ShortInt;
 begin
-  if FPos >= FLen then
+  if FCurrent >= FLast then
     EProtobufError.Create(EProtobufError.EofEncounterd);
-  Result := ShortInt(FBuffer[FPos]);
-  Inc(FPos);
+  Result := ShortInt(FCurrent^);
+  Inc(FCurrent);
 end;
 
 procedure TpbInput.readRawBytes(var data; size: Integer);
 begin
-  if FPos + size > FLen then
+  if FCurrent > FLast then
     EProtobufError.Create(EProtobufError.EofEncounterd);
-  Move(FBuffer[FPos], data, size);
-  Inc(FPos, size);
+  Move(FCurrent^, data, size);
+  Inc(FCurrent, size);
 end;
 
 function TpbInput.readBytes(size: Integer): TBytes;
 begin
-  if FPos + size > FLen then
+  if FCurrent > FLast then
     EProtobufError.Create(EProtobufError.EofEncounterd);
   SetLength(Result, size);
-  Move(FBuffer[FPos], Pointer(Result)^, size);
-  Inc(FPos, size);
+  Move(FCurrent^, Pointer(Result)^, size);
+  Inc(FCurrent, size);
 end;
 
 procedure TpbInput.skipRawBytes(size: Integer);
 begin
   if size < 0 then
     EProtobufError.Create(EProtobufError.NegativeSize);
-  if FPos + size > FLen then
+  if FCurrent > FLast then
     EProtobufError.Create(EProtobufError.TruncatedMessage);
-  Inc(FPos, size);
+  Inc(FCurrent, size);
 end;
 
 procedure TpbInput.SaveToFile(const FileName: string);
@@ -585,7 +587,7 @@ end;
 
 procedure TpbInput.SaveToStream(Stream: TStream);
 begin
-  Stream.WriteBuffer(Pointer(FBuffer)^, FLen);
+  Stream.WriteBuffer(Pointer(FBuf)^, Cardinal(FLastTag) - Cardinal(FBuf) + 1);
 end;
 
 procedure TpbInput.LoadFromFile(const FileName: string);
@@ -600,16 +602,20 @@ begin
 end;
 
 procedure TpbInput.LoadFromStream(Stream: TStream);
+var
+  Size: Integer;
 begin
   if FOwnsData then begin
-    FreeMem(FBuffer, FLen);
-    FBuffer := nil;
+    FreeMem(FBuf);
+    FBuf := nil;
   end;
   FOwnsData := True;
-  FLen := Stream.Size;
-  GetMem(FBuffer, FLen);
+  Size := Stream.Size;
+  GetMem(FBuf, Size);
+  FCurrent := FBuf;
+  FLast := FBuf + Size;
   Stream.Position := 0;
-  Stream.Read(Pointer(FBuffer)^, FLen);
+  Stream.Read(Pointer(FBuf)^, Size);
 end;
 
 procedure TpbInput.mergeFrom(const builder: TpbInput);
@@ -617,14 +623,24 @@ begin
   EProtobufError.Create(EProtobufError.NotImplemented);
 end;
 
-procedure TpbInput.setPos(Pos: Integer);
+procedure TpbInput.Push;
+var
+  Size: Integer;
+  Last: PByte;
 begin
-  FPos := Pos;
+  FStack[FRecursionDepth] := FLast;
+  Inc(FRecursionDepth);
+  Size := readInt32;
+  Last := FCurrent + Size;
+  Assert(Last <= FLast);
+  FLast := Last;
 end;
 
-function TpbInput.getPos: Integer;
+procedure TpbInput.Pop;
 begin
-  Result := FPos;
+  Assert(FCurrent = FLast);
+  dec(FRecursionDepth);
+  FLast := FStack[FRecursionDepth];
 end;
 
 {$EndRegion}

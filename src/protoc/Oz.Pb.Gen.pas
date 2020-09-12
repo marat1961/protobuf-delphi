@@ -917,14 +917,18 @@ begin
         begin
           Wrln('begin');
           Wrln('  Assert(wireType = TWire.LENGTH_DELIMITED);');
-          Wrln('  Pb.readInt32;');
+          Wrln('  Pb.Push;');
+          Wrln('  try');
           if o.Rule <> TFieldRule.Repeated then
-            Wrln('  %s.F%s := %s;', [o.Msg.name, n, GetRead(obj)])
+            Wrln('    %s.F%s := %s;', [o.Msg.name, n, GetRead(obj)])
           else
           begin
             n := 'F' + Plural(obj.name);
-            Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
+            Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
           end;
+          Wrln('  finally');
+          Wrln('    Pb.Pop;');
+          Wrln('  end;');
           Wrln('end;');
         end;
       TTypeMode.tmEnum:
