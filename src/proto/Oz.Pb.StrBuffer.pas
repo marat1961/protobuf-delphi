@@ -61,7 +61,7 @@ type
     Next: PSegment;
     Size: Integer;
     Count: Integer;
-    Data: array[0..0] of AnsiChar;
+    Data: array[0..0] of Byte;
   end;
 
   TSegmentBuffer = class
@@ -257,7 +257,7 @@ procedure TSegmentBuffer.AddSegment(Size: Integer);
 var
   segment: PSegment;
 begin
-  segment := AllocMem(Size + SizeOf(TSegment) - SizeOf(AnsiChar));
+  segment := AllocMem(Size + SizeOf(TSegment) - SizeOf(Byte));
   segment.next := nil;
   segment.size := Size;
   segment.count := 0;

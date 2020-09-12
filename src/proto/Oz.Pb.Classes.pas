@@ -184,7 +184,7 @@ type
     // Encode and write varint
     procedure writeRawVarint64(value: Int64);
     // Encode and write tag
-    procedure writeTag(fieldNumber: Integer; wireType: Integer); inline;
+    procedure writeTag(fieldNo: Integer; wireType: Integer);
     // Encode and write single byte
     procedure writeRawByte(value: ShortInt); inline;
     // Write the data with specified size
@@ -193,25 +193,25 @@ type
     // Get the result as a bytes
     function GetBytes: TBytes; inline;
     // Write a Double field, including tag
-    procedure writeDouble(fieldNumber: Integer; value: Double);
+    procedure writeDouble(fieldNo: Integer; value: Double);
     // Write a Single field, including tag
-    procedure writeFloat(fieldNumber: Integer; value: Single);
+    procedure writeFloat(fieldNo: Integer; value: Single);
     // Write a Int64 field, including tag
-    procedure writeInt64(fieldNumber: Integer; value: Int64);
+    procedure writeInt64(fieldNo: Integer; value: Int64);
     // Write a Int64 field, including tag
-    procedure writeInt32(fieldNumber: Integer; value: Integer);
+    procedure writeInt32(fieldNo: Integer; value: Integer);
     // Write a fixed64 field, including tag
-    procedure writeFixed64(fieldNumber: Integer; value: Int64);
+    procedure writeFixed64(fieldNo: Integer; value: Int64);
     // Write a fixed32 field, including tag
-    procedure writeFixed32(fieldNumber: Integer; value: Integer);
+    procedure writeFixed32(fieldNo: Integer; value: Integer);
     // Write a Boolean field, including tag
-    procedure writeBoolean(fieldNumber: Integer; value: Boolean);
+    procedure writeBoolean(fieldNo: Integer; value: Boolean);
     // Write a string field, including tag
-    procedure writeString(fieldNumber: Integer; const value: string);
+    procedure writeString(fieldNo: Integer; const value: string);
     // Write a message field, including tag
-    procedure writeMessage(fieldNumber: Integer; const value: TpbOutput);
+    procedure writeMessage(fieldNo: Integer; const msg: TpbOutput);
     //  Write a unsigned Int32 field, including tag
-    procedure writeUInt32(fieldNumber: Integer; value: Cardinal);
+    procedure writeUInt32(fieldNo: Integer; value: Cardinal);
     // Get serialized size
     function getSerializedSize: Integer;
     // Write to buffer
@@ -309,7 +309,7 @@ end;
 
 procedure TpbTag.MakeTag(FieldNo: Integer; WireType: TWireType);
 begin
-  v := (fieldNumber shl TAG_TYPE_BITS) or wireType;
+  v := (FieldNo shl TAG_TYPE_BITS) or wireType;
 end;
 
 {$EndRegion}
@@ -656,11 +656,11 @@ begin
   FBuffer.Add(p, size);
 end;
 
-procedure TpbOutput.writeTag(fieldNumber, wireType: Integer);
+procedure TpbOutput.writeTag(fieldNo, wireType: Integer);
 var
   tag: TpbTag;
 begin
-  tag.MakeTag(fieldNumber, wireType);
+  tag.MakeTag(fieldNo, wireType);
   writeRawVarint32(tag.v);
 end;
 
@@ -688,72 +688,73 @@ begin
   until value = 0;
 end;
 
-procedure TpbOutput.writeBoolean(fieldNumber: Integer; value: Boolean);
+procedure TpbOutput.writeBoolean(fieldNo: Integer; value: Boolean);
 begin
-  writeTag(fieldNumber, TWire.VARINT);
+  writeTag(fieldNo, TWire.VARINT);
   writeRawByte(ord(value));
 end;
 
-procedure TpbOutput.writeDouble(fieldNumber: Integer; value: Double);
+procedure TpbOutput.writeDouble(fieldNo: Integer; value: Double);
 begin
-  writeTag(fieldNumber, TWire.FIXED64);
+  writeTag(fieldNo, TWire.FIXED64);
   writeRawData(@value, SizeOf(value));
 end;
 
-procedure TpbOutput.writeFloat(fieldNumber: Integer; value: Single);
+procedure TpbOutput.writeFloat(fieldNo: Integer; value: Single);
 begin
-  writeTag(fieldNumber, TWire.FIXED32);
+  writeTag(fieldNo, TWire.FIXED32);
   writeRawData(@value, SizeOf(value));
 end;
 
-procedure TpbOutput.writeFixed32(fieldNumber, value: Integer);
+procedure TpbOutput.writeFixed32(fieldNo, value: Integer);
 begin
-  writeTag(fieldNumber, TWire.FIXED32);
+  writeTag(fieldNo, TWire.FIXED32);
   writeRawData(@value, SizeOf(value));
 end;
 
-procedure TpbOutput.writeFixed64(fieldNumber: Integer; value: Int64);
+procedure TpbOutput.writeFixed64(fieldNo: Integer; value: Int64);
 begin
-  writeTag(fieldNumber, TWire.FIXED64);
+  writeTag(fieldNo, TWire.FIXED64);
   writeRawData(@value, SizeOf(value));
 end;
 
-procedure TpbOutput.writeInt32(fieldNumber, value: Integer);
+procedure TpbOutput.writeInt32(fieldNo, value: Integer);
 begin
-  writeTag(fieldNumber, TWire.VARINT);
+  writeTag(fieldNo, TWire.VARINT);
   writeRawVarint32(value);
 end;
 
-procedure TpbOutput.writeInt64(fieldNumber: Integer; value: Int64);
+procedure TpbOutput.writeInt64(fieldNo: Integer; value: Int64);
 begin
-  writeTag(fieldNumber, TWire.VARINT);
+  writeTag(fieldNo, TWire.VARINT);
   writeRawVarint64(value);
 end;
 
-procedure TpbOutput.writeString(fieldNumber: Integer;
+procedure TpbOutput.writeString(fieldNo: Integer;
   const value: string);
 var
   bytes, text: TBytes;
 begin
-  writeTag(fieldNumber, TWire.LENGTH_DELIMITED);
+  writeTag(fieldNo, TWire.LENGTH_DELIMITED);
   bytes := TEncoding.Unicode.GetBytes(value);
   text := TEncoding.Unicode.Convert(TEncoding.Unicode, TEncoding.UTF8, bytes);
   writeRawVarint32(Length(text));
   FBuffer.Add(text);
 end;
 
-procedure TpbOutput.writeUInt32(fieldNumber: Integer; value: Cardinal);
+procedure TpbOutput.writeUInt32(fieldNo: Integer; value: Cardinal);
 begin
-  writeTag(fieldNumber, TWire.VARINT);
+  writeTag(fieldNo, TWire.VARINT);
   writeRawVarint32(value);
 end;
 
-procedure TpbOutput.writeMessage(fieldNumber: Integer;
-  const value: TpbOutput);
+procedure TpbOutput.writeMessage(fieldNo: Integer; const msg: TpbOutput);
+var sz: Integer;
 begin
-  writeTag(fieldNumber, TWire.LENGTH_DELIMITED);
-  writeRawVarint32(value.getSerializedSize);
-  value.writeTo(self);
+  writeTag(fieldNo, TWire.LENGTH_DELIMITED);
+  sz := msg.getSerializedSize;
+  writeRawVarint32(sz);
+  msg.writeTo(Self);
 end;
 
 function TpbOutput.GetBytes: TBytes;
