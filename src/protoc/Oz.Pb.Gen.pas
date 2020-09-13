@@ -56,14 +56,15 @@ type
     procedure FieldInit(obj: PObj);
     // Free field
     procedure FieldFree(obj: PObj);
-    // get read statement
+    // Get read statement
     function GetRead(obj: PObj): string;
     // Field read from buffer
     procedure FieldRead(obj: PObj);
-    // write field to buffer
+    // Write field to buffer
     procedure FieldWrite(obj: PObj);
-    // field reflection
+    // Field reflection
     procedure FieldReflection(obj: PObj);
+    // unused
     procedure GenComment(const comment: string);
 
     // Message code

@@ -50,7 +50,7 @@ type
     procedure _Reserved;
     procedure _strLit;
     procedure _FullIdent(var id: string);
-    procedure _OptionName(var s: string);
+    procedure _OptionName(var id: string);
     procedure _Constant(var c: TConst);
     procedure _Rpc;
     procedure _UserType(var typ: TQualIdent);
@@ -160,8 +160,7 @@ procedure TpbParser._Module(const id: string; var obj: PObj);
 begin
   tab.NewObj(obj, id, TMode.mModule);
   obj.aux := TModule.Create(obj, id, {weak=}False);
-  if tab.Module = nil { root proto file } then
-    tab.Module := TModule(obj.aux);
+  tab.Module := TModule(obj.aux);
   tab.OpenScope;
   _Syntax(obj);
   while StartOf(1) do
@@ -243,7 +242,7 @@ begin
   end;
   _strLit;
   id := Unquote(t.val);
-  tab.OpenModule(id, weak);
+  tab.Import(id, weak);
   Expect(14);
 end;
 
@@ -462,8 +461,7 @@ begin
   end;
 end;
 
-procedure TpbParser._OptionName(var s: string);
-var id: string;
+procedure TpbParser._OptionName(var id: string);
 begin
   if la.kind = 1 then
   begin

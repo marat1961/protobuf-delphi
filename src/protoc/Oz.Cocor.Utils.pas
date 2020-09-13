@@ -166,7 +166,7 @@ begin
   n := s.Length;
   Assert(s[1] = '"');
   Assert(s[n] = '"');
-  Result := Copy(s, 2, n - 1);
+  Result := Copy(s, 2, n - 2);
 end;
 
 function AsCamel(const s: string): string;

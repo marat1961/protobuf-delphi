@@ -325,16 +325,15 @@ type
     FGuard: PObj;
     // root node for the .proto file
     FModule: TModule;
+    FModId: string;
     // predefined types
     FEmbeddedTypes: array [TEmbeddedTypes] of PType;
     // Fill predefined elements
     procedure InitSystem;
     function GetUnknownType: PType;
-    function GetModId: string;
   public
     constructor Create;
     destructor Destroy; override;
-    procedure Init(Parser: TBaseParser);
     // Add new declaration
     procedure NewObj(var obj: PObj; const id: string; cls: TMode);
     // Add new type
@@ -356,7 +355,9 @@ type
     // Get embedded type by kind
     function GetBasisType(kind: TTypeMode): PType;
     // Open and read module from file
-    function OpenModule(const id: string; Weak: Boolean): TModule;
+    procedure OpenProto(const id: string; Weak: Boolean);
+    // Import module
+    procedure Import(const id: string; Weak: Boolean);
     // Convert string to Integer
     function ParseInt(const s: string; base: Integer): Integer;
     function Dump: string;
@@ -364,7 +365,7 @@ type
     // properties
     property TopScope: PObj read FTopScope;
     property Guard: PObj read FGuard;
-    property ModId: string read GetModId;
+    property ModId: string read FModId;
     property Module: TModule read FModule write FModule;
     property UnknownType: PType read GetUnknownType;
   end;
@@ -398,6 +399,7 @@ const
 implementation
 
 uses
+  Oz.Pb.Scanner,
   Oz.Pb.Parser;
 
 function GetWireType(tm: TTypeMode): TWireType;
@@ -599,11 +601,6 @@ begin
   for i := Low(DelphiKeywords) to High(DelphiKeywords) do
     TObjDesc.Keywords.Add(DelphiKeywords[i]);
   TObjDesc.Keywords.Sorted := True;
-end;
-
-procedure TpbTable.Init(Parser: TBaseParser);
-begin
-  FParser := Parser;
   InitSystem;
 end;
 
@@ -762,12 +759,55 @@ begin
   Result := typ;
 end;
 
-function TpbTable.OpenModule(const id: string; Weak: Boolean): TModule;
+procedure TpbTable.OpenProto(const id: string; Weak: Boolean);
 var
-  obj: PObj;
+  str: TStringList;
+  src, stem, filename: string;
 begin
-  parser.ParseImport(id, obj);
-  Result := obj.aux as TModule;
+  FModId := id;
+  try
+    str := TStringList.Create;
+    try
+      str.LoadFromFile(id);
+      src := str.Text;
+    finally
+      str.Free;
+    end;
+    str := TStringList.Create;
+    FParser := TpbParser.Create(Self, TpbScanner.Create(src), str);
+    try
+      parser.Parse;
+      Writeln(parser.errors.count, ' errors detected');
+      parser.PrintErrors;
+      stem := TPath.GetFilenameWithoutExtension(id);
+      filename := TPath.Combine(options.srcDir, stem + '.lst');
+      str.SaveToFile(filename);
+      if parser.errors.count = 0 then
+      begin
+        parser.gen.GenerateCode;
+        str.Text := parser.gen.Code;
+        filename := TPath.Combine(options.srcDir, stem + '.pas');
+        str.SaveToFile(filename);
+      end;
+    finally
+      str.Free;
+      FreeAndNil(FParser);
+    end;
+  except
+    on e: FatalError do Writeln('-- ', e.Message);
+  end;
+end;
+
+procedure TpbTable.Import(const id: string; Weak: Boolean);
+var
+  tm: TModule;
+begin
+  tm := FModule;
+  try
+    OpenProto(id, Weak);
+  finally
+    FModule := tm;
+  end;
 end;
 
 function TpbTable.ParseInt(const s: string; base: Integer): Integer;
@@ -799,11 +839,6 @@ begin
     Inc(p);
   until False;
   Result := Result * sign;
-end;
-
-function TpbTable.GetModId: string;
-begin
-  Result := TPath.GetFilenameWithoutExtension(options.SrcName);
 end;
 
 function TpbTable.Dump: string;

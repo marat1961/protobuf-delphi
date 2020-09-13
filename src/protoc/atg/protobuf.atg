@@ -50,8 +50,7 @@ Module<tab.ModId, obj>       (. tab.CloseScope; .)
 Module<const id: string; var obj: PObj>
 =                            (. tab.NewObj(obj, id, TMode.mModule);
                                 obj.aux := TModule.Create(obj, id, {weak=}False);
-                                if tab.Module = nil { root proto file } then
-                                  tab.Module := TModule(obj.aux);
+                                tab.Module := TModule(obj.aux);
                                 tab.OpenScope; .)
 Syntax<obj>
 {
@@ -112,7 +111,7 @@ Import                       (. var
 | "public"
 ]
 strLit                       (. id := Unquote(t.val);
-                                tab.OpenModule(id, weak); .)
+                                tab.Import(id, weak); .)
 ";"
 .
 
@@ -138,7 +137,7 @@ OptionName<id>
 ";"
 .
 
-OptionName<var s: string>    (. var id: string; .)
+OptionName<var id: string>
 =
 (
 ident                        (. id := t.val; .)
