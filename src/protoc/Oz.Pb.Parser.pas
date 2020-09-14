@@ -47,6 +47,7 @@ type
     procedure _EmptyStatement;
     procedure _Ident(var id: string);
     procedure _Field(var typ: PType);
+    procedure _OneOf(var typ: PType);
     procedure _Reserved;
     procedure _strLit;
     procedure _FullIdent(var id: string);
@@ -61,7 +62,6 @@ type
     procedure _FieldDecl(msg: PObj; ftyp: PType; rule: TFieldRule);
     procedure _Type(var typ: PType);
     procedure _MapType(var typ: PType);
-    procedure _OneOfType(var typ: PType);
     procedure _FieldNumber(var tag: Integer);
     procedure _FieldOption(const obj: PObj);
     procedure _KeyType(var ft: PType);
@@ -288,9 +288,13 @@ begin
       begin
         _Option(obj);
       end;
-      1, 22, 33, 34, 35, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
+      1, 22, 33, 34, 35, 39, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57:
       begin
         _Field(obj.typ);
+      end;
+      42:
+      begin
+        _OneOf(obj.typ);
       end;
       9:
       begin
@@ -424,6 +428,39 @@ begin
   Expect(14);
 end;
 
+procedure TpbParser._OneOf(var typ: PType);
+var
+  id: string;
+  obj: PObj;
+begin
+  Expect(42);
+  _Ident(id);
+  tab.NewObj(obj, id, TMode.mType);
+  tab.OpenScope;
+  tab.NewType(obj, TTypeMode.tmUnion);
+  typ := obj.typ;
+  Expect(10);
+  while StartOf(3) do
+  begin
+    if la.kind = 19 then
+    begin
+      _Option(obj);
+    end
+    else if StartOf(4) then
+    begin
+      _OneOfField(typ);
+    end
+    else
+    begin
+      _EmptyStatement;
+    end;
+  end;
+  Expect(11);
+  // Before closing the current scope we remember the parsed entities.
+  obj.dsc := tab.TopScope;
+  tab.CloseScope;
+end;
+
 procedure TpbParser._Reserved;
 var obj: PObj;
 begin
@@ -435,7 +472,7 @@ begin
   begin
     _Ranges(TMessageOptions(obj.aux).Reserved);
   end
-  else if la.kind = 1 then
+  else if la.kind = 6 then
   begin
     _FieldNames(TMessageOptions(obj.aux).ReservedFields);
   end
@@ -496,7 +533,7 @@ begin
     _FullIdent(s);
     c.AsIdent(s);
   end
-  else if StartOf(3) then
+  else if StartOf(5) then
   begin
     sign := 1;
     if (la.kind = 31) or (la.kind = 32) then
@@ -683,10 +720,6 @@ begin
   begin
     _MapType(typ);
   end
-  else if la.kind = 42 then
-  begin
-    _OneOfType(typ);
-  end
   else
     SynErr(71);
 end;
@@ -734,7 +767,7 @@ begin
     Get;
     typ := tab.GetBasisType(TTypeMode.tmBytes);
   end
-  else if StartOf(5) then
+  else if StartOf(6) then
   begin
     _KeyType(typ);
   end
@@ -774,39 +807,6 @@ begin
   tab.NewObj(x, 'value', TMode.mType);
   x.typ := value;
   typ.dsc := tab.TopScope.next;
-  tab.CloseScope;
-end;
-
-procedure TpbParser._OneOfType(var typ: PType);
-var
-  id: string;
-  obj: PObj;
-begin
-  Expect(42);
-  _Ident(id);
-  tab.NewObj(obj, id, TMode.mType);
-  tab.OpenScope;
-  tab.NewType(obj, TTypeMode.tmUnion);
-  typ := obj.typ;
-  Expect(10);
-  while StartOf(6) do
-  begin
-    if la.kind = 19 then
-    begin
-      _Option(obj);
-    end
-    else if StartOf(4) then
-    begin
-      _OneOfField(typ);
-    end
-    else
-    begin
-      _EmptyStatement;
-    end;
-  end;
-  Expect(11);
-  // Before closing the current scope we remember the parsed entities.
-  obj.dsc := tab.TopScope;
   tab.CloseScope;
 end;
 
@@ -915,15 +915,14 @@ begin
 end;
 
 procedure TpbParser._FieldNames(Fields: TStringList);
-var id: string;
 begin
-  _Ident(id);
-  Fields.Add(id);
+  _strLit;
+  Fields.Add(Unquote(t.val));
   while la.kind = 37 do
   begin
     Get;
-    _Ident(id);
-    Fields.Add(id);
+    _strLit;
+    Fields.Add(Unquote(t.val));
   end;
 end;
 
@@ -1009,10 +1008,10 @@ const
     (T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
     (x,x,x,x, x,x,x,x, x,T,x,x, x,x,T,T, x,x,T,T, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,T,x,x),
     (x,T,x,x, x,x,x,x, x,T,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,T,T,T, x,x,x,T, x,x,T,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,T,x, x,T,x,x),
-    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
     (x,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
-    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x),
-    (x,T,x,x, x,x,x,x, x,x,x,x, x,x,T,x, x,x,x,T, x,x,T,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,T,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x));
+    (x,x,T,T, T,T,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,T, T,x,x,T, T,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x),
+    (x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,x,x, x,x,T,T, T,T,T,T, T,T,T,T, T,T,x,x, x,x,x,x));
 begin
   Result := sets[s, kind];
 end;

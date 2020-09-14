@@ -77,6 +77,7 @@ Message                      (. var
 "{" {
   Option<obj>
 | Field<obj.typ>
+| OneOf<obj.typ>
 | Message
 | Enum
 | Reserved
@@ -287,7 +288,6 @@ FieldType<var typ: PType>
 =
   Type<typ>
 | MapType<typ>
-| OneOfType<typ>
 .
 
 FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
@@ -333,7 +333,7 @@ MapType<var typ: PType>      (. var
                                 tab.CloseScope; .)
 .
 
-OneOfType<var typ: PType>    (. var
+OneOf<var typ: PType>        (. var
                                   id: string;
                                   obj: PObj; .)
 =
@@ -426,10 +426,9 @@ intLit<hi>
 .
 
 FieldNames<Fields: TStringList>
-                            (. var id: string; .)
 =
-Ident<id>                   (. Fields.Add(id); .)
-{ "," Ident<id>             (. Fields.Add(id); .)
+strLit                      (. Fields.Add(Unquote(t.val)); .)
+{ "," strLit                (. Fields.Add(Unquote(t.val)); .)
 }
 .
 
