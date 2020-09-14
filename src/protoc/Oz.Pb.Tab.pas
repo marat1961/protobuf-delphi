@@ -799,9 +799,13 @@ begin
 end;
 
 procedure TpbTable.Import(const id: string; Weak: Boolean);
+const
+  // This is a predefined module describing embedded structures and types.
+  PredefinedModule = 'google/protobuf/descriptor.proto';
 var
   tm: TModule;
 begin
+  if LowerCase(id) = PredefinedModule then exit;
   tm := FModule;
   try
     OpenProto(id, Weak);

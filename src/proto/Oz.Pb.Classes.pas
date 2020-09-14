@@ -56,7 +56,7 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbTag: proto field tag'}
+{$Region 'TpbTag: Proto field tag'}
 
   TpbTag = record
   var
@@ -221,7 +221,7 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbLoader: load object'}
+{$Region 'TpbLoader: Load object'}
 
   TpbLoader = record
   private
@@ -235,7 +235,7 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbSaver: save a object'}
+{$Region 'TpbSaver: Save a object'}
 
   TpbSaver = record
   private
@@ -250,7 +250,7 @@ type
 
 {$EndRegion}
 
-{$Region 'procedures'}
+{$Region 'Procedures'}
 
 function decodeZigZag32(n: Integer): Integer;
 function decodeZigZag64(n: Int64): Int64;
@@ -259,7 +259,7 @@ function decodeZigZag64(n: Int64): Int64;
 
 implementation
 
-{$Region 'procedures'}
+{$Region 'Procedures'}
 
 function decodeZigZag32(n: Integer): Integer;
 begin
@@ -645,6 +645,7 @@ end;
 
 {$EndRegion}
 
+{$Region 'TpbOutput'}
 
 class function TpbOutput.From: TpbOutput;
 begin

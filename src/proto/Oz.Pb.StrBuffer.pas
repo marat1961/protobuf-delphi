@@ -54,7 +54,7 @@ type
 
 {$EndRegion}
 
-{$Region 'TSegmentBuffer: add memory done by segments'}
+{$Region 'TSegmentBuffer: memory is reserved by segments, without reallocation'}
 
   PSegment = ^TSegment;
   TSegment = record
