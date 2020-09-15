@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+message Empty {
+}
+
+enum OuterEnum {
+  One = 1;
+  Two = 2;
+  Three = 3;
+}
+
+message EnumContainer {
+  OuterEnum outer_enum = 1;
+}
+
+message Embedded {
+  double dbl = 1;
+  float flt = 2;
+  int64 i64 = 3;
+  uint64 ui64 = 4;
+  int32 i32 = 5;
+  fixed64 f64 = 6;
+  fixed32 f32 = 7;
+  bool b = 8;
+  string s = 9;
+  bytes bs = 10;
+  uint32 ui32 = 11;
+  sfixed32 sf32 = 12;
+  sfixed64 sf64 = 13;
+  sint32 si32 = 14;
+  sint64 si64 = 15;
+}	
+
+message RepeatEmbedded {
+  repeated double dbl = 1;
+  repeated float flt = 2;
+  repeated int64 i64 = 3;
+  repeated uint64 ui64 = 4;
+  repeated int32 i32 = 5;
+  repeated fixed64 f64 = 6;
+  repeated fixed32 f32 = 7;
+  repeated bool b = 8;
+  repeated string s = 9;
+  repeated bytes bs = 10;
+  repeated uint32 ui32 = 11;
+  repeated sfixed32 sf32 = 12;
+  repeated sfixed64 sf64 = 13;
+  repeated sint32 si32 = 14;
+  repeated sint64 si64 = 15;
+}	
