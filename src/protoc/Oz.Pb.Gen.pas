@@ -281,13 +281,15 @@ begin
   x := msg.dsc;
   while x <> tab.Guard do
   begin
-    typ := x.typ;
     if x.cls = TMode.mType then
+    begin
+      typ := x.typ;
       case typ.form of
         TTypeMode.tmEnum: EnumDecl(x);
         TTypeMode.tmMessage: MessageDecl(x);
         TTypeMode.tmMap: MapDecl(x);
       end;
+    end;
     x := x.next;
   end;
 

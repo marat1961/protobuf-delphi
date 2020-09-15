@@ -318,6 +318,9 @@ begin
   // Before closing the current scope we remember the parsed entities.
   obj.dsc := tab.TopScope;
   tab.CloseScope;
+  // Message without fields.
+  if obj.typ.dsc = nil then
+    obj.typ.dsc := tab.Guard;
 end;
 
 procedure TpbParser._Enum;

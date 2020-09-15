@@ -84,7 +84,10 @@ Message                      (. var
 | EmptyStatement
 } "}"                        (. // Before closing the current scope we remember the parsed entities.
                                 obj.dsc := tab.TopScope;
-                                tab.CloseScope; .)
+                                tab.CloseScope;
+                                // Message without fields.
+                                if obj.typ.dsc = nil then
+                                  obj.typ.dsc := tab.Guard; .)
 .
 
 // Syntax
