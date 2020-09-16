@@ -103,6 +103,8 @@ type
     procedure LoadFromStream(Stream: TStream);
     // Merge messages
     procedure mergeFrom(const builder: TpbInput);
+    // No more data
+    function Eof: Boolean;
     // Attempt to read a field tag, returning zero if we have reached EOF
     function readTag: TpbTag;
     // Check whether the latter match the value read tag
@@ -361,6 +363,11 @@ class function TpbInput.From(Buf: PByte; BufSize: Integer;
   OwnsData: Boolean = False): TpbInput;
 begin
   Result.Init(Buf, BufSize, OwnsData);
+end;
+
+function TpbInput.Eof: Boolean;
+begin
+  Result := FCurrent >= FLast;
 end;
 
 procedure TpbInput.Free;

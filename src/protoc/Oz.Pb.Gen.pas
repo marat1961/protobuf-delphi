@@ -966,9 +966,83 @@ procedure TGen.FieldRead(obj: PObj);
 var
   o: TFieldOptions;
   msg: PObj;
-  w, mt, m, n: string;
+  w, mn, mt, m, n: string;
+
+  procedure GenType;
+  begin
+    if o.Rule <> TFieldRule.Repeated then
+    begin
+      Wrln('begin');
+      Wrln('  Assert(wireType = TWire.%s);', [w]);
+      Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
+      Wrln('end;');
+    end
+    else
+    begin
+      Wrln('begin');
+      Indent;
+      Wrln('Pb.Push;');
+      Wrln('try');
+      Wrln('  while not Pb.Eof do');
+      case obj.typ.form of
+        TTypeMode.tmInt32, TTypeMode.tmUint32, TTypeMode.tmSint32,
+        TTypeMode.tmBool, TTypeMode.tmEnum:
+          Wrln('    Pb.readRawVarint32(%s.F%s[i]);', [mn, n]);
+        TTypeMode.tmInt64, TTypeMode.tmUint64, TTypeMode.tmSint64:
+          Wrln('    Pb.readRawVarint64(%s.F%s[i]);', [mn, n]);
+        TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble,
+        TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
+          Wrln('    Pb.readRawData(%s.F%s[i], sizeof(%s));', [mn, n, mt]);
+        TTypeMode.tmString:
+          Wrln('    Pb.readRawString(%s.F%s[i]);', [mn, n]);
+        TTypeMode.tmBytes:
+          Wrln('    Pb.readRawBytes(%s.F%s[i]);', [mn, n]);
+      end;
+      n := 'F' + Plural(obj.name);
+      Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
+      Wrln('finally');
+      Wrln('  Pb.Pop;');
+      Wrln('end;');
+      Dedent;
+      Wrln('end;');
+    end;
+  end;
+
+  procedure GenEnum;
+  begin
+    Wrln('begin');
+    Wrln('  Assert(wireType = TWire.%s);', [w]);
+    Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
+    Wrln('end;');
+  end;
+
+  procedure GenMessage;
+  begin
+    Wrln('begin');
+    Wrln('  Assert(wireType = TWire.LENGTH_DELIMITED);');
+    Wrln('  Pb.Push;');
+    Wrln('  try');
+    if o.Rule <> TFieldRule.Repeated then
+      Wrln('    %s.F%s := %s;', [o.Msg.name, n, GetRead(obj)])
+    else
+    begin
+      n := 'F' + Plural(obj.name);
+      Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
+    end;
+    Wrln('  finally');
+    Wrln('    Pb.Pop;');
+    Wrln('  end;');
+    Wrln('end;');
+  end;
+
+  procedure GenMap;
+  begin
+    Wrln('%s.%s.AddOrSetValue(%s);', [o.Msg.name, n, GetRead(obj)]);
+  end;
+
 begin
   o := obj.aux as TFieldOptions;
+  mn := o.Msg.DelphiName;
   mt := o.Msg.AsType;
   msg := obj.typ.declaration;
   w := TWire.Names[GetWireType(obj.typ.form)];
@@ -978,45 +1052,16 @@ begin
   try
     Wrln('%s.%s:', [mt, FieldTag(obj)]);
     Indent;
-    case obj.typ.form of
-      TTypeMode.tmMessage:
-        begin
-          Wrln('begin');
-          Wrln('  Assert(wireType = TWire.LENGTH_DELIMITED);');
-          Wrln('  Pb.Push;');
-          Wrln('  try');
-          if o.Rule <> TFieldRule.Repeated then
-            Wrln('    %s.F%s := %s;', [o.Msg.name, n, GetRead(obj)])
-          else
-          begin
-            n := 'F' + Plural(obj.name);
-            Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
-          end;
-          Wrln('  finally');
-          Wrln('    Pb.Pop;');
-          Wrln('  end;');
-          Wrln('end;');
-        end;
-      TTypeMode.tmEnum:
-        begin
-          Wrln('begin');
-          Wrln('  Assert(wireType = TWire.%s);', [w]);
-          Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
-          Wrln('end;');
-        end;
-      TTypeMode.tmMap:
-        begin
-          Wrln('%s.%s.AddOrSetValue(%s);', [o.Msg.name, n, GetRead(obj)]);
-        end;
-      else
-        begin
-          Wrln('begin');
-          Wrln('  Assert(wireType = TWire.%s);', [w]);
-          Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
-          Wrln('end;');
-        end;
+    try
+      case obj.typ.form of
+        TTypeMode.tmMessage: GenMessage;
+        TTypeMode.tmEnum: GenEnum;
+        TTypeMode.tmMap: GenMap;
+        else GenType;
+      end;
+    finally
+      Dedent;
     end;
-    Dedent;
   finally
     Dedent;
   end;
