@@ -647,12 +647,49 @@ end;
 procedure TFieldGen.GenType;
 begin
   // Pb.writeString(TPerson.ftName, Person.Name);
-  g.Wrln('Pb.write%s(%s, %s.%s);', [AsCamel(m), GetTag, mn, n]);
+  if o.rule <> TFieldRule.Repeated then
+    g.Wrln('Pb.write%s(%s, %s.%s);', [AsCamel(m), GetTag, mn, n])
+  else
+  begin
+    g.Wrln('h.Init;');
+    g.Wrln('try');
+    g.Wrln('  for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
+    case obj.typ.form of
+      TTypeMode.tmInt32, TTypeMode.tmUint32, TTypeMode.tmSint32,
+      TTypeMode.tmBool, TTypeMode.tmEnum:
+        g.Wrln('    h.writeRawVarint32(%s.F%s[i]);', [mn, n]);
+      TTypeMode.tmInt64, TTypeMode.tmUint64, TTypeMode.tmSint64:
+        g.Wrln('    h.writeRawVarint64(%s.F%s[i]);', [mn, n]);
+      TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble,
+      TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
+        g.Wrln('    h.writeRawData(%s.F%s[i], sizeof(%s));', [mn, n, t]);
+      TTypeMode.tmString:
+        g.Wrln('    h.writeRawString(%s.F%s[i]);', [mn, n]);
+      TTypeMode.tmBytes:
+        g.Wrln('    h.writeRawBytes(%s.F%s[i]);', [mn, n]);
+    end;
+    g.Wrln('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('finally');
+    g.Wrln('  h.Free;');
+    g.Wrln('end;');
+  end;
 end;
 
 procedure TFieldGen.GenEnum;
 begin
-  g.Wrln('Pb.writeInt32(%s, Ord(%s.%s));', [GetTag, mn, AsCamel(n)]);
+  if o.rule <> TFieldRule.Repeated then
+    g.Wrln('Pb.writeInt32(%s, Ord(%s.%s));', [GetTag, mn, AsCamel(n)])
+  else
+  begin
+    g.Wrln('h.Init;');
+    g.Wrln('try');
+    g.Wrln('  for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
+    g.Wrln('    h.writeRawVarint32(Ord(%s.%s));', [mn, AsCamel(n)]);
+    g.Wrln('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('finally');
+    g.Wrln('  h.Free;');
+    g.Wrln('end;');
+  end;
 end;
 
 procedure TFieldGen.GenMessage;
@@ -701,18 +738,44 @@ begin
 end;
 
 procedure TFieldGen.GenMap(const pair: string);
+var s: string;
 begin
-  g.Wrln('h.Init;');
-  g.Wrln('try');
-  g.Wrln('  for %s in %s.F%s do', [pair, mn, n]);
-  g.Wrln('  begin');
-  g.Wrln('    h.Clear;');
-  g.Wrln('    h.Save%s(Item);', [AsCamel(m)]);
-  g.Wrln('    Pb.writeMessage(%s, h.Pb^);', [GetTag]);
-  g.Wrln('  end;');
-  g.Wrln('finally');
-  g.Wrln('  h.Free;');
-  g.Wrln('end;');
+  if o.rule <> TFieldRule.Repeated then
+  begin
+    if ft <> '2' then
+    begin
+      g.Wrln('if %s.F%s <> nil then', [mn, n]);
+      g.Wrln('begin');
+      g.Indent;
+    end;
+    g.Wrln('h.Init;');
+    g.Wrln('try');
+    g.Wrln('  h.Save%s(%s.%s);', [m, mn, n]);
+    s := Format('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln(s);
+    g.Wrln('finally');
+    g.Wrln('  h.Free;');
+    g.Wrln('end;');
+    if ft <> '2' then
+    begin
+      g.Dedent;
+      g.Wrln('end;');
+    end;
+  end
+  else
+  begin
+    g.Wrln('h.Init;');
+    g.Wrln('try');
+    g.Wrln('  for %s in %s.F%s do', [pair, mn, n]);
+    g.Wrln('  begin');
+    g.Wrln('    h.Clear;');
+    g.Wrln('    h.Save%s(Item);', [AsCamel(m)]);
+    g.Wrln('    Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('  end;');
+    g.Wrln('finally');
+    g.Wrln('  h.Free;');
+    g.Wrln('end;');
+  end;
 end;
 
 procedure TGen.SaveMaps;

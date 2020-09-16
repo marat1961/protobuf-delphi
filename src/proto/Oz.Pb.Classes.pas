@@ -188,6 +188,10 @@ type
     procedure writeTag(fieldNo: Integer; wireType: Integer);
     // Encode and write single byte
     procedure writeRawByte(value: ShortInt); inline;
+    // Encode and write bytes
+    procedure writeRawBytes(const value: TBytes);
+    // Encode and write string
+    procedure writeRawString(const value: string);
     // Write the data with specified size
     procedure writeRawData(const p: Pointer; size: Integer); inline;
 
@@ -209,6 +213,8 @@ type
     procedure writeBoolean(fieldNo: Integer; value: Boolean);
     // Write a string field, including tag
     procedure writeString(fieldNo: Integer; const value: string);
+    // Write a bytes field, including tag
+    procedure writeBytes(fieldNo: Integer; const value: TBytes);
     // Write a message field, including tag
     procedure writeMessage(fieldNo: Integer; const msg: TpbOutput);
     //  Write a unsigned Int32 field, including tag
@@ -668,6 +674,22 @@ begin
   FBuffer.Add(Byte(value));
 end;
 
+procedure TpbOutput.writeRawBytes(const value: TBytes);
+begin
+  writeRawVarint32(Length(value));
+  FBuffer.Add(value);
+end;
+
+procedure TpbOutput.writeRawString(const value: string);
+var
+  bytes, text: TBytes;
+begin
+  bytes := TEncoding.Unicode.GetBytes(value);
+  text := TEncoding.Unicode.Convert(TEncoding.Unicode, TEncoding.UTF8, bytes);
+  writeRawVarint32(Length(text));
+  FBuffer.Add(text);
+end;
+
 procedure TpbOutput.writeRawData(const p: Pointer; size: Integer);
 begin
   FBuffer.Add(p, size);
@@ -747,16 +769,16 @@ begin
   writeRawVarint64(value);
 end;
 
-procedure TpbOutput.writeString(fieldNo: Integer;
-  const value: string);
-var
-  bytes, text: TBytes;
+procedure TpbOutput.writeString(fieldNo: Integer; const value: string);
 begin
   writeTag(fieldNo, TWire.LENGTH_DELIMITED);
-  bytes := TEncoding.Unicode.GetBytes(value);
-  text := TEncoding.Unicode.Convert(TEncoding.Unicode, TEncoding.UTF8, bytes);
-  writeRawVarint32(Length(text));
-  FBuffer.Add(text);
+  writeRawString(value);
+end;
+
+procedure TpbOutput.writeBytes(fieldNo: Integer; const value: TBytes);
+begin
+  writeTag(fieldNo, TWire.LENGTH_DELIMITED);
+  writeRawBytes(value);
 end;
 
 procedure TpbOutput.writeUInt32(fieldNo: Integer; value: Cardinal);

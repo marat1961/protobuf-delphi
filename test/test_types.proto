@@ -11,6 +11,7 @@ enum OuterEnum {
 
 message EnumContainer {
   OuterEnum outer_enum = 1;
+  repeated OuterEnum rpt_outer_enum = 2;
 }
 
 message Embedded {
