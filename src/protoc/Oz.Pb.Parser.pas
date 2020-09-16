@@ -426,6 +426,8 @@ begin
   _FieldType(ftyp);
   tab.OpenScope;
   _FieldDecl(typ.declaration, ftyp, rule);
+  if (ftyp.form = TTypeMode.tmMap) and (rule = TFieldRule.Repeated) then
+    SemError(7);
   tab.Concatenate(typ.dsc);
   tab.CloseScope;
   Expect(14);

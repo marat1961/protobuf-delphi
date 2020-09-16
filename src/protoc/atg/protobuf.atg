@@ -282,7 +282,9 @@ Field<var typ: PType>        (. var
 ]
 FieldType<ftyp>              (. tab.OpenScope; .)
 FieldDecl<typ.declaration, ftyp, rule>
-                             (. tab.Concatenate(typ.dsc);
+                             (. if (ftyp.form = TTypeMode.tmMap) and (rule = TFieldRule.Repeated) then
+                                  SemError(7);
+                                tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
 ";"
 .

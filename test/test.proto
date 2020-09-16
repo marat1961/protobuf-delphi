@@ -1,11 +1,9 @@
 syntax = "proto3";
 
-option pas_package = "oz.pb.proto";
+option pas_package = "oz.pb";
 option pas_multiple_files = true;
 
 import "google/protobuf/descriptor.proto";
-
-package paspb.test;
 
 message Empty {}
 
