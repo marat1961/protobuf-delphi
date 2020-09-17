@@ -15,9 +15,6 @@ implementation
 procedure Run;
 var
   options: TOptions;
-  str: TStringList;
-  parser: TpbParser;
-  src, stem, filename: string;
   tab: TpbTable;
 begin
   options := GetOptions;
@@ -27,40 +24,10 @@ begin
     options.Help
   else
   begin
-    try
-      options.srcDir := TPath.GetDirectoryName(options.SrcName);
-      str := TStringList.Create;
-      try
-        str.LoadFromFile(options.SrcName);
-        src := str.Text;
-      finally
-        str.Free;
-      end;
-      str := TStringList.Create;
-      tab := TpbTable.Create;
-      parser := TpbParser.Create(tab, TpbScanner.Create(src), str);
-      tab.Init(parser);
-      try
-        parser.Parse;
-        Writeln(parser.errors.count, ' errors detected');
-        parser.PrintErrors;
-        stem := TPath.GetFilenameWithoutExtension(options.SrcName);
-        filename := TPath.Combine(options.srcDir, stem + '.lst');
-        str.SaveToFile(filename);
-        if parser.errors.count = 0 then
-        begin
-          parser.gen.GenerateCode;
-          str.Text := parser.gen.Code;
-          filename := TPath.Combine(options.srcDir, stem + '.pas');
-          str.SaveToFile(filename);
-        end;
-      finally
-        str.Free;
-        parser.Free;
-      end;
-    except
-      on e: FatalError do Writeln('-- ', e.Message);
-    end;
+    options.srcDir := TPath.GetDirectoryName(options.SrcName);
+    tab := TpbTable.Create;
+    tab.OpenProto(options.SrcName, False);
+    tab.Free;
   end;
 end;
 

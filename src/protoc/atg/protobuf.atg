@@ -50,8 +50,7 @@ Module<tab.ModId, obj>       (. tab.CloseScope; .)
 Module<const id: string; var obj: PObj>
 =                            (. tab.NewObj(obj, id, TMode.mModule);
                                 obj.aux := TModule.Create(obj, id, {weak=}False);
-                                if tab.Module = nil { root proto file } then
-                                  tab.Module := TModule(obj.aux);
+                                tab.Module := TModule(obj.aux);
                                 tab.OpenScope; .)
 Syntax<obj>
 {
@@ -78,13 +77,17 @@ Message                      (. var
 "{" {
   Option<obj>
 | Field<obj.typ>
+| OneOf<obj.typ>
 | Message
 | Enum
 | Reserved
 | EmptyStatement
 } "}"                        (. // Before closing the current scope we remember the parsed entities.
                                 obj.dsc := tab.TopScope;
-                                tab.CloseScope; .)
+                                tab.CloseScope;
+                                // Message without fields.
+                                if obj.typ.dsc = nil then
+                                  obj.typ.dsc := tab.Guard; .)
 .
 
 // Syntax
@@ -112,7 +115,7 @@ Import                       (. var
 | "public"
 ]
 strLit                       (. id := Unquote(t.val);
-                                tab.OpenModule(id, weak); .)
+                                tab.Import(id, weak); .)
 ";"
 .
 
@@ -138,7 +141,7 @@ OptionName<id>
 ";"
 .
 
-OptionName<var s: string>    (. var id: string; .)
+OptionName<var id: string>
 =
 (
 ident                        (. id := t.val; .)
@@ -279,7 +282,9 @@ Field<var typ: PType>        (. var
 ]
 FieldType<ftyp>              (. tab.OpenScope; .)
 FieldDecl<typ.declaration, ftyp, rule>
-                             (. tab.Concatenate(typ.dsc);
+                             (. if (ftyp.form = TTypeMode.tmMap) and (rule = TFieldRule.Repeated) then
+                                  SemError(7);
+                                tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
 ";"
 .
@@ -288,7 +293,6 @@ FieldType<var typ: PType>
 =
   Type<typ>
 | MapType<typ>
-| OneOfType<typ>
 .
 
 FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
@@ -334,7 +338,7 @@ MapType<var typ: PType>      (. var
                                 tab.CloseScope; .)
 .
 
-OneOfType<var typ: PType>    (. var
+OneOf<var typ: PType>        (. var
                                   id: string;
                                   obj: PObj; .)
 =
@@ -427,10 +431,9 @@ intLit<hi>
 .
 
 FieldNames<Fields: TStringList>
-                            (. var id: string; .)
 =
-Ident<id>                   (. Fields.Add(id); .)
-{ "," Ident<id>             (. Fields.Add(id); .)
+strLit                      (. Fields.Add(Unquote(t.val)); .)
+{ "," strLit                (. Fields.Add(Unquote(t.val)); .)
 }
 .
 
