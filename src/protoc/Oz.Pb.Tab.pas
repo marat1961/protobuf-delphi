@@ -645,15 +645,25 @@ begin
 end;
 
 procedure TpbTable.Concatenate(var a: PObj);
-var x: PObj;
+var
+  f, x, p: PObj;
 begin
   if a = nil then
     a := FTopScope.next
   else
   begin
+    f := FTopScope.next;
     x := a;
-    while x.next <> FGuard do x := x.next;
-    x.next := FTopScope.next;
+    while x <> FGuard do
+    begin
+      if f.name = x.name then
+        parser.SemError(1);
+      if (f.aux as TFieldOptions).tag = (x.aux as TFieldOptions).tag then
+        parser.SemError(8);
+      p := x;
+      x := x.next;
+    end;
+    p.next := FTopScope.next;
   end;
 end;
 

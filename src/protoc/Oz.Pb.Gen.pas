@@ -1058,6 +1058,7 @@ var
   procedure GenMap;
   begin
     Wrln('%s.%s.AddOrSetValue(%s);', [o.Msg.name, n, GetRead(obj)]);
+    // Map fields cannot be repeated.
   end;
 
 begin
