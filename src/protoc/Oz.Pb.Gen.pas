@@ -149,21 +149,17 @@ end;
 procedure TGen.ModelDecl;
 var
   obj, x: PObj;
-  typ: PType;
 begin
   obj := tab.Module.Obj; // root proto file
   x := obj.dsc;
   while x <> nil do
   begin
     if x.cls = TMode.mType then
-    begin
-      typ := x.typ;
-      case typ.form of
+      case x.typ.form of
         TTypeMode.tmEnum: EnumDecl(x);
         TTypeMode.tmMessage: MessageDecl(x);
         TTypeMode.tmMap: MapDecl(x);
       end;
-    end;
     x := x.next;
   end;
 end;
@@ -171,18 +167,14 @@ end;
 procedure TGen.ModelImpl;
 var
   obj, x: PObj;
-  typ: PType;
 begin
   obj := tab.Module.Obj; // root proto file
   x := obj.dsc;
   while x <> tab.Guard do
   begin
     if x.cls = TMode.mType then
-    begin
-      typ := x.typ;
-      if typ.form = TTypeMode.tmMessage then
+      if x.typ.form = TTypeMode.tmMessage then
         MessageImpl(x);
-    end;
     x := x.next;
   end;
 end;
@@ -282,14 +274,11 @@ begin
   while x <> tab.Guard do
   begin
     if x.cls = TMode.mType then
-    begin
-      typ := x.typ;
-      case typ.form of
+      case x.typ.form of
         TTypeMode.tmEnum: EnumDecl(x);
         TTypeMode.tmMessage: MessageDecl(x);
         TTypeMode.tmMap: MapDecl(x);
       end;
-    end;
     x := x.next;
   end;
 
@@ -355,12 +344,9 @@ begin
   x := msg.dsc;
   while x <> tab.Guard do
   begin
-    typ := x.typ;
     if x.cls = TMode.mType then
-      case typ.form of
-        TTypeMode.tmMessage: MessageImpl(x);
-//        TTypeMode.tmMap: MapDecl(x);
-      end;
+      if x.typ.form = TTypeMode.tmMessage then
+        MessageImpl(x);
     x := x.next;
   end;
 
@@ -441,7 +427,8 @@ begin
         x := msg.dsc;
         while x <> tab.Guard do
         begin
-          if x.cls = TMode.mType then SaveDecl(x);
+          if x.cls = TMode.mType then
+            SaveDecl(x);
           x := x.next;
         end;
       end;
@@ -456,11 +443,10 @@ var
 begin
   // generate nested messages
   x := msg.dsc;
-  while x <> nil {tab.Guard} do
+  while x <> nil do
   begin
-    typ := x.typ;
     if x.cls = TMode.mType then
-      if typ.form = TTypeMode.tmMessage then
+      if x.typ.form = TTypeMode.tmMessage then
         LoadImpl(x);
     x := x.next;
   end;
@@ -529,13 +515,12 @@ var
     x := msg.dsc;
     while x <> tab.Guard do
     begin
-      typ := x.typ;
       if x.cls = TMode.mType then
-        case typ.form of
-          TTypeMode.tmMap:
-            if mapvars.IndexOf(typ) < 0 then
-              mapvars.Add(typ);
-        end;
+      begin
+        typ := x.typ;
+        if (typ.form = TTypeMode.tmMap) and (mapvars.IndexOf(typ) < 0) then
+          mapvars.Add(typ);
+      end;
       x := x.next;
     end;
     if HasRepeatedVars(msg.typ.dsc) or (mapvars.Count > 0) then

@@ -77,7 +77,6 @@ Message                      (. var
 "{" {
   Option<obj>
 | Field<obj.typ>
-| OneOf<obj.typ>
 | Message
 | Enum
 | Reserved
@@ -272,27 +271,46 @@ FullIdent<s>                 (. c.AsIdent(s); .)
 
 // Fields
 
-Field<var typ: PType>        (. var
+Field<var typ: PType>        
+=
+  NormalField<typ>
+| Map<typ>
+| OneOf<typ>
+.
+
+NormalField<var typ: PType>  (. var
                                   rule: TFieldRule;
                                   ftyp: PType; .)
-=                            (. rule := TFieldRule.Singular; .)
+=
+                             (. rule := TFieldRule.Singular; .)
 [ "repeated"                 (. rule := TFieldRule.Repeated; .)
 | "optional"                 (. rule := TFieldRule.Optional; .)
 | "required"
 ]
-FieldType<ftyp>              (. tab.OpenScope; .)
+Type<ftyp>                   (. tab.OpenScope; .)
 FieldDecl<typ.declaration, ftyp, rule>
-                             (. if (ftyp.form = TTypeMode.tmMap) and (rule = TFieldRule.Repeated) then
-                                  SemError(7);
-                                tab.Concatenate(typ.dsc);
+                             (. tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
 ";"
 .
 
-FieldType<var typ: PType>
+Map<var typ: PType>          (. var
+                                  ftyp: PType; .)
 =
-  Type<typ>
-| MapType<typ>
+MapType<ftyp>                (. tab.OpenScope; .)
+FieldDecl<typ.declaration, ftyp, TFieldRule.Singular>
+                             (. tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
+";"
+.
+
+OneOf<var typ: PType>        (. var
+                                  ftyp: PType; .)
+=                            (. tab.OpenScope; .)
+OneOfType<typ.declaration, ftyp>
+                             (. tab.Concatenate(typ.dsc);
+                                tab.CloseScope; .)
+";"
 .
 
 FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
@@ -338,12 +356,14 @@ MapType<var typ: PType>      (. var
                                 tab.CloseScope; .)
 .
 
-OneOf<var typ: PType>        (. var
+OneOfType<msg: PObj; var typ: PType>
+                             (. var
                                   id: string;
                                   obj: PObj; .)
 =
 "oneof"
 Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
+                                obj.aux := TFieldOptions.Create(obj, msg, 0, TFieldRule.Singular);
                                 tab.OpenScope;
                                 tab.NewType(obj, TTypeMode.tmUnion);
                                 typ := obj.typ; .)
