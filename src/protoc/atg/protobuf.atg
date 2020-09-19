@@ -289,7 +289,8 @@ NormalField<var typ: PType>  (. var
 ]
 Type<ftyp>                   (. tab.OpenScope; .)
 FieldDecl<typ.declaration, ftyp, rule>
-                             (. tab.Concatenate(typ.dsc);
+                             (. tab.CheckUniqueness(tab.TopScope.next, typ);
+                                tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
 ";"
 .
@@ -299,7 +300,8 @@ Map<var typ: PType>          (. var
 =
 MapType<ftyp>                (. tab.OpenScope; .)
 FieldDecl<typ.declaration, ftyp, TFieldRule.Singular>
-                             (. tab.Concatenate(typ.dsc);
+                             (. tab.CheckUniqueness(tab.TopScope.next, typ);
+                                tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
 ";"
 .
@@ -310,7 +312,6 @@ OneOf<var typ: PType>        (. var
 OneOfType<typ.declaration, ftyp>
                              (. tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
-";"
 .
 
 FieldDecl<msg: PObj; ftyp: PType; rule: TFieldRule>
@@ -362,18 +363,18 @@ OneOfType<msg: PObj; var typ: PType>
                                   obj: PObj; .)
 =
 "oneof"
-Ident<id>                    (. tab.NewObj(obj, id, TMode.mType);
+Ident<id>                    (. tab.NewObj(obj, id, TMode.mField);
                                 obj.aux := TFieldOptions.Create(obj, msg, 0, TFieldRule.Singular);
-                                tab.OpenScope;
                                 tab.NewType(obj, TTypeMode.tmUnion);
                                 typ := obj.typ; .)
 "{" {
   Option<obj>
-| OneOfField<typ>
-| EmptyStatement
-} "}"                        (. // Before closing the current scope we remember the parsed entities.
-                                obj.dsc := tab.TopScope;
+|                            (. tab.OpenScope; .)
+  OneOfField<typ>            (. tab.CheckUniqueness(tab.TopScope.next, msg.typ);
+                                tab.Concatenate(typ.dsc);
                                 tab.CloseScope; .)
+| EmptyStatement
+} "}"
 .
 
 OneOfField<typ: PType>       (. var ftyp: PType;  .)

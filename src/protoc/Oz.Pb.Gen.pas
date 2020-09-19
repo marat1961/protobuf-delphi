@@ -1077,9 +1077,16 @@ procedure TGen.FieldWrite(obj: PObj);
 var
   fg: TFieldGen;
 begin
-  Assert(obj.cls = TMode.mField);
-  fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
-  fg.Gen;
+  if obj.cls <> TMode.mField then exit;
+  if obj.typ.form = TTypeMode.tmUnion then
+  begin
+    // todo: oneof
+  end
+  else
+  begin
+    fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
+    fg.Gen;
+  end;
 end;
 
 procedure TGen.FieldReflection(obj: PObj);
