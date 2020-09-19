@@ -331,6 +331,8 @@ type
     // Fill predefined elements
     procedure InitSystem;
     function GetUnknownType: PType;
+    // Check the uniqueness of the name and tag for the message fields.
+    procedure CheckUniqueness(f, x: PObj);
   public
     constructor Create;
     destructor Destroy; override;
@@ -644,15 +646,33 @@ begin
   end;
 end;
 
+procedure TpbTable.CheckUniqueness(f, x: PObj);
+begin
+  while x <> FGuard do
+  begin
+    { check union type fields }
+    if x.typ.form = TTypeMode.tmUnion then
+      CheckUniqueness(f, x.dsc);
+    if f.name = x.name then
+      parser.SemError(1);
+    if (f.aux as TFieldOptions).tag = (x.aux as TFieldOptions).tag then
+      parser.SemError(8);
+    x := x.next;
+  end;
+end;
+
 procedure TpbTable.Concatenate(var a: PObj);
-var x: PObj;
+var
+  x: PObj;
 begin
   if a = nil then
     a := FTopScope.next
   else
   begin
+    CheckUniqueness(FTopScope.next, a);
     x := a;
-    while x.next <> FGuard do x := x.next;
+    while x.next <> FGuard do
+      x := x.next;
     x.next := FTopScope.next;
   end;
 end;

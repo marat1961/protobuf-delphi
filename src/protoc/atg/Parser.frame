@@ -16,13 +16,15 @@ type
 
   -->parser<= class(TBaseParser)
   const
-    ErrorMessages: array [1..6] of string = (
+    ErrorMessages: array [1..8] of string = (
       {1} 'multiple declaration',
       {2} 'undefined ident',
       {3} 'not found this module',
       {4} 'message type not found',
       {5} 'message type expected',
-      {6} 'type expected'
+      {6} 'type expected',
+      {7} 'Map fields cannot be repeated',
+      {8} 'Duplicate tag'
       );-->declarations<
 -->constants<  private
 -->headers<  protected
