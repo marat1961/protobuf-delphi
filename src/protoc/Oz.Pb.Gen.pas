@@ -440,6 +440,33 @@ var
   x: PObj;
   typ: PType;
   s, t: string;
+
+  procedure ReadUnion(x: PObj);
+  var
+    o: TFieldOptions;
+    w, f, tag: string;
+  begin
+    if x = nil then exit;
+    Indent;
+    while x <> tab.Guard do
+    begin
+      o := x.aux as TFieldOptions;
+      w := TWire.Names[GetWireType(x.typ.form)];
+      f := o.Msg.name;
+      tag := t + '.' + FieldTag(x);
+      Wrln('%s:', [tag]);
+      Indent;
+      Wrln('begin');
+      Wrln('  Assert(wireType = TWire.%s);', [w]);
+      Wrln('  %s.tag := %s;', [f, tag]);
+      Wrln('  %s.value := %s;', [f, GetRead(x)]);
+      Wrln('end;');
+      Dedent;
+      x := x.next;
+    end;
+    Dedent;
+  end;
+
 begin
   // generate nested messages
   x := msg.dsc;
@@ -472,7 +499,10 @@ begin
   x := typ.dsc;
   while x <> tab.Guard do
   begin
-    FieldRead(x);
+    if x.typ.form = TTypeMode.tmUnion then
+      ReadUnion(x.typ.dsc)
+    else
+      FieldRead(x);
     x := x.next;
   end;
   Wrln('  else');
@@ -574,12 +604,14 @@ type
     o: TFieldOptions;
     ft: string;
     m, mn, mt, n, t: string;
+  private
     function GetTag: string;
     // Embedded types
     procedure GenType;
     procedure GenEnum;
     procedure GenMap(const pair: string);
     procedure GenMessage;
+    procedure GenUnion;
   public
     procedure Init(g: TGen; obj: PObj; o: TFieldOptions; const ft: string);
     procedure Gen;
@@ -614,6 +646,8 @@ begin
       GenMessage;
     TTypeMode.tmMap:
       GenMap(g.GetPair(g.mapvars, obj.typ, TGetMap.asVarUsing));
+    TTypeMode.tmUnion:
+      GenUnion;
     else
       raise Exception.Create('unsupported field type');
   end;
@@ -763,6 +797,21 @@ begin
   end;
 end;
 
+procedure TFieldGen.GenUnion;
+var
+  fg: TFieldGen;
+  x: PObj;
+begin
+  x := obj.typ.dsc;
+  if x = nil then exit;  
+  while x <> g.tab.Guard do
+  begin
+    fg.Init(g, x, x.aux as TFieldOptions, g.FieldTag(x));
+    fg.Gen;
+    x := x.next;
+  end;
+end;
+
 procedure TGen.SaveMaps;
 var
   typ: PType;
@@ -844,7 +893,10 @@ begin
 *)
   o := obj.aux as TFieldOptions;
   n := obj.AsField;
-  t := obj.AsType;
+  if obj.typ.form = TTypeMode.tmUnion then
+    t := 'TpbOneof'
+  else
+    t := obj.AsType;
   if o.Rule = TFieldRule.Repeated then
   begin
     n := Plural(n);
@@ -867,7 +919,10 @@ begin
   ro := o.ReadOnly;
   n := obj.DelphiName;
   f := obj.AsField;
-  t := obj.AsType;
+  if obj.typ.form = TTypeMode.tmUnion then
+    t := 'TpbOneof'
+  else
+    t := obj.AsType;
   if o.Rule = TFieldRule.Repeated then
   begin
     ro := True;
@@ -1043,7 +1098,6 @@ var
   procedure GenMap;
   begin
     Wrln('%s.%s.AddOrSetValue(%s);', [o.Msg.name, n, GetRead(obj)]);
-    // Map fields cannot be repeated.
   end;
 
 begin
@@ -1078,15 +1132,8 @@ var
   fg: TFieldGen;
 begin
   if obj.cls <> TMode.mField then exit;
-  if obj.typ.form = TTypeMode.tmUnion then
-  begin
-    // todo: oneof
-  end
-  else
-  begin
-    fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
-    fg.Gen;
-  end;
+  fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
+  fg.Gen;
 end;
 
 procedure TGen.FieldReflection(obj: PObj);
