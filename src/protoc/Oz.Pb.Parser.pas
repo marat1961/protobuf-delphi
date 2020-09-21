@@ -693,6 +693,7 @@ begin
   _Type(ftyp);
   tab.OpenScope;
   _FieldDecl(typ.declaration, ftyp, rule);
+  tab.CheckUniqueness(tab.TopScope.next, typ);
   tab.Concatenate(typ.dsc);
   tab.CloseScope;
   Expect(14);
@@ -705,6 +706,7 @@ begin
   _MapType(ftyp);
   tab.OpenScope;
   _FieldDecl(typ.declaration, ftyp, TFieldRule.Singular);
+  tab.CheckUniqueness(tab.TopScope.next, typ);
   tab.Concatenate(typ.dsc);
   tab.CloseScope;
   Expect(14);
@@ -718,7 +720,6 @@ begin
   _OneOfType(typ.declaration, ftyp);
   tab.Concatenate(typ.dsc);
   tab.CloseScope;
-  Expect(14);
 end;
 
 procedure TpbParser._Type(var typ: PType);
@@ -814,9 +815,8 @@ var
 begin
   Expect(42);
   _Ident(id);
-  tab.NewObj(obj, id, TMode.mType);
+  tab.NewObj(obj, id, TMode.mField);
   obj.aux := TFieldOptions.Create(obj, msg, 0, TFieldRule.Singular);
-  tab.OpenScope;
   tab.NewType(obj, TTypeMode.tmUnion);
   typ := obj.typ;
   Expect(10);
@@ -828,7 +828,11 @@ begin
     end
     else if StartOf(7) then
     begin
+      tab.OpenScope;
       _OneOfField(typ);
+      tab.CheckUniqueness(tab.TopScope.next, msg.typ);
+      tab.Concatenate(typ.dsc);
+      tab.CloseScope;
     end
     else
     begin
@@ -836,9 +840,6 @@ begin
     end;
   end;
   Expect(11);
-  // Before closing the current scope we remember the parsed entities.
-  obj.dsc := tab.TopScope;
-  tab.CloseScope;
 end;
 
 procedure TpbParser._FieldNumber(var tag: Integer);

@@ -3,7 +3,7 @@ unit Oz.Pb.Classes;
 interface
 
 uses
-  Classes, SysUtils, Oz.Pb.StrBuffer;
+  System.Classes, System.SysUtils, System.Rtti, Oz.Pb.StrBuffer;
 
 const
   TAG_TYPE_BITS = 3;
@@ -68,6 +68,15 @@ type
     function WireType: TWireType; inline;
     // Makes a tag value given a field number and wire type.
     procedure MakeTag(FieldNo: Integer; WireType: TWireType); inline;
+  end;
+
+{$EndRegion}
+
+{$Region 'TpbOneof: Variant field'}
+
+  TpbOneof = record
+    tag: Integer;
+    value: TValue;
   end;
 
 {$EndRegion}
