@@ -788,7 +788,8 @@ var
   str: TStringList;
   src, stem, filename: string;
 begin
-  FModId := id;
+  stem := TPath.GetFilenameWithoutExtension(id);
+  FModId := stem;
   try
     str := TStringList.Create;
     try
@@ -803,7 +804,6 @@ begin
       parser.Parse;
       Writeln(parser.errors.count, ' errors detected');
       parser.PrintErrors;
-      stem := TPath.GetFilenameWithoutExtension(id);
       filename := TPath.Combine(options.srcDir, stem + '.lst');
       str.SaveToFile(filename);
       if parser.errors.count = 0 then
