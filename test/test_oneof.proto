@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+message TestMessageWithOneof {
+
+  oneof partial_oneof {
+    string pone = 3;
+    string pthree = 5;
+  }
+
+  oneof recursive_oneof {
+    TestMessageWithOneof rone = 6;
+    string rtwo = 7;
+  }
+
+  optional bool normal_field = 8;
+  repeated string repeated_field = 9;
+
+  oneof default_oneof_a {
+    int32 aone = 10 [default = 1234];
+    int32 atwo = 11;
+  }
+
+  oneof default_oneof_b {
+    int32 bone = 12;
+    int32 btwo = 13 [default = 1234];
+  }
+}
+
+message TestEndsWithBytes {
+  int32 value = 1;
+  bytes data = 2;
+}
+
+message Int64Types {
+  optional int64 int64_normal = 1 [jstype = JS_NORMAL];
+  optional sint64 int64_string = 2 [jstype = JS_STRING];
+  optional uint64 int64_number = 3 [jstype = JS_NUMBER];
+
+}
