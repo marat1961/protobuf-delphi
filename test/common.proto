@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+	
+message Ref {
+  string name = 1;                        // object name
+  string typ_name = 2;                    // type name
+  double sv = 3;                          // date of creation
+  double ev = 4 [default = "31.12.2099"]; // closing date
+}

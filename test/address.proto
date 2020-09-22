@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+import "common.proto";
+
+enum RegionGroup {
+  Country = 1; 
+  City = 2;
+  Street = 3;
+}
+
+// Type of the address object
+message RegionType {
+  Ref ref = 1;
+  string short_name = 2;
+}
+
+// grouping regions
+message RegionGrp {
+  RegionType grp = 1;
+  RegionType rtype = 2;
+}
+
+// allowed entry of some types of regions into others
+message regioncanbein {
+  RegionType region = 1;  // type of the address object
+  RegionType canbein = 2; // can be included in ...
+}
+
+// post office
+message PostOffice {
+  Ref ref = 1;
+  PostOffice parent = 2;       // ancestor
+  repeated int32 index = 3;  // index
+}
+
+// address (kladr)
+message GniAddress {
+  Ref ref = 1;
+  GniAddress parent = 2; // ancestor
+  RegionType rtype = 3;  // type of address object
+  string kladrcode = 4;  
+}
+
+// distribution of addresses by sti
+message GniHouse {
+  GniAddress gniadr = 1;         // address (kladr)
+  PostOffice postOffice = 2; // post office
+  string hrange = 3;         // ranges of houses
+  string gnicod = 4;         // sti code where we pay taxes
+  string kladrcode = 5;      // kladr code
+}
+
+// district
+message district {
+  Ref ref = 1;
+  GniAddress gniadr = 2; // address (kladr)
+}
+
+// address
+message Address {
+  Ref ref = 1;
+  GniAddress gniadr = 2;    // address (kladr)
+  string house = 3;        // house
+  string building = 4;       // housing
+  string flat = 5;           // flat
+}
