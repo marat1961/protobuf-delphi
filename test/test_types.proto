@@ -30,7 +30,7 @@ message Embedded {
   sfixed64 sf64 = 13;
   sint32 si32 = 14;
   sint64 si64 = 15;
-}	
+}
 
 message RepeatEmbedded {
   repeated double dbl = 1;
@@ -48,4 +48,5 @@ message RepeatEmbedded {
   repeated sfixed64 sf64 = 13;
   repeated sint32 si32 = 14;
   repeated sint64 si64 = 15;
-}	
+}
+

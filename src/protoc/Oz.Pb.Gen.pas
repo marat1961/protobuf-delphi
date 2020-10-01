@@ -1003,6 +1003,10 @@ begin
         value := key.next;
         Result := Format('%s, %s', [GetRead(key), GetRead(value)]);
       end;
+    TTypeMode.tmBool:
+      Result := 'Pb.readBoolean';
+    TTypeMode.tmInt64, TTypeMode.tmUint64:
+      Result := 'Pb.readInt64';
     else
       Result := Format('Pb.read%s', [AsCamel(msg.name)]);
   end;
