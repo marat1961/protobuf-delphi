@@ -384,8 +384,8 @@ const
     'uint32', 'sfixed32', 'sfixed64', 'sint32', 'sint64');
   // type name in delphi
   DelphiEmbeddedTypes: array [TEmbeddedTypes] of string = (
-    'Unknown', 'Double', 'Single', 'Int64', 'UIint64', 'Integer',
-    'UInt64', 'UInt32', 'Boolean', 'string', 'bytes',
+    'Unknown', 'Double', 'Single', 'Int64', 'Int64', 'Integer',
+    'UInt64', 'UInt32', 'Boolean', 'string', 'TBytes',
     'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
   DelphiKeywords: array [0 .. 64] of string = (
     'and', 'array', 'as', 'asm', 'begin', 'case', 'class', 'const',
@@ -405,6 +405,7 @@ uses
   Oz.Pb.Parser;
 
 function GetWireType(tm: TTypeMode): TWireType;
+var b: TBytes;
 begin
   case tm of
     TTypeMode.tmInt32, TTypeMode.tmInt64,
@@ -815,7 +816,7 @@ begin
       begin
         parser.gen.GenerateCode;
         str.Text := parser.gen.Code;
-        filename := TPath.Combine(options.srcDir, stem + '.pas');
+        filename := TPath.Combine(options.srcDir, AsCamel(stem) + '.pas');
         str.SaveToFile(filename);
       end;
     finally
