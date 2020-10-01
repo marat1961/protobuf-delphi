@@ -495,19 +495,25 @@ begin
   Indent;
   Wrln('wireType := tag.WireType;');
   Wrln('fieldNumber := tag.FieldNumber;');
-  Wrln('case fieldNumber of');
   x := typ.dsc;
-  while x <> tab.Guard do
+  if x = tab.Guard then
+    // empty message
+    Wrln('Pb.skipField(tag);')
+  else
   begin
-    if x.typ.form = TTypeMode.tmUnion then
-      ReadUnion(x.typ.dsc)
-    else
-      FieldRead(x);
-    x := x.next;
+    Wrln('case fieldNumber of');
+    while x <> tab.Guard do
+    begin
+      if x.typ.form = TTypeMode.tmUnion then
+        ReadUnion(x.typ.dsc)
+      else
+        FieldRead(x);
+      x := x.next;
+    end;
+    Wrln('  else');
+    Wrln('    Pb.skipField(tag);');
+    Wrln('end;');
   end;
-  Wrln('  else');
-  Wrln('    Pb.skipField(tag);');
-  Wrln('end;');
   Wrln('tag := Pb.readTag;');
   Dedent;
   Wrln('end;');
