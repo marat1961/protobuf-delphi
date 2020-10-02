@@ -170,7 +170,7 @@ type
     function readRawByte: ShortInt;
     // Read "size" bytes
     procedure readRawBytes(var data; size: Integer);
-    function readBytes(size: Integer): TBytes;
+    function readBytes: TBytes;
     // Skip "size" bytes
     procedure skipRawBytes(size: Integer);
   end;
@@ -463,14 +463,10 @@ end;
 
 function TpbInput.readString: string;
 var
-  size: Integer;
   buf, text: TBytes;
 begin
-  size := readRawVarint32;
-  if size <= 0 then
-     EProtobufError.Create(EProtobufError.InvalidSize);
   // Decode utf8 to string
-  buf := readBytes(size);
+  buf := readBytes;
   text := TEncoding.UTF8.Convert(TEncoding.UTF8, TEncoding.Unicode, buf);
   Result := TEncoding.Unicode.GetString(text);
 end;
@@ -578,8 +574,13 @@ begin
   Inc(FCurrent, size);
 end;
 
-function TpbInput.readBytes(size: Integer): TBytes;
+function TpbInput.readBytes: TBytes;
+var
+  size: Integer;
 begin
+  size := readRawVarint32;
+  if size <= 0 then
+     EProtobufError.Create(EProtobufError.InvalidSize);
   if FCurrent > FLast then
     EProtobufError.Create(EProtobufError.EofEncounterd);
   SetLength(Result, size);

@@ -1034,22 +1034,8 @@ var
       Wrln('Pb.Push;');
       Wrln('try');
       Wrln('  while not Pb.Eof do');
-      case obj.typ.form of
-        TTypeMode.tmInt32, TTypeMode.tmUint32, TTypeMode.tmSint32,
-        TTypeMode.tmBool, TTypeMode.tmEnum:
-          Wrln('    Pb.readRawVarint32(%s.F%s[i]);', [mn, n]);
-        TTypeMode.tmInt64, TTypeMode.tmUint64, TTypeMode.tmSint64:
-          Wrln('    Pb.readRawVarint64(%s.F%s[i]);', [mn, n]);
-        TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble,
-        TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
-          Wrln('    Pb.readRawData(%s.F%s[i], sizeof(%s));', [mn, n, mt]);
-        TTypeMode.tmString:
-          Wrln('    Pb.readRawString(%s.F%s[i]);', [mn, n]);
-        TTypeMode.tmBytes:
-          Wrln('    Pb.readRawBytes(%s.F%s[i]);', [mn, n]);
-      end;
       n := 'F' + Plural(obj.name);
-      Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
+      Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
       Wrln('finally');
       Wrln('  Pb.Pop;');
       Wrln('end;');
