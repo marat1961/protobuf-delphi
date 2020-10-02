@@ -627,7 +627,7 @@ procedure TFieldGen.Init(g: TGen; obj: PObj; o: TFieldOptions; const ft: string)
 begin
   Self.g := g;
   Self.obj := obj;
-  Self.m := obj.typ.declaration.name;
+  Self.m := obj.typ.declaration.AsType;
   Self.o := o;
   Self.ft := ft;
   mn := o.Msg.DelphiName;
@@ -670,28 +670,34 @@ begin
 end;
 
 procedure TFieldGen.GenType;
+var
+  m: string;
 begin
   // Pb.writeString(TPerson.ftName, Person.Name);
   if o.rule <> TFieldRule.Repeated then
-    g.Wrln('Pb.write%s(%s, %s.%s);', [AsCamel(m), GetTag, mn, n])
+  begin
+    m := DelphiRwMethods[obj.typ.form];
+    g.Wrln('Pb.write%s(%s, %s.%s);', [AsCamel(m), GetTag, mn, n]);
+  end
   else
   begin
     g.Wrln('h.Init;');
     g.Wrln('try');
-    g.Wrln('  for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
+    n := Plural(n);
+    g.Wrln('  for i := 0 to %s.%s.Count - 1 do', [mn, n]);
     case obj.typ.form of
       TTypeMode.tmInt32, TTypeMode.tmUint32, TTypeMode.tmSint32,
       TTypeMode.tmBool, TTypeMode.tmEnum:
-        g.Wrln('    h.writeRawVarint32(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    h.Pb.writeRawVarint32(%s.F%s[i]);', [mn, n]);
       TTypeMode.tmInt64, TTypeMode.tmUint64, TTypeMode.tmSint64:
-        g.Wrln('    h.writeRawVarint64(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    h.Pb.writeRawVarint64(%s.F%s[i]);', [mn, n]);
       TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble,
       TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
-        g.Wrln('    h.writeRawData(%s.F%s[i], sizeof(%s));', [mn, n, t]);
+        g.Wrln('    h.Pb.writeRawData(%s.F%s[i], sizeof(%s));', [mn, n, t]);
       TTypeMode.tmString:
-        g.Wrln('    h.writeRawString(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    h.Pb.writeRawString(%s.F%s[i]);', [mn, n]);
       TTypeMode.tmBytes:
-        g.Wrln('    h.writeRawBytes(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    h.Pb.writeRawBytes(%s.F%s[i]);', [mn, n]);
     end;
     g.Wrln('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
     g.Wrln('finally');
@@ -708,8 +714,9 @@ begin
   begin
     g.Wrln('h.Init;');
     g.Wrln('try');
-    g.Wrln('  for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
-    g.Wrln('    h.writeRawVarint32(Ord(%s.%s));', [mn, AsCamel(n)]);
+    n := Plural(n);
+    g.Wrln('  for i := 0 to %s.%s.Count - 1 do', [mn, n]);
+    g.Wrln('    h.Pb.writeRawVarint32(Ord(%s.%s[i]));', [mn, n]);
     g.Wrln('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
     g.Wrln('finally');
     g.Wrln('  h.Free;');

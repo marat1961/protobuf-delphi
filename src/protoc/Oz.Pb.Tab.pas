@@ -387,6 +387,12 @@ const
     'Unknown', 'Double', 'Single', 'Int64', 'Int64', 'Integer',
     'UInt64', 'UInt32', 'Boolean', 'string', 'TBytes',
     'UInt32', 'UInt32', 'Int64', 'Integer', 'Int64');
+  // read/write method name
+  DelphiRwMethods: array [TEmbeddedTypes] of string = (
+    'Unknown', 'Double', 'Float', 'Int64', 'Int64', 'Int32',
+    'Int64', 'Int32', 'Boolean', 'string', 'Bytes',
+    'Int32', 'Fixed32', 'Fixed64', 'Int32', 'Int64');
+
   DelphiKeywords: array [0 .. 64] of string = (
     'and', 'array', 'as', 'asm', 'begin', 'case', 'class', 'const',
     'constructor', 'destructor', 'dispinterface', 'div', 'do', 'downto',
