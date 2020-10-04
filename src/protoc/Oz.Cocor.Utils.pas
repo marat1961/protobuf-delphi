@@ -1,5 +1,5 @@
 (* Protocol buffer code generator, for Delphi
- * Copyright (c) 2020 Marat Shaimardanov
+ * Copyright (c) 2001-2020 Marat Shaimardanov
  *
  * This file is part of Protocol buffer code generator, for Delphi
  * is free software: you can redistribute it and/or modify
