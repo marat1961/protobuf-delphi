@@ -1,3 +1,21 @@
+(* Protocol buffer code generator, for Delphi
+ * Copyright (c) 2020 Marat Shaimardanov
+ *
+ * This file is part of Protocol buffer code generator, for Delphi
+ * is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This file is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file. If not, see <https://www.gnu.org/licenses/>.
+ *)
+
 unit Oz.Pb.Gen;
 
 interface
@@ -15,10 +33,12 @@ type
 {$Region 'TGen: code generator for delphi'}
 
   TMapTypes = TList<PType>;
+
   TGetMap = (
     asVarDecl,
     asParam,
     asVarUsing);
+
   TGen = class(TCocoPart)
   private
     IndentLevel: Integer;
@@ -37,13 +57,10 @@ type
     // Indent control
     procedure Indent;
     procedure Dedent;
-
     // Enum code
     procedure EnumDecl(obj: PObj);
-
     // Map code
     procedure MapDecl(obj: PObj);
-
     // Field tag ident
     function FieldTag(obj: PObj): string;
     // Field tag declaration

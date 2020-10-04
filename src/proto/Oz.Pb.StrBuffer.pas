@@ -1,8 +1,20 @@
-﻿// Author  - Marat Shaimardanov, Tomsk 2001 .. 2020
-
-// Send any postcards with postage stamp to my address:
-// Frunze 131/1, 56, Russia, Tomsk, 634021
-// then you can use this code in self project.
+﻿(* Protocol buffer code generator, for Delphi
+ * Copyright (c) 2001-2020 Marat Shaimardanov
+ *
+ * This file is part of Protocol buffer code generator, for Delphi
+ * is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This file is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this file. If not, see <https://www.gnu.org/licenses/>.
+ *)
 
 // The buffer for strings.
 // The main purpose of the rapid format of long string.
