@@ -429,7 +429,6 @@ uses
   Oz.Pb.Parser;
 
 function GetWireType(tm: TTypeMode): TWireType;
-var b: TBytes;
 begin
   case tm of
     TTypeMode.tmInt32, TTypeMode.tmInt64,

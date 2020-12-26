@@ -28,10 +28,9 @@ const
   RepeatedCollection = 'TList<%s>';
   MapCollection = 'TDictionary<%s, %s>';
 
+{$Region 'TCustomGen: base class code generator'}
+
 type
-
-{$Region 'TGen: code generator for delphi'}
-
   TMapTypes = TList<PType>;
 
   TGetMap = (
@@ -39,15 +38,10 @@ type
     asParam,
     asVarUsing);
 
-  TGen = class(TCocoPart)
+  TCustomGen = class(TCocoPart)
   private
-    IndentLevel: Integer;
     sb: TStringBuilder;
-    maps: TMapTypes;
-    mapvars: TMapTypes;
-    pairMessage: TObjDesc;
-    pairType: TTypeDesc;
-    function GetCode: string;
+    IndentLevel: Integer;
     // Wrappers for TStringBuilder
     procedure Wr(const s: string); overload;
     procedure Wr(const f: string; const Args: array of const); overload;
@@ -57,6 +51,25 @@ type
     // Indent control
     procedure Indent;
     procedure Dedent;
+    function GetCode: string;
+  public
+    constructor Create(Parser: TBaseParser);
+    destructor Destroy; override;
+    procedure GenerateCode; virtual; abstract;
+    // Generated code
+    property Code: string read GetCode;
+  end;
+
+{$EndRegion}
+
+{$Region 'TGen: code generator for delphi'}
+
+  TGen = class(TCustomGen)
+  private
+    maps: TMapTypes;
+    mapvars: TMapTypes;
+    pairMessage: TObjDesc;
+    pairType: TTypeDesc;
     // Enum code
     procedure EnumDecl(obj: PObj);
     // Map code
@@ -103,9 +116,7 @@ type
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
-    procedure GenerateCode;
-    // Generated code
-    property Code: string read GetCode;
+    procedure GenerateCode; override;
   end;
 
 {$EndRegion}
@@ -114,6 +125,64 @@ implementation
 
 uses
   Oz.Pb.Parser;
+
+{$Region 'TCustomGen'}
+
+constructor TCustomGen.Create(Parser: TBaseParser);
+begin
+  inherited;
+  sb := TStringBuilder.Create;
+end;
+
+destructor TCustomGen.Destroy;
+begin
+  sb.Free;
+end;
+
+function TCustomGen.GetCode: string;
+begin
+  Result := sb.ToString;
+end;
+
+procedure TCustomGen.Wr(const s: string);
+begin
+  sb.Append(s);
+end;
+
+procedure TCustomGen.Wr(const f: string; const Args: array of const);
+begin
+  sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
+end;
+
+procedure TCustomGen.Wrln;
+begin
+  sb.AppendLine;
+end;
+
+procedure TCustomGen.Wrln(const s: string);
+begin
+  sb.AppendLine(Blank(IndentLevel * 2) + s);
+end;
+
+procedure TCustomGen.Wrln(const f: string; const Args: array of const);
+begin
+  sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
+  sb.AppendLine;
+end;
+
+procedure TCustomGen.Indent;
+begin
+  Inc(IndentLevel);
+end;
+
+procedure TCustomGen.Dedent;
+begin
+  Dec(IndentLevel);
+  if IndentLevel < 0 then
+    IndentLevel := 0;
+end;
+
+{$EndRegion}
 
 {$Region 'TGen'}
 
@@ -129,7 +198,6 @@ destructor TGen.Destroy;
 begin
   mapvars.Free;
   maps.Free;
-  sb.Free;
   inherited;
 end;
 
@@ -194,49 +262,6 @@ begin
         MessageImpl(x);
     x := x.next;
   end;
-end;
-
-function TGen.GetCode: string;
-begin
-  Result := sb.ToString;
-end;
-
-procedure TGen.Wr(const s: string);
-begin
-  sb.Append(s);
-end;
-
-procedure TGen.Wr(const f: string; const Args: array of const);
-begin
-  sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
-end;
-
-procedure TGen.Wrln;
-begin
-  sb.AppendLine;
-end;
-
-procedure TGen.Wrln(const s: string);
-begin
-  sb.AppendLine(Blank(IndentLevel * 2) + s);
-end;
-
-procedure TGen.Wrln(const f: string; const Args: array of const);
-begin
-  sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
-  sb.AppendLine;
-end;
-
-procedure TGen.Indent;
-begin
-  Inc(IndentLevel);
-end;
-
-procedure TGen.Dedent;
-begin
-  Dec(IndentLevel);
-  if IndentLevel < 0 then
-    IndentLevel := 0;
 end;
 
 procedure TGen.EnumDecl(obj: PObj);
