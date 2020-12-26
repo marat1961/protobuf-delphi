@@ -137,7 +137,7 @@ begin
   inherited Create(scanner, listing);
   Self.tab := tab;
   options := GetOptions;
-  gen := TGen.Create(Self);
+  gen := GetCodeGen(Self);
 end;
 
 destructor TpbParser.Destroy;

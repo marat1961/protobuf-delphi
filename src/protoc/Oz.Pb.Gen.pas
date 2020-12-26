@@ -28,7 +28,7 @@ const
   RepeatedCollection = 'TList<%s>';
   MapCollection = 'TDictionary<%s, %s>';
 
-{$Region 'TCustomGen: base class code generator'}
+{$Region 'TGen: base class code generator'}
 
 type
   TMapTypes = TList<PType>;
@@ -38,7 +38,7 @@ type
     asParam,
     asVarUsing);
 
-  TCustomGen = class(TCocoPart)
+  TGen = class(TCocoPart)
   private
     sb: TStringBuilder;
     IndentLevel: Integer;
@@ -62,9 +62,30 @@ type
 
 {$EndRegion}
 
-{$Region 'TGen: code generator for delphi'}
+function GetCodeGen(Parser: TBaseParser): TGen;
 
-  TGen = class(TCustomGen)
+implementation
+
+uses
+  Oz.Pb.Parser;
+
+{$Region 'TGenSGL: code generator for Oz.SGL.Collections'}
+
+type
+  TGenSGL = class(TGen)
+  private
+
+  public
+    constructor Create(Parser: TBaseParser);
+    destructor Destroy; override;
+    procedure GenerateCode; override;
+  end;
+
+{$EndRegion}
+
+{$Region 'TGenDC: code generator for delphi'}
+
+  TGenDC = class(TGen)
   private
     maps: TMapTypes;
     mapvars: TMapTypes;
@@ -121,61 +142,56 @@ type
 
 {$EndRegion}
 
-implementation
+{$Region 'TGen'}
 
-uses
-  Oz.Pb.Parser;
-
-{$Region 'TCustomGen'}
-
-constructor TCustomGen.Create(Parser: TBaseParser);
+constructor TGen.Create(Parser: TBaseParser);
 begin
   inherited;
   sb := TStringBuilder.Create;
 end;
 
-destructor TCustomGen.Destroy;
+destructor TGen.Destroy;
 begin
   sb.Free;
 end;
 
-function TCustomGen.GetCode: string;
+function TGen.GetCode: string;
 begin
   Result := sb.ToString;
 end;
 
-procedure TCustomGen.Wr(const s: string);
+procedure TGen.Wr(const s: string);
 begin
   sb.Append(s);
 end;
 
-procedure TCustomGen.Wr(const f: string; const Args: array of const);
+procedure TGen.Wr(const f: string; const Args: array of const);
 begin
   sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
 end;
 
-procedure TCustomGen.Wrln;
+procedure TGen.Wrln;
 begin
   sb.AppendLine;
 end;
 
-procedure TCustomGen.Wrln(const s: string);
+procedure TGen.Wrln(const s: string);
 begin
   sb.AppendLine(Blank(IndentLevel * 2) + s);
 end;
 
-procedure TCustomGen.Wrln(const f: string; const Args: array of const);
+procedure TGen.Wrln(const f: string; const Args: array of const);
 begin
   sb.AppendFormat(Blank(IndentLevel * 2) + f, Args);
   sb.AppendLine;
 end;
 
-procedure TCustomGen.Indent;
+procedure TGen.Indent;
 begin
   Inc(IndentLevel);
 end;
 
-procedure TCustomGen.Dedent;
+procedure TGen.Dedent;
 begin
   Dec(IndentLevel);
   if IndentLevel < 0 then
@@ -184,24 +200,39 @@ end;
 
 {$EndRegion}
 
-{$Region 'TGen'}
+{$Region 'TGenSGL'}
 
-constructor TGen.Create(Parser: TBaseParser);
+constructor TGenSGL.Create(Parser: TBaseParser);
 begin
   inherited;
-  sb := TStringBuilder.Create;
+end;
+
+destructor TGenSGL.Destroy;
+begin
+  inherited;
+end;
+
+procedure TGenSGL.GenerateCode;
+begin
+end;
+
+{$Region 'TGenDC'}
+
+constructor TGenDC.Create(Parser: TBaseParser);
+begin
+  inherited;
   maps := TList<PType>.Create;
   mapvars := TList<PType>.Create;
 end;
 
-destructor TGen.Destroy;
+destructor TGenDC.Destroy;
 begin
   mapvars.Free;
   maps.Free;
   inherited;
 end;
 
-procedure TGen.GenerateCode;
+procedure TGenDC.GenerateCode;
 var
   ns: string;
 begin
@@ -231,7 +262,7 @@ begin
   Wrln('end.');
 end;
 
-procedure TGen.ModelDecl;
+procedure TGenDC.ModelDecl;
 var
   obj, x: PObj;
 begin
@@ -249,7 +280,7 @@ begin
   end;
 end;
 
-procedure TGen.ModelImpl;
+procedure TGenDC.ModelImpl;
 var
   obj, x: PObj;
 begin
@@ -264,7 +295,7 @@ begin
   end;
 end;
 
-procedure TGen.EnumDecl(obj: PObj);
+procedure TGenDC.EnumDecl(obj: PObj);
 var
   x: PObj;
   n: Integer;
@@ -285,7 +316,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.MapDecl(obj: PObj);
+procedure TGenDC.MapDecl(obj: PObj);
 var
   x: PObj;
   key, value: PType;
@@ -306,7 +337,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.MessageDecl(msg: PObj);
+procedure TGenDC.MessageDecl(msg: PObj);
 var
   x: PObj;
   typ: PType;
@@ -376,7 +407,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.MessageImpl(msg: PObj);
+procedure TGenDC.MessageImpl(msg: PObj);
 var
   t: string;
   x: PObj;
@@ -431,7 +462,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.LoadDecl(msg: PObj);
+procedure TGenDC.LoadDecl(msg: PObj);
 var
   typ: PType;
   x: PObj;
@@ -452,7 +483,7 @@ begin
   end;
 end;
 
-procedure TGen.SaveDecl(msg: PObj);
+procedure TGenDC.SaveDecl(msg: PObj);
 var
   typ: PType;
   x: PObj;
@@ -477,7 +508,7 @@ begin
   end;
 end;
 
-procedure TGen.LoadImpl(msg: PObj);
+procedure TGenDC.LoadImpl(msg: PObj);
 var
   x: PObj;
   typ: PType;
@@ -564,7 +595,7 @@ begin
   Wrln('');
 end;
 
-procedure TGen.SaveImpl(msg: PObj);
+procedure TGenDC.SaveImpl(msg: PObj);
 var
   typ: PType;
   x: PObj;
@@ -647,7 +678,7 @@ end;
 type
   TFieldGen = record
   var
-    g: TGen;
+    g: TGenDC;
     obj: PObj;
     o: TFieldOptions;
     ft: string;
@@ -661,11 +692,11 @@ type
     procedure GenMessage;
     procedure GenUnion;
   public
-    procedure Init(g: TGen; obj: PObj; o: TFieldOptions; const ft: string);
+    procedure Init(g: TGenDC; obj: PObj; o: TFieldOptions; const ft: string);
     procedure Gen;
   end;
 
-procedure TFieldGen.Init(g: TGen; obj: PObj; o: TFieldOptions; const ft: string);
+procedure TFieldGen.Init(g: TGenDC; obj: PObj; o: TFieldOptions; const ft: string);
 begin
   Self.g := g;
   Self.obj := obj;
@@ -867,7 +898,7 @@ begin
   end;
 end;
 
-procedure TGen.SaveMaps;
+procedure TGenDC.SaveMaps;
 var
   typ: PType;
   map, key, value: PObj;
@@ -913,7 +944,7 @@ begin
   end;
 end;
 
-function TGen.FieldTag(obj: PObj): string;
+function TGenDC.FieldTag(obj: PObj): string;
 var
   n: string;
   o: TFieldOptions;
@@ -928,7 +959,7 @@ begin
   Result := 'ft' + n;
 end;
 
-procedure TGen.FieldTagDecl(obj: PObj);
+procedure TGenDC.FieldTagDecl(obj: PObj);
 var o: TFieldOptions;
 begin
 (*
@@ -938,7 +969,7 @@ begin
   Wrln('%s = %d;', [FieldTag(obj), o.Tag]);
 end;
 
-procedure TGen.FieldDecl(obj: PObj);
+procedure TGenDC.FieldDecl(obj: PObj);
 var
   n, t: string;
   o: TFieldOptions;
@@ -960,7 +991,7 @@ begin
   Wrln('%s: %s;', [n, t]);
 end;
 
-procedure TGen.FieldProperty(obj: PObj);
+procedure TGenDC.FieldProperty(obj: PObj);
 var
   n, f, t, s: string;
   ro: Boolean;
@@ -995,7 +1026,7 @@ begin
   Wrln(s);
 end;
 
-procedure TGen.FieldInit(obj: PObj);
+procedure TGenDC.FieldInit(obj: PObj);
 var
   f, t: string;
   o: TFieldOptions;
@@ -1019,7 +1050,7 @@ begin
     Wrln('%s := %s.Create;', [f, t]);
 end;
 
-procedure TGen.FieldFree(obj: PObj);
+procedure TGenDC.FieldFree(obj: PObj);
 var
   f: string;
   o: TFieldOptions;
@@ -1032,7 +1063,7 @@ begin
     Wrln('%s.Free;', [f])
 end;
 
-function TGen.GetRead(obj: PObj): string;
+function TGenDC.GetRead(obj: PObj): string;
 var
   msg: PObj;
   m, n: string;
@@ -1061,7 +1092,7 @@ begin
   end;
 end;
 
-procedure TGen.FieldRead(obj: PObj);
+procedure TGenDC.FieldRead(obj: PObj);
 var
   o: TFieldOptions;
   msg: PObj;
@@ -1172,7 +1203,7 @@ begin
   end;
 end;
 
-procedure TGen.FieldWrite(obj: PObj);
+procedure TGenDC.FieldWrite(obj: PObj);
 var
   fg: TFieldGen;
 begin
@@ -1181,12 +1212,12 @@ begin
   fg.Gen;
 end;
 
-procedure TGen.FieldReflection(obj: PObj);
+procedure TGenDC.FieldReflection(obj: PObj);
 begin
   raise Exception.Create('under consruction');
 end;
 
-procedure TGen.GenComment(const comment: string);
+procedure TGenDC.GenComment(const comment: string);
 var
   s: string;
 begin
@@ -1194,7 +1225,7 @@ begin
     Wrln('// ' + s)
 end;
 
-function TGen.GetPair(maptypes: TMapTypes; typ: PType; mas: TGetMap): string;
+function TGenDC.GetPair(maptypes: TMapTypes; typ: PType; mas: TGetMap): string;
 var
   msg, key, value: PObj;
   i: Integer;
@@ -1213,7 +1244,7 @@ begin
   Result := Format('%s: TPair<%s, %s>', [s, key.AsType, value.AsType]);
 end;
 
-function TGen.GetBuilderName(Load: Boolean): string;
+function TGenDC.GetBuilderName(Load: Boolean): string;
 begin
   if Load then
     Result := 'TLoadHelper'
@@ -1221,7 +1252,7 @@ begin
     Result := 'TSaveHelper';
 end;
 
-procedure TGen.BuilderDecl(Load: Boolean);
+procedure TGenDC.BuilderDecl(Load: Boolean);
 const
   Names: array [Boolean] of string = ('TpbSaver', 'TpbLoader');
 var
@@ -1259,7 +1290,7 @@ begin
   Wrln;
 end;
 
-procedure TGen.BuilderImpl;
+procedure TGenDC.BuilderImpl;
 var
   obj, x: PObj;
 begin
@@ -1279,5 +1310,10 @@ begin
 end;
 
 {$EndRegion}
+
+function GetCodeGen(Parser: TBaseParser): TGen;
+begin
+  Result := TGenDC.Create(Parser);
+end;
 
 end.
