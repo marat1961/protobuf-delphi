@@ -24,10 +24,6 @@ uses
   System.Classes, System.SysUtils, System.Math, Generics.Collections,
   Oz.Cocor.Utils, Oz.Cocor.Lib, Oz.Pb.Tab, Oz.Pb.Classes;
 
-const
-  RepeatedCollection = 'TList<%s>';
-  MapCollection = 'TDictionary<%s, %s>';
-
 {$Region 'TGen: base class code generator'}
 
 type
@@ -122,6 +118,8 @@ type
     function GetBuilderName(Load: Boolean): string;
   protected
     procedure GenUses; virtual; abstract;
+    function RepeatedCollection: string; virtual; abstract;
+    function MapCollection: string; virtual; abstract;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -133,12 +131,10 @@ type
 {$Region 'TGenSGL: code generator for Oz.SGL.Collections'}
 
   TGenSGL = class(TCustomGen)
-  private
-
-  public
-    constructor Create(Parser: TBaseParser);
-    destructor Destroy; override;
-    procedure GenerateCode; override;
+  protected
+    function MapCollection: string; override;
+    procedure GenUses; override;
+    function RepeatedCollection: string; override;
   end;
 
 {$EndRegion}
@@ -147,10 +143,9 @@ type
 
   TGenDC = class(TCustomGen)
   protected
+    function MapCollection: string; override;
     procedure GenUses; override;
-  public
-    constructor Create(Parser: TBaseParser);
-    destructor Destroy; override;
+    function RepeatedCollection: string; override;
   end;
 
 {$EndRegion}
@@ -161,11 +156,16 @@ constructor TCustomGen.Create(Parser: TBaseParser);
 begin
   inherited;
   sb := TStringBuilder.Create;
+  maps := TList<PType>.Create;
+  mapvars := TList<PType>.Create;
 end;
 
 destructor TCustomGen.Destroy;
 begin
+  mapvars.Free;
+  maps.Free;
   sb.Free;
+  inherited;
 end;
 
 function TCustomGen.GetCode: string;
@@ -640,7 +640,7 @@ procedure TFieldGen.Init(g: TCustomGen; obj: PObj; o: TFieldOptions; const ft: s
 begin
   Self.g := g;
   Self.obj := obj;
-  Self.m := obj.typ.declaration.AsType;
+  Self.m := AsCamel(obj.typ.declaration.name);
   Self.o := o;
   Self.ft := ft;
   mn := o.Msg.DelphiName;
@@ -1291,34 +1291,35 @@ end;
 
 {$Region 'TGenSGL'}
 
-constructor TGenSGL.Create(Parser: TBaseParser);
+function TGenSGL.MapCollection: string;
 begin
-  inherited;
+  Result := 'TsgHashMap<%s, %s>';
 end;
 
-destructor TGenSGL.Destroy;
+function TGenSGL.RepeatedCollection: string;
 begin
-  inherited;
+  Result := 'TsgRecordList<%s>';
 end;
 
-procedure TGenSGL.GenerateCode;
+procedure TGenSGL.GenUses;
 begin
+  Wrln('uses');
+  Wrln('  System.Classes, System.SysUtils, Oz.SGL.Collections, Oz.Pb.Classes;');
+  Wrln;
 end;
+
+{$EndRegion}
 
 {$Region 'TGenDC'}
 
-constructor TGenDC.Create(Parser: TBaseParser);
+function TGenDC.MapCollection: string;
 begin
-  inherited;
-  maps := TList<PType>.Create;
-  mapvars := TList<PType>.Create;
+  Result := 'TDictionary<%s, %s>';
 end;
 
-destructor TGenDC.Destroy;
+function TGenDC.RepeatedCollection: string;
 begin
-  mapvars.Free;
-  maps.Free;
-  inherited;
+  Result := 'TList<%s>';
 end;
 
 procedure TGenDC.GenUses;
