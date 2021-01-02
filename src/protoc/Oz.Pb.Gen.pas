@@ -1333,7 +1333,7 @@ end;
 
 function GetCodeGen(Parser: TBaseParser): TGen;
 begin
-  Result := TGenDC.Create(Parser);
+  Result := TGenSGL.Create(Parser);
 end;
 
 end.
