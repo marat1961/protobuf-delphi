@@ -34,47 +34,45 @@ uses
 
 {$R *.RES}
 
-// save data to proto file
-procedure SaveData;
+// generate data
+procedure GenData(var Oz: TPerson);
 var
-  Oz: TPerson;
-  Saver: TpbSaver;
   Phone: TPhoneNumber;
 begin
-  Oz.Init;
+  // my data
+  Oz.Name := 'Marat Shaimardanov';
+  Oz.Id := 1;
+  Oz.Email := 'marat.sh.1961@gmail.com';
+
+  // single message
+  Phone.Init;
+  Phone.Number := 'qwerty';
+  Oz.MyPhone := Phone;
+
+  // my home phones
+  Phone.Init;
+  Phone.&Type := TPhoneType.HOME;
+  Phone.Number := '+7 382 224 3699';
+
+  // my mobile phone
+  Phone.Init;
+  Phone.&Type := TPhoneType.MOBILE;
+  Phone.Number := '+7 913 826 2144';
+  Oz.Phones.Add(@Phone);
+end;
+
+// save data to proto file
+procedure SaveData(var Oz: TPerson);
+var
+  Saver: TpbSaver;
+begin
+  // save data
+  Saver.Init;
   try
-    // my data
-    Oz.Name := 'Marat Shaimardanov';
-    Oz.Id := 1;
-    Oz.Email := 'marat.sh.1961@gmail.com';
-
-    // single message
-    Phone.Init;
-    Phone.Number := 'qwerty';
-    Oz.MyPhone := Phone;
-
-    // my home phones
-    Phone.Init;
-    Phone.&Type := TPhoneType.HOME;
-    Phone.Number := '+7 382 224 3699';
-    Oz.Phones.Add(@Phone);
-
-    // my mobile phone
-    Phone.Init;
-    Phone.&Type := TPhoneType.MOBILE;
-    Phone.Number := '+7 913 826 2144';
-    Oz.Phones.Add(@Phone);
-
-    // save data
-    Saver.Init;
-    try
-      Saver.SavePerson(@Oz);
-      Saver.Pb.SaveToFile('person.pb');
-    finally
-      Saver.Free;
-    end;
+    Saver.SavePerson(@Oz);
+    Saver.Pb.SaveToFile('person.pb');
   finally
-    Oz.Free;
+    Saver.Free;
   end;
 end;
 
@@ -111,13 +109,20 @@ begin
 end;
 
 procedure TestPerson;
+var
+  Oz: TPerson;
 begin
-  SaveData;
+  Oz.Init;
+  try
+    Writeln('Run Protocol Buffer Tests');
+    GenData(Oz);
+    SaveData(Oz);
+  finally
+    Oz.Free;
+  end;
   ReadDataAndDump;
 end;
 
 begin
-  Writeln('Run Protocol Buffer Tests');
-//  TestAll;
   TestPerson;
 end.

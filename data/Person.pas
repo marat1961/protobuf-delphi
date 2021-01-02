@@ -71,20 +71,21 @@ implementation
 
 { TPhoneNumber }
 
-procedure TPhoneNumber.Free;
-begin
-
-end;
-
 procedure TPhoneNumber.Init;
 begin
+  Free;
+end;
 
+procedure TPhoneNumber.Free;
+begin
+  FillChar(Self, sizeof(TPhoneNumber), 0);
 end;
 
 { TPerson }
 
 procedure TPerson.Init;
 begin
+  FillChar(Self, sizeof(TPhoneNumber), 0);
   FPhones := TsgRecordList<TPhoneNumber>.From(nil);
 end;
 
