@@ -94,7 +94,7 @@ type
     // Field read from buffer
     procedure FieldRead(obj: PObj);
     // Write field to buffer
-    procedure FieldWrite(obj: PObj);
+    procedure FieldWrite(obj: PObj); virtual;
     // Field reflection
     procedure FieldReflection(obj: PObj);
     // unused
@@ -130,6 +130,7 @@ type
     procedure GenLoadResult(const s: string); virtual; abstract;
     function GenRead(msg: PObj): string; virtual; abstract;
     procedure GenFieldRead(msg: PObj); virtual; abstract;
+    procedure GenSaveImpl(msg: PObj); virtual; abstract;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -141,6 +142,8 @@ type
 {$Region 'TGenSGL: code generator for Oz.SGL.Collections'}
 
   TGenSGL = class(TCustomGen)
+  private
+    procedure FieldWrite(obj: PObj); override;
   protected
     function MapCollection: string; override;
     function RepeatedCollection: string; override;
@@ -155,6 +158,7 @@ type
     procedure GenLoadResult(const s: string); override;
     function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
+    procedure GenSaveImpl(msg: PObj); override;
   end;
 
 {$EndRegion}
@@ -175,6 +179,7 @@ type
     procedure GenLoadMethod(msg: PObj); override;
     procedure GenLoadResult(const s: string); override;
     procedure GenFieldRead(msg: PObj); override;
+    procedure GenSaveImpl(msg: PObj); override;
   end;
 
 {$EndRegion}
@@ -545,13 +550,10 @@ var
 
   procedure SaveMessage;
   var
-    s, t: string;
     x: PObj;
     typ: PType;
   begin
-    s := msg.DelphiName;
-    t := msg.AsType;
-    Wrln('procedure %s.Save%s(%s: %s);', [GetBuilderName(False), s, msg.name, t]);
+    GenSaveImpl(msg);
     mapvars.Clear;
     x := msg.dsc;
     while x <> tab.Guard do
@@ -615,6 +617,7 @@ type
     o: TFieldOptions;
     ft: string;
     m, mn, mt, n, t: string;
+    checkNil: Boolean;
   private
     function GetTag: string;
     // Embedded types
@@ -635,6 +638,7 @@ begin
   Self.m := AsCamel(obj.typ.declaration.name);
   Self.o := o;
   Self.ft := ft;
+  Self.checkNil := True;
   mn := o.Msg.DelphiName;
   mt := o.Msg.AsType;
   n := obj.DelphiName;
@@ -734,7 +738,7 @@ var s: string;
 begin
   if o.rule <> TFieldRule.Repeated then
   begin
-    if ft <> '2' then
+    if (ft <> '2') and checkNil then
     begin
       g.Wrln('if %s.F%s <> nil then', [mn, n]);
       g.Wrln('begin');
@@ -742,13 +746,16 @@ begin
     end;
     g.Wrln('h.Init;');
     g.Wrln('try');
-    g.Wrln('  h.Save%s(%s.%s);', [m, mn, n]);
+    if checkNil then
+      g.Wrln('  h.Save%s(%s.%s);', [m, mn, n])
+    else
+      g.Wrln('  h.Save%s(@%s.%s);', [m, mn, n]);
     s := Format('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
     g.Wrln(s);
     g.Wrln('finally');
     g.Wrln('  h.Free;');
     g.Wrln('end;');
-    if ft <> '2' then
+    if (ft <> '2') and checkNil then
     begin
       g.Dedent;
       g.Wrln('end;');
@@ -1317,6 +1324,16 @@ begin
   Wrln;
 end;
 
+procedure TGenSGL.FieldWrite(obj: PObj);
+var
+  fg: TFieldGen;
+begin
+  if obj.cls <> TMode.mField then exit;
+  fg.Init(Self, obj, obj.aux as TFieldOptions, FieldTag(obj));
+  fg.checkNil := False;
+  fg.Gen;
+end;
+
 procedure TGenSGL.GenEntityDecl;
 begin
   Wrln('procedure Init;');
@@ -1402,7 +1419,7 @@ end;
 procedure TGenSGL.GenFieldRead(msg: PObj);
 var
   o: TFieldOptions;
-  n, fs: string;
+  n: string;
 begin
   o := msg.aux as TFieldOptions;
   n := 'F' + AsCamel(msg.name);
@@ -1413,6 +1430,15 @@ begin
     n := Plural(n);
     Wrln('  %s(%s.%s.Add);', [GetRead(msg), o.Msg.name, n]);
   end;
+end;
+
+procedure TGenSGL.GenSaveImpl(msg: PObj);
+var
+  s, t: string;
+begin
+  s := msg.DelphiName;
+  t := AsCamel(msg.typ.declaration.name);
+  Wrln('procedure %s.Save%s(%s: P%s);', [GetBuilderName(False), s, msg.name, t]);
 end;
 
 {$EndRegion}
@@ -1530,6 +1556,15 @@ begin
   o := msg.aux as TFieldOptions;
   n := 'F' + Plural(msg.name);
   Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
+end;
+
+procedure TGenDC.GenSaveImpl(msg: PObj);
+var
+  s, t: string;
+begin
+  s := msg.DelphiName;
+  t := msg.AsType;
+  Wrln('procedure %s.Save%s(%s: %s);', [GetBuilderName(False), s, msg.name, t]);
 end;
 
 {$EndRegion}
