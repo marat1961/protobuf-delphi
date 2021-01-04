@@ -118,6 +118,10 @@ type
     function GetBuilderName(Load: Boolean): string;
   protected
     procedure GenUses; virtual; abstract;
+    procedure GenEntityType(msg: PObj); virtual; abstract;
+    procedure GenEntityCreation; virtual; abstract;
+    procedure GenLoadDecl(msg: PObj); virtual; abstract;
+    procedure GenSaveDecl(msg: PObj); virtual; abstract;
     function RepeatedCollection: string; virtual; abstract;
     function MapCollection: string; virtual; abstract;
   public
@@ -133,7 +137,11 @@ type
   TGenSGL = class(TCustomGen)
   protected
     function MapCollection: string; override;
+    procedure GenEntityType(msg: PObj); override;
     procedure GenUses; override;
+    procedure GenEntityCreation; override;
+    procedure GenLoadDecl(msg: PObj); override;
+    procedure GenSaveDecl(msg: PObj); override;
     function RepeatedCollection: string; override;
   end;
 
@@ -145,6 +153,10 @@ type
   protected
     function MapCollection: string; override;
     procedure GenUses; override;
+    procedure GenEntityType(msg: PObj); override;
+    procedure GenEntityCreation; override;
+    procedure GenLoadDecl(msg: PObj); override;
+    procedure GenSaveDecl(msg: PObj); override;
     function RepeatedCollection: string; override;
   end;
 
@@ -295,7 +307,7 @@ begin
     x := x.next;
   end;
 
-  Wrln('%s = class', [msg.AsType]);
+  GenEntityType(msg);
 
   // generate field tag definitions
   Wrln('const');
@@ -330,8 +342,7 @@ begin
   Wrln('public');
   Indent;
   try
-    Wrln('constructor Create;');
-    Wrln('destructor Destroy; override;');
+    GenEntityCreation;
     Wrln('// properties');
     x := typ.dsc;
     while x <> tab.Guard do
@@ -406,13 +417,11 @@ procedure TCustomGen.LoadDecl(msg: PObj);
 var
   typ: PType;
   x: PObj;
-  t: string;
 begin
   typ := msg.typ;
   if msg.cls <> TMode.mType then exit;
   if typ.form <> TTypeMode.tmMessage then exit;
-  t := msg.AsType;
-  Wrln('function Load%s(%s: %s): %s;', [msg.DelphiName, msg.name, t, t]);
+  GenLoadDecl(msg);
   x := msg.dsc;
   while x <> tab.Guard do
   begin
@@ -436,7 +445,7 @@ begin
         maps.Add(typ);
     TTypeMode.tmMessage:
       begin
-        Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+        GenSaveDecl(msg);
         x := msg.dsc;
         while x <> tab.Guard do
         begin
@@ -1301,10 +1310,43 @@ begin
   Result := 'TsgRecordList<%s>';
 end;
 
+procedure TGenSGL.GenEntityCreation;
+begin
+  Wrln('procedure Init;');
+  Wrln('procedure Free;');
+end;
+
+procedure TGenSGL.GenEntityType(msg: PObj);
+var
+  s: string;
+begin
+  s := AsCamel(msg.typ.declaration.name);
+  Wrln('P%s = ^T%s;', [s, s]);
+  Wrln('T%s = record', [s]);
+end;
+
+procedure TGenSGL.GenLoadDecl(msg: PObj);
+var
+  s: string;
+begin
+  s := AsCamel(msg.typ.declaration.name);
+  Wrln('procedure Load%s(%s: P%s);', [msg.DelphiName, msg.name, s]);
+end;
+
+procedure TGenSGL.GenSaveDecl(msg: PObj);
+var
+  s: string;
+begin
+  s := AsCamel(msg.typ.declaration.name);
+  Wrln('procedure Save%s(%s: P%s);', [msg.DelphiName, msg.name, s]);
+end;
+
 procedure TGenSGL.GenUses;
 begin
   Wrln('uses');
   Wrln('  System.Classes, System.SysUtils, Oz.SGL.Collections, Oz.Pb.Classes;');
+  Wrln;
+  Wrln('{$T+}');
   Wrln;
 end;
 
@@ -1327,6 +1369,30 @@ begin
   Wrln('uses');
   Wrln('  System.Classes, System.SysUtils, Generics.Collections, Oz.Pb.Classes;');
   Wrln;
+end;
+
+procedure TGenDC.GenEntityCreation;
+begin
+  Wrln('constructor Create;');
+  Wrln('destructor Destroy; override;');
+end;
+
+procedure TGenDC.GenEntityType(msg: PObj);
+begin
+  Wrln('%s = class', [msg.AsType]);
+end;
+
+procedure TGenDC.GenLoadDecl(msg: PObj);
+var
+  t: string;
+begin
+  t := msg.AsType;
+  Wrln('function Load%s(%s: %s): %s;', [msg.DelphiName, msg.name, t, t]);
+end;
+
+procedure TGenDC.GenSaveDecl(msg: PObj);
+begin
+  Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
 end;
 
 {$EndRegion}
