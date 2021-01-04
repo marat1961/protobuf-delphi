@@ -15,7 +15,10 @@ uses
   Oz.Pb.Scanner in '..\src\protoc\Oz.Pb.Scanner.pas',
   Oz.Pb.Protoc in '..\src\protoc\Oz.Pb.Protoc.pas',
   Oz.Pb.Classes in '..\src\proto\Oz.Pb.Classes.pas',
-  Oz.Pb.StrBuffer in '..\src\proto\Oz.Pb.StrBuffer.pas';
+  Oz.Pb.StrBuffer in '..\src\proto\Oz.Pb.StrBuffer.pas',
+  Oz.Pb.CustomGen in '..\src\protoc\Oz.Pb.CustomGen.pas',
+  Oz.Pb.GenSGL in '..\src\protoc\Oz.Pb.GenSGL.pas',
+  Oz.Pb.GenDC in '..\src\protoc\Oz.Pb.GenDC.pas';
 
 begin
   try

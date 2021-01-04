@@ -73,19 +73,18 @@ implementation
 
 procedure TPhoneNumber.Init;
 begin
-  Free;
+  Self := Default(TPhoneNumber);
 end;
 
 procedure TPhoneNumber.Free;
 begin
-  FillChar(Self, sizeof(TPhoneNumber), 0);
 end;
 
 { TPerson }
 
 procedure TPerson.Init;
 begin
-  FillChar(Self, sizeof(TPhoneNumber), 0);
+  Self := Default(TPerson);
   FPhones := TsgRecordList<TPhoneNumber>.From(nil);
 end;
 
@@ -126,7 +125,6 @@ procedure TLoadHelper.LoadPerson(Person: PPerson);
 var
   fieldNumber, wireType: integer;
   tag: TpbTag;
-  Phone: PPhoneNumber;
 begin
   tag := Pb.readTag;
   while tag.v <> 0 do
@@ -154,8 +152,7 @@ begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
           Pb.Push;
           try
-            Phone := Person.FPhones.Add;
-            LoadPhoneNumber(Phone);
+            LoadPhoneNumber(Person.FPhones.Add);
           finally
             Pb.Pop;
           end;
@@ -198,7 +195,7 @@ begin
       for i := 0 to Person.FPhones.Count - 1 do
       begin
         h.Clear;
-        h.SavePhoneNumber(Person.Phones.Items[i]);
+        h.SavePhoneNumber(Person.Phones[i]);
         Pb.writeMessage(TPerson.ftPhones, h.Pb^);
       end;
     finally
