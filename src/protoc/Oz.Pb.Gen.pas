@@ -128,6 +128,8 @@ type
     procedure GenSaveDecl(msg: PObj); virtual; abstract;
     procedure GenLoadMethod(msg: PObj); virtual; abstract;
     procedure GenLoadResult(const s: string); virtual; abstract;
+    function GenRead(msg: PObj): string; virtual; abstract;
+    procedure GenFieldRead(msg: PObj); virtual; abstract;
   public
     constructor Create(Parser: TBaseParser);
     destructor Destroy; override;
@@ -151,6 +153,8 @@ type
     procedure GenSaveDecl(msg: PObj); override;
     procedure GenLoadMethod(msg: PObj); override;
     procedure GenLoadResult(const s: string); override;
+    function GenRead(msg: PObj): string; override;
+    procedure GenFieldRead(msg: PObj); override;
   end;
 
 {$EndRegion}
@@ -170,6 +174,7 @@ type
     procedure GenSaveDecl(msg: PObj); override;
     procedure GenLoadMethod(msg: PObj); override;
     procedure GenLoadResult(const s: string); override;
+    procedure GenFieldRead(msg: PObj); override;
   end;
 
 {$EndRegion}
@@ -1010,7 +1015,7 @@ begin
   n := obj.DelphiName;
   case obj.typ.form of
     TTypeMode.tmMessage:
-      Result := Format('Load%s(%s.Create)', [m, msg.AsType]);
+      Result := GenRead(msg);
     TTypeMode.tmEnum:
       Result := Format('T%s(Pb.readInt32)', [m]);
     TTypeMode.tmMap:
@@ -1050,8 +1055,7 @@ var
       Wrln('Pb.Push;');
       Wrln('try');
       Wrln('  while not Pb.Eof do');
-      n := 'F' + Plural(obj.name);
-      Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
+      GenFieldRead(obj);
       Wrln('finally');
       Wrln('  Pb.Pop;');
       Wrln('end;');
@@ -1076,8 +1080,7 @@ var
       Wrln('Pb.Push;');
       Wrln('try');
       Wrln('  while not Pb.Eof do');
-      n := 'F' + Plural(obj.name);
-      Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
+      GenFieldRead(obj);
       Wrln('finally');
       Wrln('  Pb.Pop;');
       Wrln('end;');
@@ -1093,13 +1096,7 @@ var
     Wrln('Assert(wireType = TWire.LENGTH_DELIMITED);');
     Wrln('Pb.Push;');
     Wrln('try');
-    if o.Rule <> TFieldRule.Repeated then
-      Wrln('  %s.F%s := %s;', [o.Msg.name, n, GetRead(obj)])
-    else
-    begin
-      n := 'F' + Plural(obj.name);
-      Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(obj)]);
-    end;
+    GenFieldRead(obj);
     Wrln('finally');
     Wrln('  Pb.Pop;');
     Wrln('end;');
@@ -1397,6 +1394,27 @@ procedure TGenSGL.GenLoadResult(const s: string);
 begin
 end;
 
+function TGenSGL.GenRead(msg: PObj): string;
+begin
+  Result := Format('Load%s', [msg.DelphiName]);
+end;
+
+procedure TGenSGL.GenFieldRead(msg: PObj);
+var
+  o: TFieldOptions;
+  n, fs: string;
+begin
+  o := msg.aux as TFieldOptions;
+  n := 'F' + AsCamel(msg.name);
+  if o.Rule <> TFieldRule.Repeated then
+    Wrln('  %s(@%s.%s);', [GetRead(msg), o.Msg.name, n])
+  else
+  begin
+    n := Plural(n);
+    Wrln('  %s(%s.%s.Add);', [GetRead(msg), o.Msg.name, n]);
+  end;
+end;
+
 {$EndRegion}
 
 {$Region 'TGenDC'}
@@ -1502,6 +1520,16 @@ end;
 procedure TGenDC.GenLoadResult(const s: string);
 begin
   Wrln('Result := %s;', [s]);
+end;
+
+procedure TGenDC.GenFieldRead(msg: PObj);
+var
+  o: TFieldOptions;
+  n: string;
+begin
+  o := msg.aux as TFieldOptions;
+  n := 'F' + Plural(msg.name);
+  Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
 end;
 
 {$EndRegion}
