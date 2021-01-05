@@ -1,9 +1,11 @@
-unit Person;
+unit PersonSGL;
 
 interface
 
 uses
-  System.Classes, System.SysUtils, Generics.Collections, Oz.Pb.Classes;
+  System.Classes, System.SysUtils, Oz.SGL.Collections, Oz.Pb.Classes;
+
+{$T+}
 
 type
 
@@ -12,7 +14,8 @@ type
     HOME = 1,
     WORK = 2);
 
-  TPhoneNumber = class
+  PPhoneNumber = ^TPhoneNumber;
+  TPhoneNumber = record
   const
     ftNumber = 1;
     ftType = 2;
@@ -20,14 +23,15 @@ type
     FNumber: string;
     FType: TPhoneType;
   public
-    constructor Create;
-    destructor Destroy; override;
+    procedure Init;
+    procedure Free;
     // properties
     property Number: string read FNumber write FNumber;
     property &Type: TPhoneType read FType write FType;
   end;
 
-  TPerson = class
+  PPerson = ^TPerson;
+  TPerson = record
   const
     ftName = 1;
     ftId = 2;
@@ -38,65 +42,62 @@ type
     FName: string;
     FId: Integer;
     FEmail: string;
-    FPhones: TList<TPhoneNumber>;
+    FPhones: TsgRecordList<TPhoneNumber>;
     FMyPhone: TPhoneNumber;
   public
-    constructor Create;
-    destructor Destroy; override;
+    procedure Init;
+    procedure Free;
     // properties
     property Name: string read FName write FName;
     property Id: Integer read FId write FId;
     property Email: string read FEmail write FEmail;
-    property Phones: TList<TPhoneNumber> read FPhones;
+    property Phones: TsgRecordList<TPhoneNumber> read FPhones;
     property MyPhone: TPhoneNumber read FMyPhone write FMyPhone;
   end;
 
   TLoadHelper = record helper for TpbLoader
   public
-    function LoadPerson(Person: TPerson): TPerson;
-    function LoadPhoneNumber(PhoneNumber: TPhoneNumber): TPhoneNumber;
+    procedure LoadPerson(Person: PPerson);
+    procedure LoadPhoneNumber(PhoneNumber: PPhoneNumber);
   end;
 
   TSaveHelper = record helper for TpbSaver
   public
-    procedure SavePerson(Person: TPerson);
-    procedure SavePhoneNumber(PhoneNumber: TPhoneNumber);
+    procedure SavePerson(Person: PPerson);
+    procedure SavePhoneNumber(PhoneNumber: PPhoneNumber);
   end;
 
 implementation
 
 { TPhoneNumber }
 
-constructor TPhoneNumber.Create;
+procedure TPhoneNumber.Init;
 begin
-  inherited Create;
+  Self := Default(TPhoneNumber);
 end;
 
-destructor TPhoneNumber.Destroy;
+procedure TPhoneNumber.Free;
 begin
-  inherited Destroy;
 end;
 
 { TPerson }
 
-constructor TPerson.Create;
+procedure TPerson.Init;
 begin
-  inherited Create;
-  FPhones := TList<TPhoneNumber>.Create;
+  Self := Default(TPerson);
+  FPhones := TsgRecordList<TPhoneNumber>.From(nil);
 end;
 
-destructor TPerson.Destroy;
+procedure TPerson.Free;
 begin
   FPhones.Free;
-  inherited Destroy;
 end;
 
-function TLoadHelper.LoadPhoneNumber(PhoneNumber: TPhoneNumber): TPhoneNumber;
+procedure TLoadHelper.LoadPhoneNumber(PhoneNumber: PPhoneNumber);
 var
   fieldNumber, wireType: integer;
   tag: TpbTag;
 begin
-  Result := PhoneNumber;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
@@ -120,12 +121,11 @@ begin
   end;
 end;
 
-function TLoadHelper.LoadPerson(Person: TPerson): TPerson;
+procedure TLoadHelper.LoadPerson(Person: PPerson);
 var
   fieldNumber, wireType: integer;
   tag: TpbTag;
 begin
-  Result := Person;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
@@ -152,7 +152,7 @@ begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
           Pb.Push;
           try
-            Person.FPhones.Add(LoadPhoneNumber(TPhoneNumber.Create));
+            LoadPhoneNumber(Person.FPhones.Add);
           finally
             Pb.Pop;
           end;
@@ -162,7 +162,7 @@ begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
           Pb.Push;
           try
-            Person.FMyPhone := LoadPhoneNumber(TPhoneNumber.Create);
+            LoadPhoneNumber(@Person.FMyPhone);
           finally
             Pb.Pop;
           end;
@@ -174,13 +174,13 @@ begin
   end;
 end;
 
-procedure TSaveHelper.SavePhoneNumber(PhoneNumber: TPhoneNumber);
+procedure TSaveHelper.SavePhoneNumber(PhoneNumber: PPhoneNumber);
 begin
   Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
   Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
 end;
 
-procedure TSaveHelper.SavePerson(Person: TPerson);
+procedure TSaveHelper.SavePerson(Person: PPerson);
 var
   i: Integer;
   h: TpbSaver;
@@ -202,15 +202,12 @@ begin
       h.Free;
     end;
   end;
-  if Person.FMyPhone <> nil then
-  begin
-    h.Init;
-    try
-      h.SavePhoneNumber(Person.MyPhone);
-      Pb.writeMessage(TPerson.ftMyPhone, h.Pb^);
-    finally
-      h.Free;
-    end;
+  h.Init;
+  try
+    h.SavePhoneNumber(@Person.MyPhone);
+    Pb.writeMessage(TPerson.ftMyPhone, h.Pb^);
+  finally
+    h.Free;
   end;
 end;
 

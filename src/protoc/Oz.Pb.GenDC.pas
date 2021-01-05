@@ -39,6 +39,7 @@ type
     procedure GenSaveDecl(msg: PObj); override;
     procedure GenLoadMethod(msg: PObj); override;
     procedure GenLoadResult(const s: string); override;
+    function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
     procedure GenSaveImpl(msg: PObj); override;
   end;
@@ -153,6 +154,11 @@ end;
 procedure TGenDC.GenLoadResult(const s: string);
 begin
   Wrln('Result := %s;', [s]);
+end;
+
+function TGenDC.GenRead(msg: PObj): string;
+begin
+  Result := Format('Load%s', [msg.DelphiName]);
 end;
 
 procedure TGenDC.GenFieldRead(msg: PObj);
