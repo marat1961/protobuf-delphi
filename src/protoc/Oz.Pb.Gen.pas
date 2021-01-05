@@ -50,11 +50,17 @@ function GetCodeGen(Parser: TBaseParser): TGen;
 implementation
 
 uses
-  Oz.Pb.Parser, Oz.Pb.GenSGL, Oz.Pb.GenDC;
+  Oz.Pb.Parser, Oz.Pb.Options, Oz.Pb.GenSGL, Oz.Pb.GenDC;
 
 function GetCodeGen(Parser: TBaseParser): TGen;
 begin
-  Result := TGenSGL.Create(Parser);
+  case TpbParser(Parser).options.GenLib of
+    TOptions.TCollectionLibrary.clSGL:
+      Result := TGenSGL.Create(Parser);
+    else
+      // TOptions.TCollectionLibrary.clDelphi
+      Result := TGenDC.Create(Parser);
+  end;
 end;
 
 end.

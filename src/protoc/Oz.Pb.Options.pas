@@ -31,11 +31,14 @@ type
   const
     Version = '1.0 (for Delphi)';
     ReleaseDate = '11 August 2020';
+  type
+    TCollectionLibrary = (clDelphi, clSGL);
   private
     FSrcName: string;
     FSrcDir: string;
     FOutPath: string;
     FListing: TStrings;
+    FGenLib: TCollectionLibrary;
   public
     constructor Create;
     function GetVersion: string;
@@ -53,6 +56,8 @@ type
     property SrcDir: string read FSrcDir write FSrcDir;
     // Path for generated delphi files
     property OutPath: string read FOutPath write FOutPath;
+    // The Collections library used for the generated code
+    property GenLib: TCollectionLibrary read FGenLib;
   end;
 
 {$EndRegion}
@@ -98,6 +103,8 @@ begin
   WriteLn('Options:');
   WriteLn('  -proto <protoFilesDirectory>');
   WriteLn('  -o     <outputDirectory>');
+  WriteLn('  -genDelphi');
+  WriteLn('  -genSGL');
 end;
 
 procedure TOptions.ParseCommandLine;
@@ -111,7 +118,7 @@ var
     if Result then
     begin
       Inc(i);
-      p := ParamStr(i).Trim;
+      p := LowerCase(ParamStr(i).Trim);
     end;
   end;
 
@@ -123,6 +130,10 @@ begin
       FSrcDir := p
     else if (p = '-o') and GetParam then
       FOutPath := p
+    else if (p = '-gendelphi') then
+      FGenLib := clDelphi
+    else if (p = '-gensgl') then
+      FGenLib := clSGL
     else
       FSrcName := p;
   end;
