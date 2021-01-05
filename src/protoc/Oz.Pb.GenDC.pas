@@ -167,8 +167,14 @@ var
   n: string;
 begin
   o := msg.aux as TFieldOptions;
-  n := 'F' + Plural(msg.name);
-  Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
+  n := 'F' + AsCamel(msg.name);
+  if o.Rule <> TFieldRule.Repeated then
+    Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(msg)])
+  else
+  begin
+    n := Plural(n);
+    Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
+  end;
 end;
 
 procedure TGenDC.GenSaveImpl(msg: PObj);
