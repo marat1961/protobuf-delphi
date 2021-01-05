@@ -158,7 +158,7 @@ end;
 
 function TGenDC.GenRead(msg: PObj): string;
 begin
-  Result := Format('Load%s', [msg.DelphiName]);
+  Result := Format('Load%s(%s.Create)', [msg.DelphiName, msg.AsType]);
 end;
 
 procedure TGenDC.GenFieldRead(msg: PObj);
@@ -168,7 +168,7 @@ var
 begin
   o := msg.aux as TFieldOptions;
   n := 'F' + Plural(msg.name);
-  Wrln('    %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
+  Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
 end;
 
 procedure TGenDC.GenSaveImpl(msg: PObj);
