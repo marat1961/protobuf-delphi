@@ -58,9 +58,14 @@ type
   end;
 
   TSaveHelper = record helper for TpbSaver
+  type
+    TSave<T> = procedure(const Value: T) of object;
+    TSavePair<Key, Value> = procedure(const Pair: TPair<Key, Value>) of object;
   public
-    procedure SavePerson(Person: TPerson);
-    procedure SavePhoneNumber(PhoneNumber: TPhoneNumber);
+    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+    procedure SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);
+    procedure SavePerson(const Person: TPerson);
+    procedure SavePhoneNumber(const PhoneNumber: TPhoneNumber);
   end;
 
 implementation
@@ -90,6 +95,8 @@ begin
   FPhones.Free;
   inherited Destroy;
 end;
+
+{ TLoadHelper }
 
 function TLoadHelper.LoadPhoneNumber(PhoneNumber: TPhoneNumber): TPhoneNumber;
 var
@@ -174,44 +181,54 @@ begin
   end;
 end;
 
-procedure TSaveHelper.SavePhoneNumber(PhoneNumber: TPhoneNumber);
+{ TSaveHelper }
+
+procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+var
+  h: TpbSaver;
+begin
+  h.Init;
+  try
+    Save(obj);
+    Pb.writeMessage(tag, h.Pb^);
+  finally
+    h.Free;
+  end;
+end;
+
+procedure TSaveHelper.SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);
+var
+  i: Integer;
+  h: TpbSaver;
+begin
+  h.Init;
+  try
+    for i := 0 to List.Count - 1 do
+    begin
+      h.Clear;
+      Save(List[i]);
+      Pb.writeMessage(tag, h.Pb^);
+    end;
+  finally
+    h.Free;
+  end;
+end;
+
+procedure TSaveHelper.SavePhoneNumber(const PhoneNumber: TPhoneNumber);
 begin
   Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
   Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
 end;
 
-procedure TSaveHelper.SavePerson(Person: TPerson);
-var
-  i: Integer;
-  h: TpbSaver;
+procedure TSaveHelper.SavePerson(const Person: TPerson);
 begin
   Pb.writeString(TPerson.ftName, Person.Name);
   Pb.writeInt32(TPerson.ftId, Person.Id);
   Pb.writeString(TPerson.ftEmail, Person.Email);
   if Person.FPhones.Count > 0 then
-  begin
-    h.Init;
-    try
-      for i := 0 to Person.FPhones.Count - 1 do
-      begin
-        h.Clear;
-        h.SavePhoneNumber(Person.Phones[i]);
-        Pb.writeMessage(TPerson.ftPhones, h.Pb^);
-      end;
-    finally
-      h.Free;
-    end;
-  end;
+    SaveList<TPhoneNumber>(Person.FPhones, SavePhoneNumber, TPerson.ftPhones);
   if Person.FMyPhone <> nil then
-  begin
-    h.Init;
-    try
-      h.SavePhoneNumber(Person.MyPhone);
-      Pb.writeMessage(TPerson.ftMyPhone, h.Pb^);
-    finally
-      h.Free;
-    end;
-  end;
+    SaveObj<TPhoneNumber>(Person.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
 end;
 
 end.
