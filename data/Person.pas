@@ -61,9 +61,12 @@ type
   type
     TSave<T> = procedure(const h: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const h: TpbSaver; const Pair: TPair<Key, Value>);
-  public
+  private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);
+    procedure SaveMap<Key, Value>(const Map: TDictionary<Key, Value>;
+      Save: TSavePair<Key, Value>; Tag: Integer);
+  public
     class procedure SavePerson(const h: TpbSaver; const Person: TPerson); static;
     class procedure SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber); static;
   end;
@@ -216,6 +219,26 @@ begin
     h.Free;
   end;
 end;
+
+procedure TSaveHelper.SaveMap<Key, Value>(const Map: TDictionary<Key, Value>;
+  Save: TSavePair<Key, Value>; Tag: Integer);
+var
+  h: TpbSaver;
+  Pair: TPair<Key, Value>;
+begin
+  h.Init;
+  try
+    for Pair in Map do
+    begin
+      h.Clear;
+      Save(h, Pair);
+      Pb.writeMessage(tag, h.Pb^);
+    end;
+  finally
+    h.Free;
+  end;
+end;
+
 
 class procedure TSaveHelper.SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber);
 begin
