@@ -100,7 +100,7 @@
         <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Collections.pas"/>
         <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.HandleManager.pas"/>
         <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Heap.pas"/>
-        <DCCReference Include="..\data\Person.pas"/>
+        <DCCReference Include="..\data\PersonDC.pas"/>
         <DCCReference Include="..\data\PersonSGL.pas"/>
         <DCCReference Include="TestDC.pas"/>
         <DCCReference Include="TestSGL.pas"/>

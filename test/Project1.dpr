@@ -28,7 +28,7 @@ uses
   Oz.SGL.Collections in '..\..\Oz-SGL\src\Oz.SGL.Collections.pas',
   Oz.SGL.HandleManager in '..\..\Oz-SGL\src\Oz.SGL.HandleManager.pas',
   Oz.SGL.Heap in '..\..\Oz-SGL\src\Oz.SGL.Heap.pas',
-  Person in '..\data\Person.pas',
+  PersonDC in '..\data\PersonDC.pas',
   PersonSGL in '..\data\PersonSGL.pas',
   TestDC in 'TestDC.pas',
   TestSGL in 'TestSGL.pas';

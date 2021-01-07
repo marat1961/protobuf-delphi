@@ -3,7 +3,7 @@ unit TestDC;
 interface
 
 uses
-  System.SysUtils, System.TypInfo, Person, Oz.Pb.StrBuffer, Oz.Pb.Classes;
+  System.SysUtils, System.TypInfo, Oz.Pb.StrBuffer, Oz.Pb.Classes, PersonDC;
 
 procedure RunTest;
 
