@@ -62,10 +62,16 @@ type
   end;
 
   TSaveHelper = record helper for TpbSaver
+  type
+    TSave<T> = procedure(const h: TpbSaver; const Value: T);
+    TSavePair<Key, Value> = procedure(const h: TpbSaver; const Pair: TsgPair<Key, Value>);
   public
-    procedure SavePerson(Person: PPerson);
-    procedure SavePhoneNumber(PhoneNumber: PPhoneNumber);
+    procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+    procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
   end;
+
+procedure SavePerson(const h: TpbSaver; const Person: TPerson);
+procedure SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber);
 
 implementation
 
@@ -174,41 +180,54 @@ begin
   end;
 end;
 
-procedure TSaveHelper.SavePhoneNumber(PhoneNumber: PPhoneNumber);
+{ TSaveHelper }
+
+procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
+var
+  h: TpbSaver;
 begin
-  Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
-  Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
+  h.Init;
+  try
+    Save(h, obj);
+    Pb.writeMessage(tag, h.Pb^);
+  finally
+    h.Free;
+  end;
 end;
 
-procedure TSaveHelper.SavePerson(Person: PPerson);
+procedure TSaveHelper.SaveList<T>(const List: TsgRecordList<T>;
+  Save: TSave<T>; Tag: Integer);
 var
   i: Integer;
   h: TpbSaver;
 begin
-  Pb.writeString(TPerson.ftName, Person.Name);
-  Pb.writeInt32(TPerson.ftId, Person.Id);
-  Pb.writeString(TPerson.ftEmail, Person.Email);
-  if Person.FPhones.Count > 0 then
-  begin
-    h.Init;
-    try
-      for i := 0 to Person.FPhones.Count - 1 do
-      begin
-        h.Clear;
-        h.SavePhoneNumber(Person.Phones[i]);
-        Pb.writeMessage(TPerson.ftPhones, h.Pb^);
-      end;
-    finally
-      h.Free;
-    end;
-  end;
   h.Init;
   try
-    h.SavePhoneNumber(@Person.MyPhone);
-    Pb.writeMessage(TPerson.ftMyPhone, h.Pb^);
+    for i := 0 to List.Count - 1 do
+    begin
+      h.Clear;
+      Save(h, List[i]^);
+      Pb.writeMessage(tag, h.Pb^);
+    end;
   finally
     h.Free;
   end;
+end;
+
+procedure SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber);
+begin
+  h.Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
+  h.Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
+end;
+
+procedure SavePerson(const h: TpbSaver; const Person: TPerson);
+begin
+  h.Pb.writeString(TPerson.ftName, Person.Name);
+  h.Pb.writeInt32(TPerson.ftId, Person.Id);
+  h.Pb.writeString(TPerson.ftEmail, Person.Email);
+  if Person.FPhones.Count > 0 then
+    h.SaveList<TPhoneNumber>(Person.FPhones, SavePhoneNumber, TPerson.ftPhones);
+  h.SaveObj<TPhoneNumber>(Person.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
 end;
 
 end.

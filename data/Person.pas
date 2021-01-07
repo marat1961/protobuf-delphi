@@ -59,14 +59,15 @@ type
 
   TSaveHelper = record helper for TpbSaver
   type
-    TSave<T> = procedure(const Value: T) of object;
-    TSavePair<Key, Value> = procedure(const Pair: TPair<Key, Value>) of object;
+    TSave<T> = procedure(const h: TpbSaver; const Value: T);
+    TSavePair<Key, Value> = procedure(const h: TpbSaver; const Pair: TPair<Key, Value>);
   public
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);
-    procedure SavePerson(const Person: TPerson);
-    procedure SavePhoneNumber(const PhoneNumber: TPhoneNumber);
+    class procedure SavePerson(const h: TpbSaver; const Person: TPerson); static;
+    class procedure SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber); static;
   end;
+
 
 implementation
 
@@ -189,7 +190,7 @@ var
 begin
   h.Init;
   try
-    Save(obj);
+    Save(h, obj);
     Pb.writeMessage(tag, h.Pb^);
   finally
     h.Free;
@@ -200,13 +201,15 @@ procedure TSaveHelper.SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Int
 var
   i: Integer;
   h: TpbSaver;
+  Item: T;
 begin
   h.Init;
   try
     for i := 0 to List.Count - 1 do
     begin
       h.Clear;
-      Save(List[i]);
+      Item := List[i];
+      Save(h, Item);
       Pb.writeMessage(tag, h.Pb^);
     end;
   finally
@@ -214,21 +217,21 @@ begin
   end;
 end;
 
-procedure TSaveHelper.SavePhoneNumber(const PhoneNumber: TPhoneNumber);
+class procedure TSaveHelper.SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber);
 begin
-  Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
-  Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
+  h.Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
+  h.Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
 end;
 
-procedure TSaveHelper.SavePerson(const Person: TPerson);
+class procedure TSaveHelper.SavePerson(const h: TpbSaver; const Person: TPerson);
 begin
-  Pb.writeString(TPerson.ftName, Person.Name);
-  Pb.writeInt32(TPerson.ftId, Person.Id);
-  Pb.writeString(TPerson.ftEmail, Person.Email);
+  h.Pb.writeString(TPerson.ftName, Person.Name);
+  h.Pb.writeInt32(TPerson.ftId, Person.Id);
+  h.Pb.writeString(TPerson.ftEmail, Person.Email);
   if Person.FPhones.Count > 0 then
-    SaveList<TPhoneNumber>(Person.FPhones, SavePhoneNumber, TPerson.ftPhones);
+    h.SaveList<TPhoneNumber>(Person.FPhones, SavePhoneNumber, TPerson.ftPhones);
   if Person.FMyPhone <> nil then
-    SaveObj<TPhoneNumber>(Person.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
+    h.SaveObj<TPhoneNumber>(Person.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
 end;
 
 end.

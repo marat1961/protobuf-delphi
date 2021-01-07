@@ -3,7 +3,7 @@ unit TestSGL;
 interface
 
 uses
-  System.SysUtils, System.TypInfo, PersonSGL, Oz.Pb.Classes;
+  System.SysUtils, System.TypInfo, PersonSGL, Oz.Pb.StrBuffer, Oz.Pb.Classes;
 
 {$T+}
 
@@ -46,7 +46,7 @@ begin
   // save data
   Saver.Init;
   try
-    Saver.SavePerson(@Oz);
+    SavePerson(Saver, Oz);
     Saver.Pb.SaveToFile('person.pb');
   finally
     Saver.Free;

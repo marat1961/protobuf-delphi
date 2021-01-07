@@ -3,7 +3,7 @@ unit TestDC;
 interface
 
 uses
-  System.SysUtils, System.TypInfo, Person, Oz.Pb.Classes;
+  System.SysUtils, System.TypInfo, Person, Oz.Pb.StrBuffer, Oz.Pb.Classes;
 
 procedure RunTest;
 
@@ -44,7 +44,7 @@ begin
   // save data
   Saver.Init;
   try
-    Saver.SavePerson(Oz);
+    Saver.SavePerson(Saver, Oz);
     Saver.Pb.SaveToFile('person.pb');
   finally
     Saver.Free;
