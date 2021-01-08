@@ -63,11 +63,13 @@ type
 
   TSaveHelper = record helper for TpbSaver
   type
-    TSave<T> = procedure(const h: TpbSaver; const Value: T);
-    TSavePair<Key, Value> = procedure(const h: TpbSaver; const Pair: TsgPair<Key, Value>);
+    TSave<T> = procedure(const S: TpbSaver; const Value: T);
+    TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);
   private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
+    procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
+      Save: TSavePair<Key, Value>; Tag: Integer);
   public
     class procedure SavePerson(const S: TpbSaver; const Value: TPerson); static;
     class procedure SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber); static;
@@ -208,6 +210,28 @@ begin
       h.Clear;
       Save(h, List[i]^);
       Pb.writeMessage(tag, h.Pb^);
+    end;
+  finally
+    h.Free;
+  end;
+end;
+
+procedure TSaveHelper.SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
+  Save: TSavePair<Key, Value>; Tag: Integer);
+var
+  h: TpbSaver;
+  Pair: TsgHashMapIterator<Key, Value>.PPair;
+  it: TsgHashMapIterator<Key, Value>;
+begin
+  h.Init;
+  try
+    it := Map.Begins;
+    while it <> Map.Ends do
+    begin
+      h.Clear;
+      Save(h, it.GetPair^);
+      Pb.writeMessage(tag, h.Pb^);
+      it.Next;
     end;
   finally
     h.Free;

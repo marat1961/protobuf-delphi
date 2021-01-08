@@ -92,6 +92,17 @@ end;
 
 procedure TGenSGL.GenDecl(Load: Boolean);
 begin
+  if not Load then
+  begin
+    Wrln('type');
+    Wrln('  TSave<T> = procedure(const S: TpbSaver; const Value: T);');
+    Wrln('  TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TsgPair<Key, Value>);');
+    Wrln('private');
+    Wrln('  procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);');
+    Wrln('  procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);');
+    Wrln('  procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;');
+    Wrln('    Save: TSavePair<Key, Value>; Tag: Integer);');
+  end;
 end;
 
 procedure TGenSGL.FieldWrite(obj: PObj);
@@ -152,19 +163,14 @@ begin
 end;
 
 procedure TGenSGL.GenLoadDecl(msg: PObj);
-var
-  s: string;
 begin
-  s := AsCamel(msg.typ.declaration.name);
-  Wrln('procedure Load%s(%s: P%s);', [msg.DelphiName, msg.name, s]);
+  Wrln('procedure Load%s(var Value: %s);', [msg.DelphiName, msg.AsType]);
 end;
 
 procedure TGenSGL.GenSaveDecl(msg: PObj);
-var
-  s: string;
 begin
-  s := AsCamel(msg.typ.declaration.name);
-  Wrln('procedure Save%s(%s: P%s);', [msg.DelphiName, msg.name, s]);
+  Wrln('class procedure Save%s(const S: TpbSaver; const Value: %s); static;',
+    [msg.DelphiName, msg.AsType]);
 end;
 
 procedure TGenSGL.GenLoadMethod(msg: PObj);
@@ -172,9 +178,8 @@ var
   s, t: string;
 begin
   s := msg.DelphiName;
-  t := AsCamel(msg.typ.declaration.name);
-  Wrln('procedure %s.Load%s(%s: P%s);',
-    [GetBuilderName(True), s, msg.name, t]);
+  t := msg.AsType;
+  Wrln('procedure %s.Load%s(var Value: %s);', [GetBuilderName(True), s, t]);
 end;
 
 function TGenSGL.GenRead(msg: PObj): string;
@@ -186,16 +191,96 @@ procedure TGenSGL.GenFieldRead(msg: PObj);
 var
   o: TFieldOptions;
   n: string;
+  m: Boolean;
 begin
+  m := msg.typ.form = TTypeMode.tmMessage;
+  if m then
+  begin
+    Wrln('Pb.Push;');
+    Wrln('try');
+    Indent;
+  end;
   o := msg.aux as TFieldOptions;
   n := 'F' + AsCamel(msg.name);
   if o.Rule <> TFieldRule.Repeated then
-    Wrln('  %s(@%s.%s);', [GetRead(msg), o.Msg.name, n])
+    Wrln('%s(Value.%s);', [GetRead(msg), n])
   else
   begin
     n := Plural(n);
-    Wrln('  %s(%s.%s.Add);', [GetRead(msg), o.Msg.name, n]);
+    Wrln('%s(Value.%s.Add^);', [GetRead(msg), n]);
   end;
+  if m then
+  begin
+    Dedent;
+    Wrln('finally');
+    Wrln('  Pb.Pop;');
+    Wrln('end;');
+  end;
+end;
+
+procedure TGenSGL.GenLoadImpl;
+begin
+  // empty
+end;
+
+procedure TGenSGL.GenSaveProc;
+begin
+  Wrln('{ TSaveHelper }');
+  Wrln;
+  Wrln('procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);');
+  Wrln('var');
+  Wrln('  h: TpbSaver;');
+  Wrln('begin');
+  Wrln('  h.Init;');
+  Wrln('  try');
+  Wrln('    Save(h, obj);');
+  Wrln('    Pb.writeMessage(tag, h.Pb^);');
+  Wrln('  finally');
+  Wrln('    h.Free;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
+  Wrln('procedure TSaveHelper.SaveList<T>(const List: TsgRecordList<T>;');
+  Wrln('  Save: TSave<T>; Tag: Integer);');
+  Wrln('var');
+  Wrln('  i: Integer;');
+  Wrln('  h: TpbSaver;');
+  Wrln('begin');
+  Wrln('  h.Init;');
+  Wrln('  try');
+  Wrln('    for i := 0 to List.Count - 1 do');
+  Wrln('    begin');
+  Wrln('      h.Clear;');
+  Wrln('      Save(h, List[i]^);');
+  Wrln('      Pb.writeMessage(tag, h.Pb^);');
+  Wrln('    end;');
+  Wrln('  finally');
+  Wrln('    h.Free;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
+  Wrln('procedure TSaveHelper.SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;');
+  Wrln('  Save: TSavePair<Key, Value>; Tag: Integer);');
+  Wrln('var');
+  Wrln('  h: TpbSaver;');
+  Wrln('  Pair: TsgHashMapIterator<Key, Value>.PPair;');
+  Wrln('  it: TsgHashMapIterator<Key, Value>;');
+  Wrln('begin');
+  Wrln('  h.Init;');
+  Wrln('  try');
+  Wrln('    it := Map.Begins;');
+  Wrln('    while it <> Map.Ends do');
+  Wrln('    begin');
+  Wrln('      h.Clear;');
+  Wrln('      Save(h, it.GetPair^);');
+  Wrln('      Pb.writeMessage(tag, h.Pb^);');
+  Wrln('      it.Next;');
+  Wrln('    end;');
+  Wrln('  finally');
+  Wrln('    h.Free;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
 end;
 
 procedure TGenSGL.GenSaveImpl(msg: PObj);
@@ -203,18 +288,9 @@ var
   s, t: string;
 begin
   s := msg.DelphiName;
-  t := AsCamel(msg.typ.declaration.name);
-  Wrln('procedure %s.Save%s(%s: P%s);', [GetBuilderName(False), s, msg.name, t]);
-end;
-
-procedure TGenSGL.GenSaveProc;
-begin
-
-end;
-
-procedure TGenSGL.GenLoadImpl;
-begin
-
+  t := msg.AsType;
+  Wrln('class procedure %s.Save%s(const S: TpbSaver; const Value: %s);',
+    [GetBuilderName(False), s, t]);
 end;
 
 {$EndRegion}
