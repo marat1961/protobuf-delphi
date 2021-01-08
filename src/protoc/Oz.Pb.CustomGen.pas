@@ -101,6 +101,7 @@ type
     procedure GenLoadDecl(msg: PObj); virtual; abstract;
     procedure GenSaveDecl(msg: PObj); virtual; abstract;
     procedure GenLoadImpl; virtual; abstract;
+    procedure GenSaveProc; virtual; abstract;
     procedure GenLoadMethod(msg: PObj); virtual; abstract;
     function GenRead(msg: PObj): string; virtual; abstract;
     procedure GenFieldRead(msg: PObj); virtual; abstract;
@@ -523,17 +524,6 @@ var
       end;
       x := x.next;
     end;
-    if HasRepeatedVars(msg.typ.dsc) or (mapvars.Count > 0) then
-    begin
-      Wrln('var');
-      begin
-        if HasRepeatedVars(msg.typ.dsc) then
-          Wrln('  i: Integer;');
-        Wrln('  h: TpbSaver;');
-      end;
-      for typ in mapvars do
-        Wrln('  ' + GetPair(mapvars, typ, TGetMap.asVarDecl) + ';');
-    end;
     Wrln('begin');
     Indent;
     try
@@ -621,31 +611,31 @@ begin
   if o.rule <> TFieldRule.Repeated then
   begin
     m := DelphiRwMethods[obj.typ.form];
-    g.Wrln('Pb.write%s(%s, %s.%s);', [AsCamel(m), GetTag, mn, n]);
+    g.Wrln('S.Pb.write%s(%s, Value.%s);', [AsCamel(m), GetTag, n]);
   end
   else
   begin
-    g.Wrln('h.Init;');
+    g.Wrln('S.Init;');
     g.Wrln('try');
     n := Plural(n);
     g.Wrln('  for i := 0 to %s.%s.Count - 1 do', [mn, n]);
     case obj.typ.form of
       TTypeMode.tmInt32, TTypeMode.tmUint32, TTypeMode.tmSint32,
       TTypeMode.tmBool, TTypeMode.tmEnum:
-        g.Wrln('    h.Pb.writeRawVarint32(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    S.Pb.writeRawVarint32(%s.F%s[i]);', [mn, n]);
       TTypeMode.tmInt64, TTypeMode.tmUint64, TTypeMode.tmSint64:
-        g.Wrln('    h.Pb.writeRawVarint64(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    S.Pb.writeRawVarint64(%s.F%s[i]);', [mn, n]);
       TTypeMode.tmFixed64, TTypeMode.tmSfixed64, TTypeMode.tmDouble,
       TTypeMode.tmSfixed32, TTypeMode.tmFixed32, TTypeMode.tmFloat:
-        g.Wrln('    h.Pb.writeRawData(%s.F%s[i], sizeof(%s));', [mn, n, t]);
+        g.Wrln('    S.Pb.writeRawData(%s.F%s[i], sizeof(%s));', [mn, n, t]);
       TTypeMode.tmString:
-        g.Wrln('    h.Pb.writeRawString(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    S.Pb.writeRawString(%s.F%s[i]);', [mn, n]);
       TTypeMode.tmBytes:
-        g.Wrln('    h.Pb.writeRawBytes(%s.F%s[i]);', [mn, n]);
+        g.Wrln('    S.Pb.writeRawBytes(%s.F%s[i]);', [mn, n]);
     end;
-    g.Wrln('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
+    g.Wrln('  S.Pb.writeMessage(%s, h.Pb^);', [GetTag]);
     g.Wrln('finally');
-    g.Wrln('  h.Free;');
+    g.Wrln('  S.Free;');
     g.Wrln('end;');
   end;
 end;
@@ -653,7 +643,7 @@ end;
 procedure TFieldGen.GenEnum;
 begin
   if o.rule <> TFieldRule.Repeated then
-    g.Wrln('Pb.writeInt32(%s, Ord(%s.%s));', [GetTag, mn, AsCamel(n)])
+    g.Wrln('S.Pb.writeInt32(%s, Ord(Value.%s));', [GetTag, AsCamel(n)])
   else
   begin
     g.Wrln('h.Init;');
@@ -669,50 +659,23 @@ begin
 end;
 
 procedure TFieldGen.GenMessage;
-var s: string;
 begin
   if o.rule <> TFieldRule.Repeated then
   begin
     if (ft <> '2') and checkNil then
     begin
-      g.Wrln('if %s.F%s <> nil then', [mn, n]);
-      g.Wrln('begin');
+      g.Wrln('if Value.F%s <> nil then', [n]);
       g.Indent;
     end;
-    g.Wrln('h.Init;');
-    g.Wrln('try');
-    if checkNil then
-      g.Wrln('  h.Save%s(%s.%s);', [m, mn, n])
-    else
-      g.Wrln('  h.Save%s(@%s.%s);', [m, mn, n]);
-    s := Format('  Pb.writeMessage(%s, h.Pb^);', [GetTag]);
-    g.Wrln(s);
-    g.Wrln('finally');
-    g.Wrln('  h.Free;');
-    g.Wrln('end;');
+    g.Wrln('S.SaveObj<%s>(Value.F%s, Save%s, %s);', [t, n, m, GetTag]);
     if (ft <> '2') and checkNil then
-    begin
       g.Dedent;
-      g.Wrln('end;');
-    end;
   end
   else
   begin
     n := AsCamel(Plural(n));
-    g.Wrln('if %s.F%s.Count > 0 then', [mn, n]);
-    g.Wrln('begin');
-    g.Wrln('  h.Init;');
-    g.Wrln('  try');
-    g.Wrln('    for i := 0 to %s.F%s.Count - 1 do', [mn, n]);
-    g.Wrln('    begin');
-    g.Wrln('      h.Clear;');
-    g.Wrln('      h.Save%s(%s.%s[i]);', [m, mn, n]);
-    g.Wrln('      Pb.writeMessage(%s, h.Pb^);', [GetTag]);
-    g.Wrln('    end;');
-    g.Wrln('  finally');
-    g.Wrln('    h.Free;');
-    g.Wrln('  end;');
-    g.Wrln('end;');
+    g.Wrln('if Value.F%s.Count > 0 then', [n]);
+    g.Wrln('  S.SaveList<%s>(Value.F%s, Save%s, %s);', [t, n, m, GetTag]);
   end;
 end;
 
@@ -1165,6 +1128,10 @@ procedure TCustomGen.BuilderImpl;
 var
   obj, x: PObj;
 begin
+  if Load then
+    GenLoadImpl
+  else
+    GenSaveProc;
   obj := tab.Module.Obj; // root proto file
   x := obj.dsc;
   while x <> nil do
@@ -1172,7 +1139,6 @@ begin
     if x.cls = TMode.mType then
       if Load then
       begin
-        GenLoadImpl;
         LoadImpl(x);
       end
       else

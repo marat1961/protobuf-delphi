@@ -40,6 +40,8 @@ type
     procedure GenEntityImpl(msg: PObj); override;
     procedure GenLoadDecl(msg: PObj); override;
     procedure GenSaveDecl(msg: PObj); override;
+    procedure GenLoadImpl; override;
+    procedure GenSaveProc; override;
     procedure GenLoadMethod(msg: PObj); override;
     function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
@@ -203,6 +205,16 @@ begin
   s := msg.DelphiName;
   t := AsCamel(msg.typ.declaration.name);
   Wrln('procedure %s.Save%s(%s: P%s);', [GetBuilderName(False), s, msg.name, t]);
+end;
+
+procedure TGenSGL.GenSaveProc;
+begin
+
+end;
+
+procedure TGenSGL.GenLoadImpl;
+begin
+
 end;
 
 {$EndRegion}

@@ -39,6 +39,7 @@ type
     procedure GenLoadDecl(msg: PObj); override;
     procedure GenSaveDecl(msg: PObj); override;
     procedure GenLoadImpl; override;
+    procedure GenSaveProc; override;
     procedure GenLoadMethod(msg: PObj); override;
     function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
@@ -226,13 +227,72 @@ begin
     Wrln('LoadList<T%s>(Value.%s, Load%s);', [t, Plural(n), t]);
 end;
 
+procedure TGenDC.GenSaveProc;
+begin
+  Wrln('{ TSaveHelper }');
+  Wrln;
+  Wrln('procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);');
+  Wrln('var');
+  Wrln('  h: TpbSaver;');
+  Wrln('begin');
+  Wrln('  h.Init;');
+  Wrln('  try');
+  Wrln('    Save(h, obj);');
+  Wrln('    Pb.writeMessage(tag, h.Pb^);');
+  Wrln('  finally');
+  Wrln('    h.Free;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
+  Wrln('procedure TSaveHelper.SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);');
+  Wrln('var');
+  Wrln('  i: Integer;');
+  Wrln('  h: TpbSaver;');
+  Wrln('  Item: T;');
+  Wrln('begin');
+  Wrln('  h.Init;');
+  Wrln('  try');
+  Wrln('    for i := 0 to List.Count - 1 do');
+  Wrln('    begin');
+  Wrln('      h.Clear;');
+  Wrln('      Item := List[i];');
+  Wrln('      Save(h, Item);');
+  Wrln('      Pb.writeMessage(tag, h.Pb^);');
+  Wrln('    end;');
+  Wrln('  finally');
+  Wrln('    h.Free;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
+  Wrln('procedure TSaveHelper.SaveMap<Key, Value>(const Map: TDictionary<Key, Value>;');
+  Wrln('  Save: TSavePair<Key, Value>; Tag: Integer);');
+  Wrln('var');
+  Wrln('  h: TpbSaver;');
+  Wrln('  Pair: TPair<Key, Value>;');
+  Wrln('begin');
+  Wrln('  h.Init;');
+  Wrln('  try');
+  Wrln('    for Pair in Map do');
+  Wrln('    begin');
+  Wrln('      h.Clear;');
+  Wrln('      Save(h, Pair);');
+  Wrln('      Pb.writeMessage(tag, h.Pb^);');
+  Wrln('    end;');
+  Wrln('  finally');
+  Wrln('    h.Free;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
+end;
+
 procedure TGenDC.GenSaveImpl(msg: PObj);
 var
   s, t: string;
 begin
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('procedure %s.Save%s(%s: %s);', [GetBuilderName(False), s, msg.name, t]);
+  Wrln('class procedure %s.Save%s(const S: TpbSaver; const Value: %s);',
+    [GetBuilderName(False), s, t]);
 end;
 
 {$EndRegion}

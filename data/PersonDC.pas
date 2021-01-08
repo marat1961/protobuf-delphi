@@ -257,6 +257,12 @@ begin
   end;
 end;
 
+class procedure TSaveHelper.SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber);
+begin
+  S.Pb.writeString(TPhoneNumber.ftNumber, Value.Number);
+  S.Pb.writeInt32(TPhoneNumber.ftType, Ord(Value.&Type));
+end;
+
 class procedure TSaveHelper.SavePerson(const S: TpbSaver; const Value: TPerson);
 begin
   S.Pb.writeString(TPerson.ftName, Value.Name);
@@ -266,12 +272,6 @@ begin
     S.SaveList<TPhoneNumber>(Value.FPhones, SavePhoneNumber, TPerson.ftPhones);
   if Value.FMyPhone <> nil then
     S.SaveObj<TPhoneNumber>(Value.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
-end;
-
-class procedure TSaveHelper.SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber);
-begin
-  S.Pb.writeString(TPhoneNumber.ftNumber, Value.Number);
-  S.Pb.writeInt32(TPhoneNumber.ftType, Ord(Value.&Type));
 end;
 
 end.
