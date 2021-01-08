@@ -35,12 +35,12 @@ type
     function CreateName: string; override;
     procedure GenEntityType(msg: PObj); override;
     procedure GenUses; override;
+    procedure GenDecl(Load: Boolean); override;
     procedure GenEntityDecl; override;
     procedure GenEntityImpl(msg: PObj); override;
     procedure GenLoadDecl(msg: PObj); override;
     procedure GenSaveDecl(msg: PObj); override;
     procedure GenLoadMethod(msg: PObj); override;
-    procedure GenLoadResult(const s: string); override;
     function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
     procedure GenSaveImpl(msg: PObj); override;
@@ -86,6 +86,10 @@ begin
   Wrln;
   Wrln('{$T+}');
   Wrln;
+end;
+
+procedure TGenSGL.GenDecl(Load: Boolean);
+begin
 end;
 
 procedure TGenSGL.FieldWrite(obj: PObj);
@@ -169,10 +173,6 @@ begin
   t := AsCamel(msg.typ.declaration.name);
   Wrln('procedure %s.Load%s(%s: P%s);',
     [GetBuilderName(True), s, msg.name, t]);
-end;
-
-procedure TGenSGL.GenLoadResult(const s: string);
-begin
 end;
 
 function TGenSGL.GenRead(msg: PObj): string;

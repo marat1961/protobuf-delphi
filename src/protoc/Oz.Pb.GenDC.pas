@@ -32,13 +32,14 @@ type
     function RepeatedCollection: string; override;
     function CreateName: string; override;
     procedure GenUses; override;
+    procedure GenDecl(Load: Boolean); override;
     procedure GenEntityType(msg: PObj); override;
     procedure GenEntityDecl; override;
     procedure GenEntityImpl(msg: PObj); override;
     procedure GenLoadDecl(msg: PObj); override;
     procedure GenSaveDecl(msg: PObj); override;
+    procedure GenLoadImpl; override;
     procedure GenLoadMethod(msg: PObj); override;
-    procedure GenLoadResult(const s: string); override;
     function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
     procedure GenSaveImpl(msg: PObj); override;
@@ -68,6 +69,30 @@ begin
   Wrln('uses');
   Wrln('  System.Classes, System.SysUtils, Generics.Collections, Oz.Pb.Classes;');
   Wrln;
+end;
+
+procedure TGenDC.GenDecl(Load: Boolean);
+begin
+  if Load then
+  begin
+    Wrln('type');
+    Wrln('  TLoad<T: constructor> = procedure(var Value: T) of object;');
+    Wrln('  TLoadPair<Key, Value> = procedure(var Pair: TPair<Key, Value>) of object;');
+    Wrln('private');
+    Wrln('  procedure LoadObj<T: constructor>(var obj: T; Load: TLoad<T>);');
+    Wrln('  procedure LoadList<T: constructor>(const List: TList<T>; Load: TLoad<T>);');
+  end
+  else
+  begin
+    Wrln('type');
+    Wrln('  TSave<T> = procedure(const S: TpbSaver; const Value: T);');
+    Wrln('  TSavePair<Key, Value> = procedure(const S: TpbSaver; const Pair: TPair<Key, Value>);');
+    Wrln('private');
+    Wrln('  procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);');
+    Wrln('  procedure SaveList<T>(const List: TList<T>; Save: TSave<T>; Tag: Integer);');
+    Wrln('  procedure SaveMap<Key, Value>(const Map: TDictionary<Key, Value>;');
+    Wrln('    Save: TSavePair<Key, Value>; Tag: Integer);');
+  end;
 end;
 
 function TGenDC.CreateName: string;
@@ -133,12 +158,44 @@ var
   t: string;
 begin
   t := msg.AsType;
-  Wrln('function Load%s(%s: %s): %s;', [msg.DelphiName, msg.name, t, t]);
+  Wrln('procedure Load%s(var Value: %s);', [msg.DelphiName, t]);
 end;
 
 procedure TGenDC.GenSaveDecl(msg: PObj);
 begin
-  Wrln('procedure Save%s(%s: %s);', [msg.DelphiName, msg.name, msg.AsType]);
+  Wrln('class procedure Save%s(const S: TpbSaver; const Value: %s); static;',
+    [msg.DelphiName, msg.AsType]);
+end;
+
+procedure TGenDC.GenLoadImpl;
+begin
+  Wrln('{ TLoadHelper }');
+  Wrln;
+  Wrln('procedure TLoadHelper.LoadObj<T>(var obj: T; Load: TLoad<T>);');
+  Wrln('begin');
+  Wrln('  Pb.Push;');
+  Wrln('  try');
+  Wrln('    obj := T.Create;');
+  Wrln('    Load(obj);');
+  Wrln('  finally');
+  Wrln('    Pb.Pop;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
+  Wrln('procedure TLoadHelper.LoadList<T>(const List: TList<T>; Load: TLoad<T>);');
+  Wrln('var');
+  Wrln('  obj: T;');
+  Wrln('begin');
+  Wrln('  Pb.Push;');
+  Wrln('  try');
+  Wrln('    obj := T.Create;');
+  Wrln('    Load(obj);');
+  Wrln('    List.Add(obj);');
+  Wrln('  finally');
+  Wrln('    Pb.Pop;');
+  Wrln('  end;');
+  Wrln('end;');
+  Wrln;
 end;
 
 procedure TGenDC.GenLoadMethod(msg: PObj);
@@ -147,13 +204,7 @@ var
 begin
   s := msg.DelphiName;
   t := msg.AsType;
-  Wrln('function %s.Load%s(%s: %s): %s;',
-    [GetBuilderName(True), s, msg.name, t, t]);
-end;
-
-procedure TGenDC.GenLoadResult(const s: string);
-begin
-  Wrln('Result := %s;', [s]);
+  Wrln('procedure %s.Load%s(var Value: %s);', [GetBuilderName(True), s, t]);
 end;
 
 function TGenDC.GenRead(msg: PObj): string;
@@ -164,17 +215,15 @@ end;
 procedure TGenDC.GenFieldRead(msg: PObj);
 var
   o: TFieldOptions;
-  n: string;
+  n, t: string;
 begin
   o := msg.aux as TFieldOptions;
   n := 'F' + AsCamel(msg.name);
+  t := AsCamel(msg.typ.declaration.name);
   if o.Rule <> TFieldRule.Repeated then
-    Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(msg)])
+    Wrln('LoadObj<T%s>(Value.%s, Load%s);', [t, n, t])
   else
-  begin
-    n := Plural(n);
-    Wrln('  %s.%s.Add(%s);', [o.Msg.name, n, GetRead(msg)]);
-  end;
+    Wrln('LoadList<T%s>(Value.%s, Load%s);', [t, Plural(n), t]);
 end;
 
 procedure TGenDC.GenSaveImpl(msg: PObj);

@@ -132,6 +132,34 @@ begin
   end;
 end;
 
+procedure TLoadHelper.LoadPhoneNumber(var Value: TPhoneNumber);
+var
+  fieldNumber, wireType: integer;
+  tag: TpbTag;
+begin
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    wireType := tag.WireType;
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TPhoneNumber.ftNumber:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Value.Number := Pb.readString;
+        end;
+      TPhoneNumber.ftType:
+        begin
+          Assert(wireType = TWire.VARINT);
+          Value.&Type := TPhoneType(Pb.readInt32);
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
 procedure TLoadHelper.LoadPerson(var Value: TPerson);
 var
   fieldNumber, wireType: integer;
@@ -167,34 +195,6 @@ begin
         begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
           LoadObj<TPhoneNumber>(Value.FMyPhone, LoadPhoneNumber);
-        end;
-      else
-        Pb.skipField(tag);
-    end;
-    tag := Pb.readTag;
-  end;
-end;
-
-procedure TLoadHelper.LoadPhoneNumber(var Value: TPhoneNumber);
-var
-  fieldNumber, wireType: integer;
-  tag: TpbTag;
-begin
-  tag := Pb.readTag;
-  while tag.v <> 0 do
-  begin
-    wireType := tag.WireType;
-    fieldNumber := tag.FieldNumber;
-    case fieldNumber of
-      TPhoneNumber.ftNumber:
-        begin
-          Assert(wireType = TWire.LENGTH_DELIMITED);
-          Value.Number := Pb.readString;
-        end;
-      TPhoneNumber.ftType:
-        begin
-          Assert(wireType = TWire.VARINT);
-          Value.&Type := TPhoneType(Pb.readInt32);
         end;
       else
         Pb.skipField(tag);

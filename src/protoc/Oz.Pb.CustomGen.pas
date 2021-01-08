@@ -94,13 +94,14 @@ type
     function MapCollection: string; virtual; abstract;
     function CreateName: string; virtual; abstract;
     procedure GenUses; virtual; abstract;
+    procedure GenDecl(Load: Boolean); virtual; abstract;
     procedure GenEntityType(msg: PObj); virtual; abstract;
     procedure GenEntityDecl; virtual; abstract;
     procedure GenEntityImpl(msg: PObj); virtual; abstract;
     procedure GenLoadDecl(msg: PObj); virtual; abstract;
     procedure GenSaveDecl(msg: PObj); virtual; abstract;
+    procedure GenLoadImpl; virtual; abstract;
     procedure GenLoadMethod(msg: PObj); virtual; abstract;
-    procedure GenLoadResult(const s: string); virtual; abstract;
     function GenRead(msg: PObj): string; virtual; abstract;
     procedure GenFieldRead(msg: PObj); virtual; abstract;
     procedure GenSaveImpl(msg: PObj); virtual; abstract;
@@ -455,7 +456,6 @@ begin
   Wrln('  tag: TpbTag;');
   Wrln('begin');
   Indent;
-  GenLoadResult(s);
   Wrln('tag := Pb.readTag;');
   Wrln('while tag.v <> 0 do');
   Wrln('begin');
@@ -987,7 +987,7 @@ var
     begin
       Wrln('begin');
       Wrln('  Assert(wireType = TWire.%s);', [w]);
-      Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
+      Wrln('  Value.%s := %s;', [n, GetRead(obj)]);
       Wrln('end;');
     end
     else
@@ -1012,7 +1012,7 @@ var
     begin
       Wrln('begin');
       Wrln('  Assert(wireType = TWire.%s);', [w]);
-      Wrln('  %s.%s := %s;', [o.Msg.name, n, GetRead(obj)]);
+      Wrln('  Value.%s := %s;', [n, GetRead(obj)]);
       Wrln('end;');
     end
     else
@@ -1036,12 +1036,7 @@ var
     Wrln('begin');
     Indent;
     Wrln('Assert(wireType = TWire.LENGTH_DELIMITED);');
-    Wrln('Pb.Push;');
-    Wrln('try');
     GenFieldRead(obj);
-    Wrln('finally');
-    Wrln('  Pb.Pop;');
-    Wrln('end;');
     Dedent;
     Wrln('end;');
   end;
@@ -1136,6 +1131,7 @@ var
   s: string;
 begin
   Wrln('%s = record helper for %s', [GetBuilderName(Load), Names[Load]]);
+  GenDecl(Load);
   Wrln('public');
   Indent;
   try
@@ -1175,7 +1171,10 @@ begin
   begin
     if x.cls = TMode.mType then
       if Load then
-        LoadImpl(x)
+      begin
+        GenLoadImpl;
+        LoadImpl(x);
+      end
       else
         SaveImpl(x);
     x := x.next;
