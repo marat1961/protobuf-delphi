@@ -57,21 +57,21 @@ type
 
   TLoadHelper = record helper for TpbLoader
   public
-    procedure LoadPerson(Person: PPerson);
-    procedure LoadPhoneNumber(PhoneNumber: PPhoneNumber);
+    procedure LoadPerson(var Value: TPerson);
+    procedure LoadPhoneNumber(var Value: TPhoneNumber);
   end;
 
   TSaveHelper = record helper for TpbSaver
   type
     TSave<T> = procedure(const h: TpbSaver; const Value: T);
     TSavePair<Key, Value> = procedure(const h: TpbSaver; const Pair: TsgPair<Key, Value>);
-  public
+  private
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
+  public
+    class procedure SavePerson(const S: TpbSaver; const Value: TPerson); static;
+    class procedure SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber); static;
   end;
-
-procedure SavePerson(const h: TpbSaver; const Person: TPerson);
-procedure SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber);
 
 implementation
 
@@ -99,7 +99,7 @@ begin
   FPhones.Free;
 end;
 
-procedure TLoadHelper.LoadPhoneNumber(PhoneNumber: PPhoneNumber);
+procedure TLoadHelper.LoadPhoneNumber(var Value: TPhoneNumber);
 var
   fieldNumber, wireType: integer;
   tag: TpbTag;
@@ -113,12 +113,12 @@ begin
       TPhoneNumber.ftNumber:
         begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
-          PhoneNumber.Number := Pb.readString;
+          Value.Number := Pb.readString;
         end;
       TPhoneNumber.ftType:
         begin
           Assert(wireType = TWire.VARINT);
-          PhoneNumber.&Type := TPhoneType(Pb.readInt32);
+          Value.&Type := TPhoneType(Pb.readInt32);
         end;
       else
         Pb.skipField(tag);
@@ -127,7 +127,7 @@ begin
   end;
 end;
 
-procedure TLoadHelper.LoadPerson(Person: PPerson);
+procedure TLoadHelper.LoadPerson(var Value: TPerson);
 var
   fieldNumber, wireType: integer;
   tag: TpbTag;
@@ -141,24 +141,24 @@ begin
       TPerson.ftName:
         begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
-          Person.Name := Pb.readString;
+          Value.Name := Pb.readString;
         end;
       TPerson.ftId:
         begin
           Assert(wireType = TWire.VARINT);
-          Person.Id := Pb.readInt32;
+          Value.Id := Pb.readInt32;
         end;
       TPerson.ftEmail:
         begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
-          Person.Email := Pb.readString;
+          Value.Email := Pb.readString;
         end;
       TPerson.ftPhones:
         begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
           Pb.Push;
           try
-            LoadPhoneNumber(Person.FPhones.Add);
+            LoadPhoneNumber(Value.FPhones.Add^);
           finally
             Pb.Pop;
           end;
@@ -168,7 +168,7 @@ begin
           Assert(wireType = TWire.LENGTH_DELIMITED);
           Pb.Push;
           try
-            LoadPhoneNumber(@Person.FMyPhone);
+            LoadPhoneNumber(Value.FMyPhone);
           finally
             Pb.Pop;
           end;
@@ -214,20 +214,20 @@ begin
   end;
 end;
 
-procedure SavePhoneNumber(const h: TpbSaver; const PhoneNumber: TPhoneNumber);
+class procedure TSaveHelper.SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber);
 begin
-  h.Pb.writeString(TPhoneNumber.ftNumber, PhoneNumber.Number);
-  h.Pb.writeInt32(TPhoneNumber.ftType, Ord(PhoneNumber.&Type));
+  S.Pb.writeString(TPhoneNumber.ftNumber, Value.Number);
+  S.Pb.writeInt32(TPhoneNumber.ftType, Ord(Value.&Type));
 end;
 
-procedure SavePerson(const h: TpbSaver; const Person: TPerson);
+class procedure TSaveHelper.SavePerson(const S: TpbSaver; const Value: TPerson);
 begin
-  h.Pb.writeString(TPerson.ftName, Person.Name);
-  h.Pb.writeInt32(TPerson.ftId, Person.Id);
-  h.Pb.writeString(TPerson.ftEmail, Person.Email);
-  if Person.FPhones.Count > 0 then
-    h.SaveList<TPhoneNumber>(Person.FPhones, SavePhoneNumber, TPerson.ftPhones);
-  h.SaveObj<TPhoneNumber>(Person.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
+  S.Pb.writeString(TPerson.ftName, Value.Name);
+  S.Pb.writeInt32(TPerson.ftId, Value.Id);
+  S.Pb.writeString(TPerson.ftEmail, Value.Email);
+  if Value.FPhones.Count > 0 then
+    S.SaveList<TPhoneNumber>(Value.FPhones, SavePhoneNumber, TPerson.ftPhones);
+  S.SaveObj<TPhoneNumber>(Value.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
 end;
 
 end.

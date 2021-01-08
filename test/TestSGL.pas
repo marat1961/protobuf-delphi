@@ -46,7 +46,7 @@ begin
   // save data
   Saver.Init;
   try
-    SavePerson(Saver, Oz);
+    TpbSaver.SavePerson(Saver, Oz);
     Saver.Pb.SaveToFile('person.pb');
   finally
     Saver.Free;
@@ -64,7 +64,7 @@ begin
     Loader.Pb.LoadFromFile('person.pb');
     Oz.Init;
     try
-      Loader.LoadPerson(@Oz);
+      Loader.LoadPerson(Oz);
       // write to console
       Writeln('Name   : ', Oz.Name);
       Writeln('Id     : ', IntToStr(Oz.Id));

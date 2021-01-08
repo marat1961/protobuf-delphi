@@ -44,7 +44,7 @@ begin
   // save data
   Saver.Init;
   try
-    Saver.SavePerson(Saver, Oz);
+    TpbSaver.SavePerson(Saver, Oz);
     Saver.Pb.SaveToFile('person.pb');
   finally
     Saver.Free;
