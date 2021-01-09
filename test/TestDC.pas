@@ -10,41 +10,62 @@ procedure RunTest;
 implementation
 
 // generate data
-procedure GenData(var Oz: TPerson);
+procedure GenData(var AddressBook: TAddressBook);
 var
+  Person: TPerson;
   Phone: TPhoneNumber;
 begin
-  // my data
-  Oz.Name := 'Marat Shaimardanov';
-  Oz.Id := 1;
-  Oz.Email := 'marat.sh.1961@gmail.com';
+  // data
+  Person := TPerson.Create;
+  Person.Name := 'Oz Grock';
+  Person.Id := 1;
+  Person.Email := 'oz@mail.com';
+
+  // home phones
+  Phone := TPhoneNumber.Create;
+  Phone.&Type := TPhoneType.HOME;
+  Phone.Number := '+7 382 224 99999';
+  Person.Phones.Add(Phone);
+
+  Phone := TPhoneNumber.Create;
+  Phone.&Type := TPhoneType.MOBILE;
+  Phone.Number := '999999';
+  Person.Phones.Add(Phone);
+  AddressBook.Peoples.Add(Person);
+
+  // data
+  Person := TPerson.Create;
+  Person.Name := 'Marat Shaimardanov';
+  Person.Id := 2;
+  Person.Email := 'marat.sh.1961@gmail.com';
 
   // single message
   Phone := TPhoneNumber.Create;
   Phone.Number := 'qwerty';
-  Oz.MyPhone := Phone;
+  Person.MyPhone := Phone;
 
-  // my home phones
+  // home phones
   Phone := TPhoneNumber.Create;
   Phone.&Type := TPhoneType.HOME;
   Phone.Number := '+7 382 224 3699';
 
-  // my mobile phone
+  // mobile phone
   Phone := TPhoneNumber.Create;
   Phone.&Type := TPhoneType.MOBILE;
   Phone.Number := '+7 913 826 2144';
-  Oz.Phones.Add(Phone);
+  Person.Phones.Add(Phone);
+  AddressBook.Peoples.Add(Person);
 end;
 
 // save data to proto file
-procedure SaveData(var Oz: TPerson);
+procedure SaveData(var AddressBook: TAddressBook);
 var
   Saver: TpbSaver;
 begin
   // save data
   Saver.Init;
   try
-    TpbSaver.SavePerson(Saver, Oz);
+    TpbSaver.SaveAddressBook(Saver, AddressBook);
     Saver.Pb.SaveToFile('person.pb');
   finally
     Saver.Free;
@@ -85,15 +106,15 @@ end;
 
 procedure TestPerson;
 var
-  Oz: TPerson;
+  AddressBook: TAddressBook;
 begin
-  Oz := TPerson.Create;
+  AddressBook := TAddressBook.Create;
   try
     Writeln('Run Protocol Buffer Tests');
-    GenData(Oz);
-    SaveData(Oz);
+    GenData(AddressBook);
+    SaveData(AddressBook);
   finally
-    Oz.Free;
+    AddressBook.Free;
   end;
   ReadDataAndDump;
 end;

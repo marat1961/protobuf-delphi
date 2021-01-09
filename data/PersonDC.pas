@@ -51,6 +51,18 @@ type
     property MyPhone: TPhoneNumber read FMyPhone write FMyPhone;
   end;
 
+  TAddressBook = class
+  const
+    ftPeoples = 1;
+  private
+    FPeoples: TList<TPerson>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    // properties
+    property Peoples: TList<TPerson> read FPeoples;
+  end;
+
   TLoadHelper = record helper for TpbLoader
   type
     TLoad<T: constructor> = procedure(var Value: T) of object;
@@ -61,6 +73,7 @@ type
   public
     procedure LoadPerson(var Value: TPerson);
     procedure LoadPhoneNumber(var Value: TPhoneNumber);
+    procedure LoadAddressBook(var Value: TAddressBook);
   end;
 
   TSaveHelper = record helper for TpbSaver
@@ -75,6 +88,7 @@ type
   public
     class procedure SavePerson(const S: TpbSaver; const Value: TPerson); static;
     class procedure SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber); static;
+    class procedure SaveAddressBook(const S: TpbSaver; const Value: TAddressBook); static;
   end;
 
 implementation
@@ -102,6 +116,20 @@ end;
 destructor TPerson.Destroy;
 begin
   FPhones.Free;
+  inherited Destroy;
+end;
+
+{ TAddressBook }
+
+constructor TAddressBook.Create;
+begin
+  inherited Create;
+  FPeoples := TList<TPerson>.Create;
+end;
+
+destructor TAddressBook.Destroy;
+begin
+  FPeoples.Free;
   inherited Destroy;
 end;
 
@@ -203,6 +231,29 @@ begin
   end;
 end;
 
+procedure TLoadHelper.LoadAddressBook(var Value: TAddressBook);
+var
+  fieldNumber, wireType: integer;
+  tag: TpbTag;
+begin
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    wireType := tag.WireType;
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TAddressBook.ftPeoples:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          LoadList<TPerson>(Value.FPeoples, LoadPerson);
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
 { TSaveHelper }
 
 procedure TSaveHelper.SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
@@ -272,6 +323,12 @@ begin
     S.SaveList<TPhoneNumber>(Value.FPhones, SavePhoneNumber, TPerson.ftPhones);
   if Value.FMyPhone <> nil then
     S.SaveObj<TPhoneNumber>(Value.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
+end;
+
+class procedure TSaveHelper.SaveAddressBook(const S: TpbSaver; const Value: TAddressBook);
+begin
+  if Value.FPeoples.Count > 0 then
+    S.SaveList<TPerson>(Value.FPeoples, SavePerson, TAddressBook.ftPeoples);
 end;
 
 end.
