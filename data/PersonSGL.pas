@@ -55,10 +55,24 @@ type
     property MyPhone: TPhoneNumber read FMyPhone write FMyPhone;
   end;
 
+  PAddressBook = ^TAddressBook;
+  TAddressBook = record
+  const
+    ftPeoples = 1;
+  private
+    FPeoples: TsgRecordList<TPerson>;
+  public
+    procedure Init;
+    procedure Free;
+    // properties
+    property Peoples: TsgRecordList<TPerson> read FPeoples;
+  end;
+
   TLoadHelper = record helper for TpbLoader
   public
     procedure LoadPerson(var Value: TPerson);
     procedure LoadPhoneNumber(var Value: TPhoneNumber);
+    procedure LoadAddressBook(var Value: TAddressBook);
   end;
 
   TSaveHelper = record helper for TpbSaver
@@ -73,6 +87,7 @@ type
   public
     class procedure SavePerson(const S: TpbSaver; const Value: TPerson); static;
     class procedure SavePhoneNumber(const S: TpbSaver; const Value: TPhoneNumber); static;
+    class procedure SaveAddressBook(const S: TpbSaver; const Value: TAddressBook); static;
   end;
 
 implementation
@@ -101,11 +116,25 @@ begin
   FPhones.Free;
 end;
 
+{ TAddressBook }
+
+procedure TAddressBook.Init;
+begin
+  Self := Default(TAddressBook);
+  FPeoples := TsgRecordList<TPerson>.From(nil);
+end;
+
+procedure TAddressBook.Free;
+begin
+  FPeoples.Free;
+end;
+
 procedure TLoadHelper.LoadPhoneNumber(var Value: TPhoneNumber);
 var
   fieldNumber, wireType: integer;
   tag: TpbTag;
 begin
+  Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
@@ -134,6 +163,7 @@ var
   fieldNumber, wireType: integer;
   tag: TpbTag;
 begin
+  Value.Init;
   tag := Pb.readTag;
   while tag.v <> 0 do
   begin
@@ -171,6 +201,35 @@ begin
           Pb.Push;
           try
             LoadPhoneNumber(Value.FMyPhone);
+          finally
+            Pb.Pop;
+          end;
+        end;
+      else
+        Pb.skipField(tag);
+    end;
+    tag := Pb.readTag;
+  end;
+end;
+
+procedure TLoadHelper.LoadAddressBook(var Value: TAddressBook);
+var
+  fieldNumber, wireType: integer;
+  tag: TpbTag;
+begin
+  Value.Init;
+  tag := Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    wireType := tag.WireType;
+    fieldNumber := tag.FieldNumber;
+    case fieldNumber of
+      TAddressBook.ftPeoples:
+        begin
+          Assert(wireType = TWire.LENGTH_DELIMITED);
+          Pb.Push;
+          try
+            LoadPerson(Value.FPeoples.Add^);
           finally
             Pb.Pop;
           end;
@@ -252,6 +311,12 @@ begin
   if Value.FPhones.Count > 0 then
     S.SaveList<TPhoneNumber>(Value.FPhones, SavePhoneNumber, TPerson.ftPhones);
   S.SaveObj<TPhoneNumber>(Value.FMyPhone, SavePhoneNumber, TPerson.ftMyPhone);
+end;
+
+class procedure TSaveHelper.SaveAddressBook(const S: TpbSaver; const Value: TAddressBook);
+begin
+  if Value.FPeoples.Count > 0 then
+    S.SaveList<TPerson>(Value.FPeoples, SavePerson, TAddressBook.ftPeoples);
 end;
 
 end.
