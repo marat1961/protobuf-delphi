@@ -20,3 +20,7 @@ message Person {
   PhoneNumber my_phone = 5;
 }
 
+message AddressBook {
+  repeated Person people = 1;
+}
+
