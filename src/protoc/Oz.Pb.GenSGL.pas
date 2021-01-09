@@ -42,6 +42,7 @@ type
     procedure GenSaveDecl(msg: PObj); override;
     procedure GenLoadImpl; override;
     procedure GenSaveProc; override;
+    procedure GenInitLoaded; override;
     procedure GenLoadMethod(msg: PObj); override;
     function GenRead(msg: PObj): string; override;
     procedure GenFieldRead(msg: PObj); override;
@@ -216,6 +217,11 @@ begin
     Wrln('  Pb.Pop;');
     Wrln('end;');
   end;
+end;
+
+procedure TGenSGL.GenInitLoaded;
+begin
+  Wrln('Value.Init;');
 end;
 
 procedure TGenSGL.GenLoadImpl;

@@ -102,6 +102,7 @@ type
     procedure GenSaveDecl(msg: PObj); virtual; abstract;
     procedure GenLoadImpl; virtual; abstract;
     procedure GenSaveProc; virtual; abstract;
+    procedure GenInitLoaded; virtual;
     procedure GenLoadMethod(msg: PObj); virtual; abstract;
     function GenRead(msg: PObj): string; virtual; abstract;
     procedure GenFieldRead(msg: PObj); virtual; abstract;
@@ -193,6 +194,10 @@ begin
   BuilderImpl(True);
   BuilderImpl(False);
   Wrln('end.');
+end;
+
+procedure TCustomGen.GenInitLoaded;
+begin
 end;
 
 procedure TCustomGen.ModelDecl;
@@ -457,6 +462,7 @@ begin
   Wrln('  tag: TpbTag;');
   Wrln('begin');
   Indent;
+  GenInitLoaded;
   Wrln('tag := Pb.readTag;');
   Wrln('while tag.v <> 0 do');
   Wrln('begin');
