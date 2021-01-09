@@ -66,7 +66,7 @@ begin
   Saver.Init;
   try
     TpbSaver.SaveAddressBook(Saver, AddressBook);
-    Saver.Pb.SaveToFile('person.pb');
+    Saver.Pb.SaveToFile('peoplesDC.pb');
   finally
     Saver.Free;
   end;
@@ -74,30 +74,37 @@ end;
 
 procedure ReadDataAndDump;
 var
-  Oz: TPerson;
+  AddressBook: TAddressBook;
+  Person: TPerson;
   PhoneNumber: TPhoneNumber;
   Loader: TpbLoader;
+  i: Integer;
 begin
   Loader.Init;
   try
-    Loader.Pb.LoadFromFile('person.pb');
-    Oz := TPerson.Create;
+    Loader.Pb.LoadFromFile('peoplesDC.pb');
+    Loader.Pb.LoadFromFile('peoples.pb');
     try
-      Loader.LoadPerson(Oz);
-      // write to console
-      Writeln('Name   : ', Oz.Name);
-      Writeln('Id     : ', IntToStr(Oz.Id));
-      Writeln('e-mail : ', Oz.Email);
-      Writeln('phone  : ', Oz.MyPhone.Number);
-      for PhoneNumber in Oz.Phones do
+      AddressBook := TAddressBook.Create;
+      Loader.LoadAddressBook(AddressBook);
+      for i := 0 to AddressBook.Peoples.Count - 1 do
       begin
-        Writeln('  Number: ', PhoneNumber.Number);
-        Writeln('  Type: ', GetEnumName(TypeInfo(TPhoneType),
-          Integer(PhoneNumber.&Type)));
+        Person := AddressBook.Peoples.Items[i];
+        // write to console
+        Writeln('Name   : ', Person.Name);
+        Writeln('Id     : ', IntToStr(Person.Id));
+        Writeln('e-mail : ', Person.Email);
+        Writeln('phone  : ', Person.MyPhone.Number);
+        for PhoneNumber in Person.Phones do
+        begin
+          Writeln('  Number: ', PhoneNumber.Number);
+          Writeln('  Type: ', GetEnumName(TypeInfo(TPhoneType),
+            Integer(PhoneNumber.&Type)));
+        end;
       end;
       Readln;
     finally
-      Oz.Free;
+      AddressBook.Free;
     end;
   finally
     Loader.Free;
