@@ -1,4 +1,4 @@
-unit TestSGL;
+unit TestPersonSGL;
 
 interface
 

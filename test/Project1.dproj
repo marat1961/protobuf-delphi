@@ -97,13 +97,15 @@
         </DelphiCompile>
         <DCCReference Include="..\src\proto\Oz.Pb.Classes.pas"/>
         <DCCReference Include="..\src\proto\Oz.Pb.StrBuffer.pas"/>
-        <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Collections.pas"/>
+        <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Hash.pas"/>
         <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.HandleManager.pas"/>
         <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Heap.pas"/>
+        <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Collections.pas"/>
         <DCCReference Include="..\data\PersonDC.pas"/>
         <DCCReference Include="..\data\PersonSGL.pas"/>
-        <DCCReference Include="TestDC.pas"/>
-        <DCCReference Include="TestSGL.pas"/>
+        <DCCReference Include="TestPersonDC.pas"/>
+        <DCCReference Include="TestPersonSGL.pas"/>
+        <DCCReference Include="TestMapSGL.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

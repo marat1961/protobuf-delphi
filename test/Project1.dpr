@@ -25,13 +25,15 @@ uses
   TypInfo,
   Oz.Pb.Classes in '..\src\proto\Oz.Pb.Classes.pas',
   Oz.Pb.StrBuffer in '..\src\proto\Oz.Pb.StrBuffer.pas',
-  Oz.SGL.Collections in '..\..\Oz-SGL\src\Oz.SGL.Collections.pas',
+  Oz.SGL.Hash in '..\..\Oz-SGL\src\Oz.SGL.Hash.pas',
   Oz.SGL.HandleManager in '..\..\Oz-SGL\src\Oz.SGL.HandleManager.pas',
   Oz.SGL.Heap in '..\..\Oz-SGL\src\Oz.SGL.Heap.pas',
+  Oz.SGL.Collections in '..\..\Oz-SGL\src\Oz.SGL.Collections.pas',
   PersonDC in '..\data\PersonDC.pas',
   PersonSGL in '..\data\PersonSGL.pas',
-  TestDC in 'TestDC.pas',
-  TestSGL in 'TestSGL.pas';
+  TestPersonDC in 'TestPersonDC.pas',
+  TestPersonSGL in 'TestPersonSGL.pas',
+  TestMapSGL in 'TestMapSGL.pas';
 
 {$R *.RES}
 
