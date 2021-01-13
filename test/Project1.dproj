@@ -103,6 +103,7 @@
         <DCCReference Include="..\..\Oz-SGL\src\Oz.SGL.Collections.pas"/>
         <DCCReference Include="..\data\PersonDC.pas"/>
         <DCCReference Include="..\data\PersonSGL.pas"/>
+        <DCCReference Include="..\data\MapSGL.pas"/>
         <DCCReference Include="TestPersonDC.pas"/>
         <DCCReference Include="TestPersonSGL.pas"/>
         <DCCReference Include="TestMapSGL.pas"/>

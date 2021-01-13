@@ -31,6 +31,7 @@ uses
   Oz.SGL.Collections in '..\..\Oz-SGL\src\Oz.SGL.Collections.pas',
   PersonDC in '..\data\PersonDC.pas',
   PersonSGL in '..\data\PersonSGL.pas',
+  MapSGL in '..\data\MapSGL.pas',
   TestPersonDC in 'TestPersonDC.pas',
   TestPersonSGL in 'TestPersonSGL.pas',
   TestMapSGL in 'TestMapSGL.pas';
@@ -38,6 +39,7 @@ uses
 {$R *.RES}
 
 begin
-  TestSGL.RunTest;
-  TestDC.RunTest;
+  TestPersonSGL.RunTest;
+  TestPersonDC.RunTest;
+  TestMapSGL.RunTest;
 end.

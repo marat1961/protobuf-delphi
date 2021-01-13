@@ -3,7 +3,7 @@ unit TestPersonSGL;
 interface
 
 uses
-  System.SysUtils, System.TypInfo, PersonSGL, Oz.Pb.StrBuffer, Oz.Pb.Classes;
+  System.SysUtils, System.TypInfo, Oz.Pb.StrBuffer, Oz.Pb.Classes, PersonSGL;
 
 {$T+}
 
