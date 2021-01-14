@@ -283,6 +283,12 @@ type
     property Pb: PpbOutput read GetPb;
   end;
 
+  procedure WriteByte(const S: TpbSaver; value: ShortInt);
+  procedure WriteInt32(const S: TpbSaver; value: Integer);
+  procedure WriteInt64(const S: TpbSaver; value: Int64);
+  procedure WriteBytes(const S: TpbSaver; const value: TBytes);
+  procedure WriteString(const S: TpbSaver; const value: string);
+
 {$EndRegion}
 
 {$Region 'Procedures'}
@@ -304,6 +310,31 @@ end;
 function decodeZigZag64(n: Int64): Int64;
 begin
   Result := (n shr 1) xor -(n and 1);
+end;
+
+procedure WriteByte(const S: TpbSaver; value: ShortInt);
+begin
+  S.Pb.writeRawByte(value);
+end;
+
+procedure WriteBytes(const S: TpbSaver; const value: TBytes);
+begin
+  S.Pb.writeRawBytes(value);
+end;
+
+procedure WriteInt32(const S: TpbSaver; value: Integer);
+begin
+  S.Pb.writeRawVarint32(value);
+end;
+
+procedure WriteInt64(const S: TpbSaver; value: Int64);
+begin
+  S.Pb.writeRawVarint64(value);
+end;
+
+procedure WriteString(const S: TpbSaver; const value: string);
+begin
+  S.Pb.writeRawString(value);
 end;
 
 {$EndRegion}

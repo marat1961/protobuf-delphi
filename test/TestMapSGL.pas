@@ -14,6 +14,19 @@ implementation
 // generate data
 procedure GenData(var Map: TMapFields);
 begin
+  Map.Init;
+// Map.MapStringString.Insert();
+// MapStringInt32: TStringInt32
+// MapStringInt64: TStringInt64
+// MapStringBool: TStringBool
+// MapStringDouble: TStringDouble
+// MapStringEnum: TStringEnumVal
+// MapStringMsg: TStringMsgVal
+// MapInt32String: TInt32String
+// MapInt64String: TInt64String
+// MapBoolString: TBoolString
+// TestMapFields: PMapFields
+// StringTmapfields: TStringMapFields
 end;
 
 // save data to proto file
@@ -68,7 +81,7 @@ end;
 
 procedure RunTest;
 begin
-
+  TestMap;
 end;
 
 end.

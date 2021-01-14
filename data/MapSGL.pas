@@ -100,7 +100,7 @@ type
     procedure SaveObj<T>(const obj: T; Save: TSave<T>; Tag: Integer);
     procedure SaveList<T>(const List: TsgRecordList<T>; Save: TSave<T>; Tag: Integer);
     procedure SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-      Save: TSavePair<Key, Value>; Tag: Integer);
+      SaveKey: TSave<Key>; SaveValue: TSave<Value>; Tag: Integer);
   public
     class procedure SaveMsgVal(const S: TpbSaver; const Value: TMsgVal); static;
     class procedure SaveMapFields(const S: TpbSaver; const Value: TMapFields); static;
@@ -279,10 +279,9 @@ begin
 end;
 
 procedure TSaveHelper.SaveMap<Key, Value>(const Map: TsgHashMap<Key, Value>;
-  Save: TSavePair<Key, Value>; Tag: Integer);
+  SaveKey: TSave<Key>; SaveValue: TSave<Value>; Tag: Integer);
 var
   h: TpbSaver;
-  Pair: TsgHashMapIterator<Key, Value>.PPair;
   it: TsgHashMapIterator<Key, Value>;
 begin
   h.Init;
@@ -291,7 +290,8 @@ begin
     while it <> Map.Ends do
     begin
       h.Clear;
-      Save(h, it.GetPair^);
+      SaveKey(h, it.GetKey^);
+      SaveValue(h, it.GetValue^);
       Pb.writeMessage(tag, h.Pb^);
       it.Next;
     end;
@@ -307,174 +307,72 @@ end;
 
 class procedure TSaveHelper.SaveMapFields(const S: TpbSaver; const Value: TMapFields);
 begin
-  SaveMap<String, String>(Value.MapStringString,
-  TMapFields.ftMapStringString);
-  h.Init;
-  try
-    h.SaveStringString();
-    Pb.writeMessage(TMapFields.ftMapStringString, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveStringInt32(Value.MapStringInt32);
-    Pb.writeMessage(TMapFields.ftMapStringInt32, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveStringInt64(Value.MapStringInt64);
-    Pb.writeMessage(TMapFields.ftMapStringInt64, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveStringBool(Value.MapStringBool);
-    Pb.writeMessage(TMapFields.ftMapStringBool, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveStringDouble(Value.MapStringDouble);
-    Pb.writeMessage(TMapFields.ftMapStringDouble, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveStringEnumVal(Value.MapStringEnum);
-    Pb.writeMessage(TMapFields.ftMapStringEnum, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveStringMsgVal(Value.MapStringMsg);
-    Pb.writeMessage(TMapFields.ftMapStringMsg, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveInt32String(Value.MapInt32String);
-    Pb.writeMessage(TMapFields.ftMapInt32String, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveInt64String(Value.MapInt64String);
-    Pb.writeMessage(TMapFields.ftMapInt64String, h.Pb^);
-  finally
-    h.Free;
-  end;
-  h.Init;
-  try
-    h.SaveBoolString(Value.MapBoolString);
-    Pb.writeMessage(TMapFields.ftMapBoolString, h.Pb^);
-  finally
-    h.Free;
-  end;
-  S.SaveObj<TMapFields>(Value.FTestMapFields, SaveMapFields, TMapFields.ftTestMapFields);
-  h.Init;
-  try
-    h.SaveStringMapFields(Value.StringTmapfields);
-    Pb.writeMessage(TMapFields.ftStringTmapfields, h.Pb^);
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TSaveHelper.SaveStringString(Item: TPair<string, string>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.Pb.writeString(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveStringInt32(Item: TPair<string, Integer>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.Pb.writeInt32(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveStringInt64(Item: TPair<string, Int64>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.Pb.writeInt64(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveStringBool(Item: TPair<string, Boolean>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.Pb.writeBoolean(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveStringDouble(Item: TPair<string, Double>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.Pb.writeDouble(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveStringEnumVal(Item: TPair<string, TEnumVal>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.Pb.writeInt32(2, Ord(Value.Value));
-end;
-
-procedure TSaveHelper.SaveStringMsgVal(Item: TPair<string, TMsgVal>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.SaveObj<TMsgVal>(Value.FValue, SaveMsgVal, 2);
-end;
-
-procedure TSaveHelper.SaveInt32String(Item: TPair<Integer, string>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeInt32(1, Value.Key);
-  S.Pb.writeString(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveInt64String(Item: TPair<Int64, string>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeInt64(1, Value.Key);
-  S.Pb.writeString(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveBoolString(Item: TPair<Boolean, string>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeBoolean(1, Value.Key);
-  S.Pb.writeString(2, Value.Value);
-end;
-
-procedure TSaveHelper.SaveStringMapFields(Item: TPair<string, TMapFields>);
-var
-  h: TpbSaver;
-begin
-  S.Pb.writeString(1, Value.Key);
-  S.SaveObj<TMapFields>(Value.FValue, SaveMapFields, 2);
+  S.SaveMap<String, String>(Value.MapStringString,
+    WriteString, WriteString, TMapFields.ftMapStringString);
+//  h.Init;
+//  try
+//    h.SaveStringInt64(Value.MapStringInt64);
+//    Pb.writeMessage(TMapFields.ftMapStringInt64, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveStringBool(Value.MapStringBool);
+//    Pb.writeMessage(TMapFields.ftMapStringBool, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveStringDouble(Value.MapStringDouble);
+//    Pb.writeMessage(TMapFields.ftMapStringDouble, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveStringEnumVal(Value.MapStringEnum);
+//    Pb.writeMessage(TMapFields.ftMapStringEnum, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveStringMsgVal(Value.MapStringMsg);
+//    Pb.writeMessage(TMapFields.ftMapStringMsg, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveInt32String(Value.MapInt32String);
+//    Pb.writeMessage(TMapFields.ftMapInt32String, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveInt64String(Value.MapInt64String);
+//    Pb.writeMessage(TMapFields.ftMapInt64String, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  h.Init;
+//  try
+//    h.SaveBoolString(Value.MapBoolString);
+//    Pb.writeMessage(TMapFields.ftMapBoolString, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
+//  S.SaveObj<TMapFields>(Value.FTestMapFields, SaveMapFields, TMapFields.ftTestMapFields);
+//  h.Init;
+//  try
+//    h.SaveStringMapFields(Value.StringTmapfields);
+//    Pb.writeMessage(TMapFields.ftStringTmapfields, h.Pb^);
+//  finally
+//    h.Free;
+//  end;
 end;
 
 end.
