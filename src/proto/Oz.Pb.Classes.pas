@@ -283,9 +283,9 @@ type
     property Pb: PpbOutput read GetPb;
   end;
 
-  procedure WriteByte(const S: TpbSaver; value: ShortInt);
-  procedure WriteInt32(const S: TpbSaver; value: Integer);
-  procedure WriteInt64(const S: TpbSaver; value: Int64);
+  procedure WriteByte(const S: TpbSaver; const value: ShortInt);
+  procedure WriteInt32(const S: TpbSaver; const value: Integer);
+  procedure WriteInt64(const S: TpbSaver; const value: Int64);
   procedure WriteBytes(const S: TpbSaver; const value: TBytes);
   procedure WriteString(const S: TpbSaver; const value: string);
 
@@ -312,7 +312,7 @@ begin
   Result := (n shr 1) xor -(n and 1);
 end;
 
-procedure WriteByte(const S: TpbSaver; value: ShortInt);
+procedure WriteByte(const S: TpbSaver; const value: ShortInt);
 begin
   S.Pb.writeRawByte(value);
 end;
@@ -322,12 +322,12 @@ begin
   S.Pb.writeRawBytes(value);
 end;
 
-procedure WriteInt32(const S: TpbSaver; value: Integer);
+procedure WriteInt32(const S: TpbSaver; const value: Integer);
 begin
   S.Pb.writeRawVarint32(value);
 end;
 
-procedure WriteInt64(const S: TpbSaver; value: Int64);
+procedure WriteInt64(const S: TpbSaver; const value: Int64);
 begin
   S.Pb.writeRawVarint64(value);
 end;
