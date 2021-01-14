@@ -307,14 +307,14 @@ end;
 
 class procedure TSaveHelper.SaveMapFields(const S: TpbSaver; const Value: TMapFields);
 begin
-  S.SaveMap<String, String>(Value.MapStringString,
-    WriteString, WriteString, TMapFields.ftMapStringString);
-  S.SaveMap<String, Int64>(Value.MapStringInt64,
-    WriteString, WriteInt64, TMapFields.ftMapStringInt64);
-  S.SaveMap<String, Boolean>(Value.MapStringBool,
-    WriteString, WriteBoolean, TMapFields.ftMapStringBool);
-  S.SaveMap<String, Boolean>(Value.MapStringDouble,
-    WriteString, WriteDouble, TMapFields.ftMapStringDouble);
+//  S.SaveMap<String, String>(Value.MapStringString,
+//    WriteString, WriteString, TMapFields.ftMapStringString);
+//  S.SaveMap<String, Int64>(Value.MapStringInt64,
+//    WriteString, WriteInt64, TMapFields.ftMapStringInt64);
+//  S.SaveMap<String, Boolean>(Value.MapStringBool,
+//    WriteString, WriteBoolean, TMapFields.ftMapStringBool);
+//  S.SaveMap<String, Double>(Value.MapStringDouble,
+//    WriteString, WriteDouble, TMapFields.ftMapStringDouble);
 //  h.Init;
 //  try
 //    h.SaveStringDouble(Value.MapStringDouble);

@@ -283,11 +283,21 @@ type
     property Pb: PpbOutput read GetPb;
   end;
 
-  procedure WriteByte(const S: TpbSaver; const value: ShortInt);
-  procedure WriteInt32(const S: TpbSaver; const value: Integer);
-  procedure WriteInt64(const S: TpbSaver; const value: Int64);
-  procedure WriteBytes(const S: TpbSaver; const value: TBytes);
-  procedure WriteString(const S: TpbSaver; const value: string);
+{$EndRegion}
+
+{$Region 'TpbIoProc: Save and Load procedures for type'}
+
+  TpbIoProc = record
+  type
+    TSaveProc = procedure(const pb: TpbOutput; const Value);
+    TLoadProc = procedure(const pb: TpbInput; var Value);
+  var
+    Save: TSaveProc;
+    Load: TLoadProc;
+  public
+    // Find the right read/save procedure for the specified type
+    class function From<T>: TpbIoProc; static;
+  end;
 
 {$EndRegion}
 
@@ -295,6 +305,11 @@ type
 
 function decodeZigZag32(n: Integer): Integer;
 function decodeZigZag64(n: Int64): Int64;
+procedure WriteByte(const S: TpbSaver; const value: ShortInt);
+procedure WriteInt32(const S: TpbSaver; const value: Integer);
+procedure WriteInt64(const S: TpbSaver; const value: Int64);
+procedure WriteBytes(const S: TpbSaver; const value: TBytes);
+procedure WriteString(const S: TpbSaver; const value: string);
 
 {$EndRegion}
 
@@ -928,6 +943,15 @@ end;
 function TpbSaver.GetPb: PpbOutput;
 begin
   Result := @FPb;
+end;
+
+{$EndRegion}
+
+{$Region 'TpbIoProc'}
+
+class function TpbIoProc.From<T>: TpbIoProc;
+begin
+
 end;
 
 {$EndRegion}
