@@ -21,7 +21,7 @@ unit Oz.Pb.Classes;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Rtti, Oz.Pb.StrBuffer;
+  System.Classes, System.SysUtils, System.Rtti, System.TypInfo, Oz.Pb.StrBuffer;
 
 const
   TAG_TYPE_BITS = 3;
@@ -287,16 +287,18 @@ type
 
 {$Region 'TpbIoProc: Save and Load procedures for type'}
 
+  PpbIoProc = ^TpbIoProc;
   TpbIoProc = record
   type
-    TSaveProc = procedure(const pb: TpbOutput; const Value);
-    TLoadProc = procedure(const pb: TpbInput; var Value);
+    TSaveProc = procedure(const S: TpbSaver; const Value);
+    TLoadProc = procedure(const L: TpbLoader; var Value);
   var
     Save: TSaveProc;
     Load: TLoadProc;
   public
     // Find the right read/save procedure for the specified type
-    class function From<T>: TpbIoProc; static;
+    class function From<T>: TpbIoProc; overload; static;
+    class function From(info: PTypeInfo; size: Integer): TpbIoProc; overload; static;
   end;
 
 {$EndRegion}
@@ -305,11 +307,6 @@ type
 
 function decodeZigZag32(n: Integer): Integer;
 function decodeZigZag64(n: Int64): Int64;
-procedure WriteByte(const S: TpbSaver; const value: ShortInt);
-procedure WriteInt32(const S: TpbSaver; const value: Integer);
-procedure WriteInt64(const S: TpbSaver; const value: Int64);
-procedure WriteBytes(const S: TpbSaver; const value: TBytes);
-procedure WriteString(const S: TpbSaver; const value: string);
 
 {$EndRegion}
 
@@ -325,31 +322,6 @@ end;
 function decodeZigZag64(n: Int64): Int64;
 begin
   Result := (n shr 1) xor -(n and 1);
-end;
-
-procedure WriteByte(const S: TpbSaver; const value: ShortInt);
-begin
-  S.Pb.writeRawByte(value);
-end;
-
-procedure WriteBytes(const S: TpbSaver; const value: TBytes);
-begin
-  S.Pb.writeRawBytes(value);
-end;
-
-procedure WriteInt32(const S: TpbSaver; const value: Integer);
-begin
-  S.Pb.writeRawVarint32(value);
-end;
-
-procedure WriteInt64(const S: TpbSaver; const value: Int64);
-begin
-  S.Pb.writeRawVarint64(value);
-end;
-
-procedure WriteString(const S: TpbSaver; const value: string);
-begin
-  S.Pb.writeRawString(value);
 end;
 
 {$EndRegion}
@@ -949,9 +921,188 @@ end;
 
 {$Region 'TpbIoProc'}
 
+procedure WriteByte(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawByte(Shortint(value));
+end;
+
+procedure WriteInt16(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawVarint32(Word(value));
+end;
+
+procedure WriteInt32(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawVarint32(Int32(value));
+end;
+
+procedure WriteInt64(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawVarint64(Int64(value));
+end;
+
+procedure WriteBytes(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawBytes(TBytes(value));
+end;
+
+procedure WriteString(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawString(string(value));
+end;
+
+procedure WriteSingle(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawData(@value, sizeof(Single));
+end;
+
+procedure WriteDouble(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawData(@value, sizeof(Double));
+end;
+
+procedure WriteExtended(const S: TpbSaver; const value);
+var
+  v: Double;
+begin
+  v := Extended(value);
+  S.Pb.writeRawData(@v, sizeof(Double));
+end;
+
+procedure WriteCurrency(const S: TpbSaver; const value);
+begin
+  S.Pb.writeRawData(@value, sizeof(Currency));
+end;
+
+const
+  // Integer
+  IoProcByte: TpbIoProc = (Save: WriteByte; Load: nil);
+  IoProcInt16: TpbIoProc = (Save: WriteInt16; Load: nil);
+  IoProcInt32: TpbIoProc = (Save: WriteInt32; Load: nil);
+  IoProcInt64: TpbIoProc = (Save: WriteInt64; Load: nil);
+  // Real
+  IoProcR4: TpbIoProc = (Save: WriteSingle; Load: nil);
+  IoProcR8: TpbIoProc = (Save: WriteDouble; Load: nil);
+  IoProcR10: TpbIoProc = (Save: WriteExtended; Load: nil);
+  IoProcRC8: TpbIoProc = (Save: WriteCurrency; Load: nil);
+  // String
+  IoProcBytes: TpbIoProc = (Save: WriteBytes; Load: nil);
+  IoProcString: TpbIoProc = (Save: WriteString; Load: nil);
+
+function SelectBinary(info: PTypeInfo; size: Integer): PpbIoProc;
+begin
+  case size of
+    1: Result := @IoProcByte;
+    2: Result := @IoProcInt16;
+    4: Result := @IoProcInt32;
+    8: Result := @IoProcInt64;
+    else
+    begin
+      System.Error(reRangeError);
+      exit(nil);
+    end;
+  end;
+end;
+
+function SelectInteger(info: PTypeInfo; size: Integer): PpbIoProc;
+begin
+  case GetTypeData(info)^.OrdType of
+    otSByte, otUByte: Result := @IoProcByte;
+    otSWord, otUWord: Result := @IoProcInt16;
+    otSLong, otULong: Result := @IoProcInt32;
+  else
+    System.Error(reRangeError);
+    exit(nil);
+  end;
+end;
+
+function SelectFloat(info: PTypeInfo; size: Integer): PpbIoProc;
+begin
+  case GetTypeData(info)^.FloatType of
+    ftSingle: Result := @IoProcR4;
+    ftDouble: Result := @IoProcR8;
+    ftExtended: Result := @IoProcR10;
+    ftCurr: Result := @IoProcRC8;
+  else
+    System.Error(reRangeError);
+    exit(nil);
+  end;
+end;
+
+type
+  TSelectProc = function(info: PTypeInfo; size: Integer): PpbIoProc;
+  TInfoFlags = set of (ifVariableSize, ifSelector);
+  PIoInfo = ^TIoInfo;
+  TIoInfo = record
+    Flags: TInfoFlags;
+    Data: Pointer;
+  end;
+
+const
+  VtabIo: array[TTypeKind] of TIoInfo = (
+    // tkUnknown
+    (Flags: [ifSelector]; Data: @SelectBinary),
+    // tkInteger
+    (Flags: [ifSelector]; Data: @SelectInteger),
+    // tkChar
+    (Flags: [ifSelector]; Data: @SelectBinary),
+    // tkEnumeration
+    (Flags: [ifSelector]; Data: @SelectInteger),
+    // tkFloat
+    (Flags: [ifSelector]; Data: @SelectFloat),
+    // tkString
+    (Flags: []; Data: @IoProcString),
+    // tkSet
+    (Flags: [ifSelector]; Data: @SelectBinary),
+    // tkClass
+    (Flags: []; Data: nil),
+    // tkMethod
+    (Flags: []; Data: nil),
+    // tkWChar
+    (Flags: []; Data: nil),
+    // tkLString
+    (Flags: []; Data: nil),
+    // tkWString
+    (Flags: []; Data: nil),
+    // tkVariant
+    (Flags: []; Data: nil),
+    // tkArray
+    (Flags: []; Data: nil),
+    // tkRecord
+    (Flags: []; Data: nil),
+    // tkInterface
+    (Flags: []; Data: nil),
+    // tkInt64
+    (Flags: []; Data: @IoProcInt64),
+    // tkDynArray
+    (Flags: []; Data: nil),
+    // tkUString
+    (Flags: []; Data: nil),
+    // tkClassRef
+    (Flags: []; Data: nil),
+    // tkPointer
+    (Flags: []; Data: nil),
+    // tkProcedure
+    (Flags: []; Data: nil),
+    // tkMRecord
+    (Flags: []; Data: nil)
+  );
+
 class function TpbIoProc.From<T>: TpbIoProc;
 begin
+  Result :=  From(System.TypeInfo(T), SizeOf(T));
+end;
 
+class function TpbIoProc.From(info: PTypeInfo; size: Integer): TpbIoProc;
+var pio: PIoInfo;
+begin
+  if info = nil then
+    raise EProtobufError.Create('Error Message');
+  pio := @VtabIo[info^.Kind];
+  if ifSelector in pio^.Flags then
+    Result := TSelectProc(pio^.Data)(info, size)^
+  else
+    Result := PpbIoProc(pio^.Data)^;
 end;
 
 {$EndRegion}
