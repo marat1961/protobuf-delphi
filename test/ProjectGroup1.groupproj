@@ -3,7 +3,10 @@
         <ProjectGuid>{E10B116A-D886-46BB-BD9B-E34113BCAB45}</ProjectGuid>
     </PropertyGroup>
     <ItemGroup>
-        <Projects Include="Project1.dproj">
+        <Projects Include="PbTest.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="PbUnitTest.dproj">
             <Dependencies/>
         </Projects>
     </ItemGroup>
@@ -14,23 +17,32 @@
             <Default.Personality/>
         </BorlandProject>
     </ProjectExtensions>
-    <Target Name="Project1">
-        <MSBuild Projects="Project1.dproj"/>
+    <Target Name="PbTest">
+        <MSBuild Projects="PbTest.dproj"/>
     </Target>
-    <Target Name="Project1:Clean">
-        <MSBuild Projects="Project1.dproj" Targets="Clean"/>
+    <Target Name="PbTest:Clean">
+        <MSBuild Projects="PbTest.dproj" Targets="Clean"/>
     </Target>
-    <Target Name="Project1:Make">
-        <MSBuild Projects="Project1.dproj" Targets="Make"/>
+    <Target Name="PbTest:Make">
+        <MSBuild Projects="PbTest.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="PbUnitTest">
+        <MSBuild Projects="PbUnitTest.dproj"/>
+    </Target>
+    <Target Name="PbUnitTest:Clean">
+        <MSBuild Projects="PbUnitTest.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="PbUnitTest:Make">
+        <MSBuild Projects="PbUnitTest.dproj" Targets="Make"/>
     </Target>
     <Target Name="Build">
-        <CallTarget Targets="Project1"/>
+        <CallTarget Targets="PbTest;PbUnitTest"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="Project1:Clean"/>
+        <CallTarget Targets="PbTest:Clean;PbUnitTest:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="Project1:Make"/>
+        <CallTarget Targets="PbTest:Make;PbUnitTest:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
