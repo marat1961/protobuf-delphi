@@ -944,11 +944,6 @@ begin
   S.Pb.writeRawVarint64(Int64(value));
 end;
 
-procedure WriteBytes(const S: TpbSaver; const value);
-begin
-  S.Pb.writeRawBytes(TBytes(value));
-end;
-
 procedure WriteString(const S: TpbSaver; const value);
 begin
   S.Pb.writeRawString(string(value));
@@ -977,20 +972,67 @@ begin
   S.Pb.writeRawData(@value, sizeof(Currency));
 end;
 
+procedure ReadByte(const L: TpbLoader; var value);
+begin
+  Shortint(value) := L.Pb.readRawByte;
+end;
+
+procedure ReadInt16(const L: TpbLoader; var value);
+begin
+  Word(value) := L.Pb.readRawVarint32;
+end;
+
+procedure ReadInt32(const L: TpbLoader; var value);
+begin
+  Int32(value) := L.Pb.readRawVarint32;
+end;
+
+procedure ReadInt64(const L: TpbLoader; var value);
+begin
+  Int64(value) := L.Pb.readRawVarint64;
+end;
+
+procedure ReadString(const L: TpbLoader; var value);
+begin
+  string(value) := L.Pb.readString;
+end;
+
+procedure ReadSingle(const L: TpbLoader; var value);
+begin
+  L.Pb.readRawBytes(value, SizeOf(Single));
+end;
+
+procedure ReadDouble(const L: TpbLoader; var value);
+begin
+  L.Pb.readRawBytes(value, sizeof(Double));
+end;
+
+procedure ReadExtended(const L: TpbLoader; var value);
+var
+  v: Double;
+begin
+  L.Pb.readRawBytes(v, sizeof(Double));
+  Extended(value) := v;
+end;
+
+procedure ReadCurrency(const L: TpbLoader; var value);
+begin
+  L.Pb.readRawBytes(value, sizeof(Currency));
+end;
+
 const
   // Integer
-  IoProcByte: TpbIoProc = (Save: WriteByte; Load: nil);
-  IoProcInt16: TpbIoProc = (Save: WriteInt16; Load: nil);
-  IoProcInt32: TpbIoProc = (Save: WriteInt32; Load: nil);
-  IoProcInt64: TpbIoProc = (Save: WriteInt64; Load: nil);
+  IoProcByte: TpbIoProc = (Save: WriteByte; Load: ReadByte);
+  IoProcInt16: TpbIoProc = (Save: WriteInt16; Load: ReadInt16);
+  IoProcInt32: TpbIoProc = (Save: WriteInt32; Load: ReadInt32);
+  IoProcInt64: TpbIoProc = (Save: WriteInt64; Load: ReadInt64);
   // Real
-  IoProcR4: TpbIoProc = (Save: WriteSingle; Load: nil);
-  IoProcR8: TpbIoProc = (Save: WriteDouble; Load: nil);
-  IoProcR10: TpbIoProc = (Save: WriteExtended; Load: nil);
-  IoProcRC8: TpbIoProc = (Save: WriteCurrency; Load: nil);
+  IoProcR4: TpbIoProc = (Save: WriteSingle; Load: ReadSingle);
+  IoProcR8: TpbIoProc = (Save: WriteDouble; Load: ReadDouble);
+  IoProcR10: TpbIoProc = (Save: WriteExtended; Load: ReadExtended);
+  IoProcRC8: TpbIoProc = (Save: WriteCurrency; Load: ReadCurrency);
   // String
-  IoProcBytes: TpbIoProc = (Save: WriteBytes; Load: nil);
-  IoProcString: TpbIoProc = (Save: WriteString; Load: nil);
+  IoProcString: TpbIoProc = (Save: WriteString; Load: ReadString);
 
 function SelectBinary(info: PTypeInfo; size: Integer): PpbIoProc;
 begin
@@ -1042,11 +1084,6 @@ type
   end;
 
 const
-//  TTypeKind = (tkUnknown, tkInteger, tkChar, tkEnumeration, tkFloat,
-//    tkString, tkSet, tkClass, tkMethod, tkWChar, tkLString, tkWString,
-//    tkVariant, tkArray, tkRecord, tkInterface, tkInt64, tkDynArray, tkUString,
-//    tkClassRef, tkPointer, tkProcedure, tkMRecord);
-
   VtabIo: array[TTypeKind] of TIoInfo = (
     // tkUnknown
     (Flags: [ifSelector]; Data: @SelectBinary),
