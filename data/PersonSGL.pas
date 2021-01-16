@@ -8,7 +8,6 @@ uses
 {$T+}
 
 type
-
   TPhoneType = (
     MOBILE = 0,
     HOME = 1,

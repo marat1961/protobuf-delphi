@@ -130,6 +130,11 @@ type
     procedure LoadFromStream(Stream: TStream);
     // Merge messages
     procedure mergeFrom(const builder: TpbInput);
+    // Read message length, push current FLast to stack, and calc new FLast
+    procedure Push;
+    // Restore FLast
+    procedure Pop;
+
     // No more data
     function Eof: Boolean;
     // Attempt to read a field tag, returning zero if we have reached EOF
@@ -159,10 +164,7 @@ type
     function readString: string;
     // Read nested message
     procedure readMessage(builder: PpbInput);
-    // Read message length, push current FLast to stack, and calc new FLast
-    procedure Push;
-    // Restore FLast
-    procedure Pop;
+
     // Read a uint32 field value
     function readUInt32: Integer;
     // Read a enum field value
@@ -224,8 +226,6 @@ type
     // Write the data with specified size
     procedure writeRawData(const p: Pointer; size: Integer); inline;
 
-    // Get the result as a bytes
-    function GetBytes: TBytes; inline;
     // Write a Double field, including tag
     procedure writeDouble(fieldNo: Integer; value: Double);
     // Write a Single field, including tag
@@ -248,6 +248,9 @@ type
     procedure writeMessage(fieldNo: Integer; const msg: TpbOutput);
     //  Write a unsigned Int32 field, including tag
     procedure writeUInt32(fieldNo: Integer; value: Cardinal);
+
+    // Get the result as a bytes
+    function GetBytes: TBytes; inline;
     // Get serialized size
     function getSerializedSize: Integer;
     // Write to buffer
@@ -1039,6 +1042,11 @@ type
   end;
 
 const
+//  TTypeKind = (tkUnknown, tkInteger, tkChar, tkEnumeration, tkFloat,
+//    tkString, tkSet, tkClass, tkMethod, tkWChar, tkLString, tkWString,
+//    tkVariant, tkArray, tkRecord, tkInterface, tkInt64, tkDynArray, tkUString,
+//    tkClassRef, tkPointer, tkProcedure, tkMRecord);
+
   VtabIo: array[TTypeKind] of TIoInfo = (
     // tkUnknown
     (Flags: [ifSelector]; Data: @SelectBinary),
@@ -1077,7 +1085,7 @@ const
     // tkDynArray
     (Flags: []; Data: nil),
     // tkUString
-    (Flags: []; Data: nil),
+    (Flags: []; Data: @IoProcString),
     // tkClassRef
     (Flags: []; Data: nil),
     // tkPointer
@@ -1097,12 +1105,14 @@ class function TpbIoProc.From(info: PTypeInfo; size: Integer): TpbIoProc;
 var pio: PIoInfo;
 begin
   if info = nil then
-    raise EProtobufError.Create('Error Message');
+    raise EProtobufError.Create('Invalid parameter');
   pio := @VtabIo[info^.Kind];
   if ifSelector in pio^.Flags then
     Result := TSelectProc(pio^.Data)(info, size)^
+  else if pio^.Data <> nil then
+    Result := PpbIoProc(pio^.Data)^
   else
-    Result := PpbIoProc(pio^.Data)^;
+    raise EProtobufError.Create('Type serialization is not supported');
 end;
 
 {$EndRegion}
