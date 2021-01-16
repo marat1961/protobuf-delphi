@@ -599,7 +599,7 @@ end;
 
 function TpbInput.readRawByte: ShortInt;
 begin
-  if FCurrent >= FLast then
+  if FCurrent > FLast then
     EProtobufError.Create(EProtobufError.EofEncounterd);
   Result := ShortInt(FCurrent^);
   Inc(FCurrent);
@@ -1135,7 +1135,7 @@ const
 
 class function TpbIoProc.From<T>: TpbIoProc;
 begin
-  Result :=  From(System.TypeInfo(T), SizeOf(T));
+  Result := From(System.TypeInfo(T), SizeOf(T));
 end;
 
 class function TpbIoProc.From(info: PTypeInfo; size: Integer): TpbIoProc;

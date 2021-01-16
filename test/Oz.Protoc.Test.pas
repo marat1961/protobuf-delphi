@@ -3,7 +3,7 @@ unit Oz.Protoc.Test;
 interface
 
 uses
-  TestFramework, Oz.Pb.Classes;
+  System.SysUtils, TestFramework, Oz.Pb.StrBuffer, Oz.Pb.Classes;
 
 {$Region 'TPhoneNumber'}
 
@@ -40,6 +40,7 @@ type
     procedure SetUp; override;
     procedure TearDown; override;
   published
+    procedure TestByte;
     procedure TestInt;
     procedure TestReal;
     procedure TestString;
@@ -66,10 +67,29 @@ end;
 
 procedure TPbTest.SetUp;
 begin
+  S.Init;
+  L.Init;
 end;
 
 procedure TPbTest.TearDown;
 begin
+  S.Free;
+  L.Free;
+end;
+
+procedure TPbTest.TestByte;
+var
+  Io: TpbIoProc;
+  a, b: Byte;
+  r: TBytes;
+begin
+  Io := TpbIoProc.From<Byte>;
+  a := 123;
+  Io.Save(S, a);
+  r := S.Pb.GetBytes;
+  L.Pb^ := TpbInput.From(r);
+  Io.Load(L, b);
+  CheckTrue(a = b);
 end;
 
 procedure TPbTest.TestInt;
