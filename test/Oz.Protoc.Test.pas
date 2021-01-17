@@ -1,9 +1,9 @@
-unit Oz.Protoc.Test;
+﻿unit Oz.Protoc.Test;
 
 interface
 
 uses
-  System.SysUtils, TestFramework, Oz.Pb.StrBuffer, Oz.Pb.Classes;
+  System.SysUtils, System.Math, TestFramework, Oz.Pb.StrBuffer, Oz.Pb.Classes;
 
 {$Region 'TPhoneNumber'}
 
@@ -39,10 +39,16 @@ type
     L: TpbLoader;
     procedure SetUp; override;
     procedure TearDown; override;
+    procedure Test<T>(const a: T; var b: T);
   published
     procedure TestByte;
-    procedure TestInt;
-    procedure TestReal;
+    procedure TestWord;
+    procedure TestInteger;
+    procedure TestInt64;
+    procedure TestSingle;
+    procedure TestDouble;
+    procedure TestExtended;
+    procedure TestCurrency;
     procedure TestString;
   end;
 
@@ -77,46 +83,119 @@ begin
   L.Free;
 end;
 
-procedure TPbTest.TestByte;
+procedure TPbTest.Test<T>(const a: T; var b: T);
 var
   Io: TpbIoProc;
-  a, b: Byte;
   r: TBytes;
 begin
-  Io := TpbIoProc.From<Byte>;
-  a := 123;
+  S.Clear;
+  Io := TpbIoProc.From<T>;
   Io.Save(S, a);
   r := S.Pb.GetBytes;
   L.Pb^ := TpbInput.From(r);
   Io.Load(L, b);
+end;
+
+procedure TPbTest.TestByte;
+var
+  a, b: Byte;
+begin
+  a := 123;
+  Test<Byte>(a, b);
   CheckTrue(a = b);
 end;
 
-procedure TPbTest.TestInt;
+procedure TPbTest.TestWord;
 var
-  ByteIo, WordIo, Int32Io, Int64Io: TpbIoProc;
+  a, b: Word;
 begin
-  ByteIo := TpbIoProc.From<Byte>;
-  WordIo := TpbIoProc.From<Word>;
-  Int32Io := TpbIoProc.From<Integer>;
-  Int64Io := TpbIoProc.From<Int64>;
+  a := 4567;
+  Test<Word>(a, b);
+  CheckTrue(a = b);
+  a := 65535;
+  Test<Word>(a, b);
+  CheckTrue(a = b);
 end;
 
-procedure TPbTest.TestReal;
+procedure TPbTest.TestInteger;
 var
-  SingleIo, DoubleIo, ExtendedIo, CurrencyIo: TpbIoProc;
+  a, b: Integer;
 begin
-  SingleIo := TpbIoProc.From<Single>;
-  DoubleIo := TpbIoProc.From<Double>;
-  ExtendedIo := TpbIoProc.From<Extended>;
-  CurrencyIo := TpbIoProc.From<Currency>;
+  a := 1234567;
+  Test<Integer>(a, b);
+  CheckTrue(a = b);
+  a := -754567;
+  Test<Integer>(a, b);
+  CheckTrue(a = b);
+end;
+
+procedure TPbTest.TestInt64;
+var
+  a, b: Int64;
+begin
+  a := 123456745654;
+  Test<Int64>(a, b);
+  CheckTrue(a = b);
+  a := -75456712;
+  Test<Int64>(a, b);
+  CheckTrue(a = b);
+end;
+
+procedure TPbTest.TestSingle;
+var
+  a, b: Single;
+begin
+  a := 1.25E15;
+  Test<Single>(a, b);
+  CheckTrue(a = b);
+  a := -7.5456712E23;
+  Test<Single>(a, b);
+  CheckTrue(a = b);
+end;
+
+procedure TPbTest.TestDouble;
+var
+  a, b: Double;
+begin
+  a := 1.25E+23;
+  Test<Double>(a, b);
+  CheckTrue(a = b);
+  a := -7.5456712E+8;
+  Test<Double>(a, b);
+  CheckTrue(a = b);
+end;
+
+procedure TPbTest.TestExtended;
+var
+  a, b: Extended;
+begin
+  a := 1.25E+23;
+  Test<Extended>(a, b);
+  CheckTrue(SameValue(a, b));
+  a := -7.5456712E+8;
+  Test<Extended>(a, b);
+  CheckTrue(SameValue(a, b));
+end;
+
+procedure TPbTest.TestCurrency;
+var
+  a, b: Currency;
+begin
+  a := 456451.25;
+  Test<Currency>(a, b);
+  CheckTrue(a = b);
+  a := -7.5456;
+  Test<Currency>(a, b);
+  CheckTrue(a = b);
 end;
 
 procedure TPbTest.TestString;
 var
-  StringIo: TpbIoProc;
+  a, b: string;
 begin
-  StringIo := TpbIoProc.From<string>;
+  a := '123 15° ▲ qwerty';
+  Test<string>(a, b);
+  CheckTrue(a = b);
 end;
 
 {$EndRegion}
