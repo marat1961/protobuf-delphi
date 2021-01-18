@@ -39,7 +39,7 @@ type
     L: TpbLoader;
     procedure SetUp; override;
     procedure TearDown; override;
-    procedure Test<T>(const a: T; var b: T);
+    procedure Test<T>(tag: Integer; const a: T; var b: T);
   published
     procedure TestByte;
     procedure TestWord;
@@ -84,13 +84,13 @@ begin
   L.Free;
 end;
 
-procedure TPbTest.Test<T>(const a: T; var b: T);
+procedure TPbTest.Test<T>(tag: Integer; const a: T; var b: T);
 var
   Io: TpbIoProc;
   r: TBytes;
 begin
   S.Clear;
-  Io := TpbIoProc.From<T>;
+  Io := TpbIoProc.From<T>(tag);
   Io.Save(S, a);
   r := S.Pb.GetBytes;
   L.Pb^ := TpbInput.From(r);
@@ -102,7 +102,7 @@ var
   a, b: Byte;
 begin
   a := 123;
-  Test<Byte>(a, b);
+  Test<Byte>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -111,10 +111,10 @@ var
   a, b: Word;
 begin
   a := 4567;
-  Test<Word>(a, b);
+  Test<Word>(1, a, b);
   CheckTrue(a = b);
   a := 65535;
-  Test<Word>(a, b);
+  Test<Word>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -123,10 +123,10 @@ var
   a, b: Integer;
 begin
   a := 1234567;
-  Test<Integer>(a, b);
+  Test<Integer>(1, a, b);
   CheckTrue(a = b);
   a := -754567;
-  Test<Integer>(a, b);
+  Test<Integer>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -135,10 +135,10 @@ var
   a, b: Int64;
 begin
   a := 123456745654;
-  Test<Int64>(a, b);
+  Test<Int64>(1, a, b);
   CheckTrue(a = b);
   a := -75456712;
-  Test<Int64>(a, b);
+  Test<Int64>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -147,10 +147,10 @@ var
   a, b: Single;
 begin
   a := 1.25E15;
-  Test<Single>(a, b);
+  Test<Single>(1, a, b);
   CheckTrue(a = b);
   a := -7.5456712E23;
-  Test<Single>(a, b);
+  Test<Single>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -159,10 +159,10 @@ var
   a, b: Double;
 begin
   a := 1.25E+23;
-  Test<Double>(a, b);
+  Test<Double>(1, a, b);
   CheckTrue(a = b);
   a := -7.5456712E+8;
-  Test<Double>(a, b);
+  Test<Double>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -171,10 +171,10 @@ var
   a, b: Extended;
 begin
   a := 1.25E+23;
-  Test<Extended>(a, b);
+  Test<Extended>(1, a, b);
   CheckTrue(SameValue(a, b));
   a := -7.5456712E+8;
-  Test<Extended>(a, b);
+  Test<Extended>(1, a, b);
   CheckTrue(SameValue(a, b));
 end;
 
@@ -183,10 +183,10 @@ var
   a, b: Currency;
 begin
   a := 456451.25;
-  Test<Currency>(a, b);
+  Test<Currency>(1, a, b);
   CheckTrue(a = b);
   a := -7.5456;
-  Test<Currency>(a, b);
+  Test<Currency>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -195,7 +195,7 @@ var
   a, b: string;
 begin
   a := '123 15° ▲ qwerty';
-  Test<string>(a, b);
+  Test<string>(1, a, b);
   CheckTrue(a = b);
 end;
 
@@ -203,18 +203,29 @@ procedure TPbTest.TestIO;
 var
   Phone: TPhoneNumber;
   PhoneMeta: TObjMeta;
+  S: TpbSaver;
+  L: TpbLoader;
   i: Integer;
   prop: TPropMeta;
 begin
+  // create metadata for TPhoneNumber
   PhoneMeta := TObjMeta.From<TPhoneNumber>;
   PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number');
   PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type');
+  // init phone instance
   Phone.Number := '243699';
   Phone.&Type := HOME;
+  // save phone to pb
+  S.Init;
   for i := 0 to High(PhoneMeta.props) do
   begin
     prop := PhoneMeta.props[i];
+    prop.io.Save(S, phone.Number);
   end;
+  S.Free;
+  // load phone from pb
+  L.Init;
+  L.Free;
 end;
 
 {$EndRegion}

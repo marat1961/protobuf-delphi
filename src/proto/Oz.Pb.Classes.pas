@@ -298,10 +298,11 @@ type
   var
     Save: TSaveProc;
     Load: TLoadProc;
+    tag: TpbTag;
   public
     // Find the right read/save procedure for the specified type
-    class function From<T>: TpbIoProc; overload; static;
-    class function From(info: PTypeInfo; size: Integer): TpbIoProc; overload; static;
+    class function From<T>(fieldNo: Integer): TpbIoProc; overload; static;
+    class function From(info: PTypeInfo; size, fieldNo: Integer): TpbIoProc; overload; static;
   end;
 
 {$EndRegion}
@@ -309,10 +310,9 @@ type
 {$Region 'TPropMeta: Metadata for serializing the property'}
 
   TPropMeta = record
-    tag: Word;
-    name: AnsiString; // name for xml/json
-    defVal: Pointer;  // default value
     io: TpbIoProc;
+    offset: Integer;
+    name: AnsiString; // name for xml/json
   end;
 
 {$EndRegion}
@@ -1046,17 +1046,26 @@ end;
 
 const
   // Integer
-  IoProcByte: TpbIoProc = (Save: WriteByte; Load: ReadByte);
-  IoProcInt16: TpbIoProc = (Save: WriteInt16; Load: ReadInt16);
-  IoProcInt32: TpbIoProc = (Save: WriteInt32; Load: ReadInt32);
-  IoProcInt64: TpbIoProc = (Save: WriteInt64; Load: ReadInt64);
+  IoProcByte: TpbIoProc =
+    (Save: WriteByte; Load: ReadByte; tag: (v: TWire.VARINT));
+  IoProcInt16: TpbIoProc =
+    (Save: WriteInt16; Load: ReadInt16; tag: (v: TWire.VARINT));
+  IoProcInt32: TpbIoProc =
+    (Save: WriteInt32; Load: ReadInt32; tag: (v: TWire.VARINT));
+  IoProcInt64: TpbIoProc =
+   (Save: WriteInt64; Load: ReadInt64; tag: (v: TWire.VARINT));
   // Real
-  IoProcR4: TpbIoProc = (Save: WriteSingle; Load: ReadSingle);
-  IoProcR8: TpbIoProc = (Save: WriteDouble; Load: ReadDouble);
-  IoProcR10: TpbIoProc = (Save: WriteExtended; Load: ReadExtended);
-  IoProcRC8: TpbIoProc = (Save: WriteCurrency; Load: ReadCurrency);
+  IoProcR4: TpbIoProc =
+    (Save: WriteSingle; Load: ReadSingle; tag: (v: TWire.FIXED32));
+  IoProcR8: TpbIoProc =
+    (Save: WriteDouble; Load: ReadDouble; tag: (v: TWire.FIXED64));
+  IoProcR10: TpbIoProc =
+    (Save: WriteExtended; Load: ReadExtended; tag: (v: TWire.FIXED64));
+  IoProcRC8: TpbIoProc =
+    (Save: WriteCurrency; Load: ReadCurrency; tag: (v: TWire.FIXED64));
   // String
-  IoProcString: TpbIoProc = (Save: WriteString; Load: ReadString);
+  IoProcString: TpbIoProc =
+    (Save: WriteString; Load: ReadString; tag: (v: TWire.LENGTH_DELIMITED));
 
 function SelectBinary(info: PTypeInfo; size: Integer): PpbIoProc;
 begin
@@ -1157,21 +1166,28 @@ const
     (Flags: []; Data: nil)
   );
 
-class function TpbIoProc.From<T>: TpbIoProc;
+class function TpbIoProc.From<T>(fieldNo: Integer): TpbIoProc;
 begin
-  Result := From(System.TypeInfo(T), SizeOf(T));
+  Result := From(System.TypeInfo(T), SizeOf(T), fieldNo);
 end;
 
-class function TpbIoProc.From(info: PTypeInfo; size: Integer): TpbIoProc;
-var pio: PIoInfo;
+class function TpbIoProc.From(info: PTypeInfo; size, fieldNo: Integer): TpbIoProc;
+var
+  pio: PIoInfo;
 begin
   if info = nil then
     raise EProtobufError.Create('Invalid parameter');
   pio := @VtabIo[info^.Kind];
   if ifSelector in pio^.Flags then
-    Result := TSelectProc(pio^.Data)(info, size)^
+  begin
+    Result := TSelectProc(pio^.Data)(info, size)^;
+    Result.tag.MakeTag(fieldNo, Result.tag.v);
+  end
   else if pio^.Data <> nil then
-    Result := PpbIoProc(pio^.Data)^
+  begin
+    Result := PpbIoProc(pio^.Data)^;
+    Result.tag.MakeTag(fieldNo, Result.tag.v);
+  end
   else
     raise EProtobufError.Create('Type serialization is not supported');
 end;
@@ -1190,9 +1206,8 @@ procedure TObjMeta.Add<T>(tag: Word; const name: AnsiString);
 var
   meta: TPropMeta;
 begin
-  meta.tag := tag;
   meta.name := name;
-  meta.io := TpbIoProc.From(System.TypeInfo(T), SizeOf(T));
+  meta.io := TpbIoProc.From<T>(tag);
   props := props + [meta];
 end;
 
