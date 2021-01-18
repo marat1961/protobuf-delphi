@@ -306,6 +306,18 @@ type
 
 {$EndRegion}
 
+{$Region 'TPropMeta: Metadata for serializing the property'}
+
+  TPropMeta = record
+    tag: Word;
+    wire: Byte;       // kind of packing in binary format
+    name: AnsiString; // name for xml/json
+    defVal: Pointer;  // default value
+    io: TpbIoProc;
+  end;
+
+{$EndRegion}
+
 {$Region 'Procedures'}
 
 function decodeZigZag32(n: Integer): Integer;
