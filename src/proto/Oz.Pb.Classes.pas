@@ -310,10 +310,22 @@ type
 
   TPropMeta = record
     tag: Word;
-    wire: Byte;       // kind of packing in binary format
     name: AnsiString; // name for xml/json
     defVal: Pointer;  // default value
     io: TpbIoProc;
+  end;
+
+{$EndRegion}
+
+{$Region 'TObjMeta: Metadata for serializing object'}
+
+  TObjMeta = record
+  var
+    info: PTypeInfo;
+    props: TArray<TPropMeta>;
+  public
+    class function From<T>: TObjMeta; static;
+    procedure Add<T>(tag: Word; const name: AnsiString);
   end;
 
 {$EndRegion}
@@ -1162,6 +1174,26 @@ begin
     Result := PpbIoProc(pio^.Data)^
   else
     raise EProtobufError.Create('Type serialization is not supported');
+end;
+
+{$EndRegion}
+
+{$Region 'TObjMeta}
+
+class function TObjMeta.From<T>: TObjMeta;
+begin
+  Result.info := TypeInfo(T);
+  Result.props := [];
+end;
+
+procedure TObjMeta.Add<T>(tag: Word; const name: AnsiString);
+var
+  meta: TPropMeta;
+begin
+  meta.tag := tag;
+  meta.name := name;
+  meta.io := TpbIoProc.From(System.TypeInfo(T), SizeOf(T));
+  props := props + [meta];
 end;
 
 {$EndRegion}

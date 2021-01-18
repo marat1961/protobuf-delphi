@@ -50,6 +50,7 @@ type
     procedure TestExtended;
     procedure TestCurrency;
     procedure TestString;
+    procedure TestIO;
   end;
 
 {$EndRegion}
@@ -196,6 +197,24 @@ begin
   a := '123 15° ▲ qwerty';
   Test<string>(a, b);
   CheckTrue(a = b);
+end;
+
+procedure TPbTest.TestIO;
+var
+  Phone: TPhoneNumber;
+  PhoneMeta: TObjMeta;
+  i: Integer;
+  prop: TPropMeta;
+begin
+  PhoneMeta := TObjMeta.From<TPhoneNumber>;
+  PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number');
+  PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type');
+  Phone.Number := '243699';
+  Phone.&Type := HOME;
+  for i := 0 to High(PhoneMeta.props) do
+  begin
+    prop := PhoneMeta.props[i];
+  end;
 end;
 
 {$EndRegion}
