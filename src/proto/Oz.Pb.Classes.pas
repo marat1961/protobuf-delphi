@@ -316,6 +316,7 @@ type
     offset: Integer;
     name: AnsiString; // name for xml/json
   public
+    procedure Init(const name: AnsiString; io: TpbIoProc; offset: Integer);
     function GetField(var Obj): Pointer; inline;
   end;
 
@@ -338,7 +339,7 @@ type
     function PropByIndex(fieldNumber: Integer): PPropMeta;
   public
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
-    procedure Add<T>(tag: Word; const name: AnsiString);
+    procedure Add<T>(tag: Word; const name: AnsiString; offset: Integer);
     property GetProp: TGetProp read FGetProp;
   end;
 
@@ -1215,6 +1216,13 @@ begin
   Result := PByte(@Obj) + offset;
 end;
 
+procedure TPropMeta.Init(const name: AnsiString; io: TpbIoProc; offset: Integer);
+begin
+  Self.name := name;
+  Self.io := io;
+  Self.offset := offset;
+end;
+
 {$EndRegion}
 
 {$Region 'TObjMeta}
@@ -1230,12 +1238,11 @@ begin
   end;
 end;
 
-procedure TObjMeta.Add<T>(tag: Word; const name: AnsiString);
+procedure TObjMeta.Add<T>(tag: Word; const name: AnsiString; offset: Integer);
 var
   meta: TPropMeta;
 begin
-  meta.name := name;
-  meta.io := TpbIoProc.From<T>(tag);
+  meta.Init(name, TpbIoProc.From<T>(tag), offset);
   props := props + [meta];
 end;
 

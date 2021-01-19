@@ -205,7 +205,7 @@ var
   PhoneMeta: TObjMeta;
   S: TpbSaver;
   L: TpbLoader;
-  i, fieldNo: Integer;
+  i, fieldNo, offset: Integer;
   prop: PPropMeta;
   r: TBytes;
   tag: TpbTag;
@@ -213,8 +213,10 @@ var
 begin
   // Create metadata for TPhoneNumber
   PhoneMeta := TObjMeta.From<TPhoneNumber>;
-  PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number');
-  PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type');
+  offset := PByte(@Phone.Number) - PByte(@Phone);
+  PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number', offset);
+  offset := PByte(@Phone.&Type) - PByte(@Phone);
+  PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type', offset);
 
   // Init phone instance
   Phone.Number := '243699';
@@ -226,7 +228,8 @@ begin
   begin
     prop := @PhoneMeta.props[i];
     S.Pb.writeRawVarint32(prop.io.tag.v);
-    prop.io.Save(S, phone.Number);
+    field := prop.GetField(Phone);
+    prop.io.Save(S, field^);
   end;
   r := S.Pb.GetBytes;
   S.Free;
@@ -244,6 +247,9 @@ begin
     tag := L.Pb.readTag;
   end;
   L.Free;
+
+  CheckTrue(Phone.Number = LoadedPhone.Number);
+  CheckTrue(Phone.&Type = LoadedPhone.&Type);
 end;
 
 {$EndRegion}
