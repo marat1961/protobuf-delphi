@@ -309,23 +309,37 @@ type
 
 {$Region 'TPropMeta: Metadata for serializing the property'}
 
+  PPropMeta = ^TPropMeta;
   TPropMeta = record
+  var
     io: TpbIoProc;
     offset: Integer;
     name: AnsiString; // name for xml/json
+  public
+    function GetField(var Obj): Pointer; inline;
   end;
 
 {$EndRegion}
 
 {$Region 'TObjMeta: Metadata for serializing object'}
 
+  PObjMeta = ^TObjMeta;
   TObjMeta = record
+  type
+    TGetProp = function(fieldNumber: Integer): PPropMeta of object;
+    TGetPropBy = (getByBinary, getByFind, getByIndex);
   var
     info: PTypeInfo;
     props: TArray<TPropMeta>;
+  private
+    FGetProp: TGetProp;
+    function PropByBinary(fieldNumber: Integer): PPropMeta;
+    function PropByFind(fieldNumber: Integer): PPropMeta;
+    function PropByIndex(fieldNumber: Integer): PPropMeta;
   public
-    class function From<T>: TObjMeta; static;
+    class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     procedure Add<T>(tag: Word; const name: AnsiString);
+    property GetProp: TGetProp read FGetProp;
   end;
 
 {$EndRegion}
@@ -1194,12 +1208,26 @@ end;
 
 {$EndRegion}
 
+{$Region 'TPropMeta}
+
+function TPropMeta.GetField(var Obj): Pointer;
+begin
+  Result := PByte(@Obj) + offset;
+end;
+
+{$EndRegion}
+
 {$Region 'TObjMeta}
 
-class function TObjMeta.From<T>: TObjMeta;
+class function TObjMeta.From<T>(get: TGetPropBy = getByBinary): TObjMeta;
 begin
   Result.info := TypeInfo(T);
   Result.props := [];
+  case get of
+    getByBinary: Result.FGetProp := Result.PropByBinary;
+    getByFind: Result.FGetProp := Result.PropByFind;
+    getByIndex: Result.FGetProp := Result.PropByIndex;
+  end;
 end;
 
 procedure TObjMeta.Add<T>(tag: Word; const name: AnsiString);
@@ -1209,6 +1237,45 @@ begin
   meta.name := name;
   meta.io := TpbIoProc.From<T>(tag);
   props := props + [meta];
+end;
+
+function TObjMeta.PropByBinary(fieldNumber: Integer): PPropMeta;
+var
+  L, R, M, F: Integer;
+begin
+  L := 0;
+  R := High(props);
+  while L <> R do
+  begin
+    M := (L + R) div 2;
+    Result := @props[M];
+    F := Result.io.tag.FieldNumber;
+    if F < fieldNumber then
+      L := M + 1
+    else if F > fieldNumber then
+      R := M - 1
+    else
+      exit;
+  end;
+  Result := @props[L];
+end;
+
+function TObjMeta.PropByIndex(fieldNumber: Integer): PPropMeta;
+begin
+  Result := @props[fieldNumber - 1];
+end;
+
+function TObjMeta.PropByFind(fieldNumber: Integer): PPropMeta;
+var
+  i: Integer;
+begin
+  for i := 0 to High(props) do
+  begin
+    Result := @props[i];
+    if Result.io.tag.FieldNumber = fieldNumber then
+      exit;
+  end;
+  Result := nil;
 end;
 
 {$EndRegion}

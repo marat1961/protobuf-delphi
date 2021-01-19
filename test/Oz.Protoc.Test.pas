@@ -201,30 +201,46 @@ end;
 
 procedure TPbTest.TestIO;
 var
-  Phone: TPhoneNumber;
+  Phone, LoadedPhone: TPhoneNumber;
   PhoneMeta: TObjMeta;
   S: TpbSaver;
   L: TpbLoader;
-  i: Integer;
-  prop: TPropMeta;
+  i, fieldNo: Integer;
+  prop: PPropMeta;
+  r: TBytes;
+  tag: TpbTag;
+  field: Pointer;
 begin
-  // create metadata for TPhoneNumber
+  // Create metadata for TPhoneNumber
   PhoneMeta := TObjMeta.From<TPhoneNumber>;
   PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number');
   PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type');
-  // init phone instance
+
+  // Init phone instance
   Phone.Number := '243699';
   Phone.&Type := HOME;
-  // save phone to pb
+
+  // Save phone to pb
   S.Init;
   for i := 0 to High(PhoneMeta.props) do
   begin
-    prop := PhoneMeta.props[i];
+    prop := @PhoneMeta.props[i];
     prop.io.Save(S, phone.Number);
   end;
+  r := S.Pb.GetBytes;
   S.Free;
-  // load phone from pb
-  L.Init;
+
+  // Load phone from pb
+  L.Pb^ := TpbInput.From(r);
+  LoadedPhone.Init;
+  tag := L.Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    fieldNo := tag.FieldNumber;
+    prop := PhoneMeta.GetProp(fieldNo);
+    field := prop.GetField(LoadedPhone);
+    prop.io.Load(L, field^);
+  end;
   L.Free;
 end;
 
