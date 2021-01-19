@@ -225,6 +225,7 @@ begin
   for i := 0 to High(PhoneMeta.props) do
   begin
     prop := @PhoneMeta.props[i];
+    S.Pb.writeRawVarint32(prop.io.tag.v);
     prop.io.Save(S, phone.Number);
   end;
   r := S.Pb.GetBytes;
@@ -240,6 +241,7 @@ begin
     prop := PhoneMeta.GetProp(fieldNo);
     field := prop.GetField(LoadedPhone);
     prop.io.Load(L, field^);
+    tag := L.Pb.readTag;
   end;
   L.Free;
 end;
