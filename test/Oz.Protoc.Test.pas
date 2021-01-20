@@ -3,7 +3,8 @@
 interface
 
 uses
-  System.SysUtils, System.Math, TestFramework, Oz.Pb.StrBuffer, Oz.Pb.Classes;
+  System.SysUtils, System.Math, TestFramework,
+  Oz.Pb.StrBuffer, Oz.Pb.Classes, Oz.SGL.Collections;
 
 {$Region 'TPhoneNumber'}
 
@@ -27,6 +28,44 @@ type
     // properties
     property Number: string read FNumber write FNumber;
     property &Type: TPhoneType read FType write FType;
+  end;
+
+  PPerson = ^TPerson;
+  TPerson = record
+  const
+    ftName = 1;
+    ftId = 2;
+    ftEmail = 3;
+    ftPhones = 4;
+    ftMyPhone = 5;
+  private
+    FName: string;
+    FId: Integer;
+    FEmail: string;
+    FPhones: TsgRecordList<TPhoneNumber>;
+    FMyPhone: TPhoneNumber;
+  public
+    procedure Init;
+    procedure Free;
+    // properties
+    property Name: string read FName write FName;
+    property Id: Integer read FId write FId;
+    property Email: string read FEmail write FEmail;
+    property Phones: TsgRecordList<TPhoneNumber> read FPhones;
+    property MyPhone: TPhoneNumber read FMyPhone write FMyPhone;
+  end;
+
+  PAddressBook = ^TAddressBook;
+  TAddressBook = record
+  const
+    ftPeoples = 1;
+  private
+    FPeoples: TsgRecordList<TPerson>;
+  public
+    procedure Init;
+    procedure Free;
+    // properties
+    property Peoples: TsgRecordList<TPerson> read FPeoples;
   end;
 
 {$EndRegion}
@@ -66,6 +105,36 @@ end;
 
 procedure TPhoneNumber.Free;
 begin
+end;
+
+{$EndRegion}
+
+{$Region 'TPerson'}
+
+procedure TPerson.Init;
+begin
+  Self := Default(TPerson);
+  FPhones := TsgRecordList<TPhoneNumber>.From(nil);
+end;
+
+procedure TPerson.Free;
+begin
+  FPhones.Free;
+end;
+
+{$EndRegion}
+
+{$Region 'TAddressBook'}
+
+procedure TAddressBook.Init;
+begin
+  Self := Default(TAddressBook);
+  FPeoples := TsgRecordList<TPerson>.From(nil);
+end;
+
+procedure TAddressBook.Free;
+begin
+  FPeoples.Free;
 end;
 
 {$EndRegion}
