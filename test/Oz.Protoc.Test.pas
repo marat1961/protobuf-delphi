@@ -205,11 +205,8 @@ var
   PhoneMeta: TObjMeta;
   S: TpbSaver;
   L: TpbLoader;
-  i, fieldNo, offset: Integer;
-  prop: PPropMeta;
+  offset: Integer;
   r: TBytes;
-  tag: TpbTag;
-  field: Pointer;
 begin
   // Create metadata for TPhoneNumber
   PhoneMeta := TObjMeta.From<TPhoneNumber>;
@@ -224,28 +221,14 @@ begin
 
   // Save phone to pb
   S.Init;
-  for i := 0 to High(PhoneMeta.props) do
-  begin
-    prop := @PhoneMeta.props[i];
-    S.Pb.writeRawVarint32(prop.io.tag.v);
-    field := prop.GetField(Phone);
-    prop.io.Save(S, field^);
-  end;
+  PhoneMeta.SaveTo(S, Phone);
   r := S.Pb.GetBytes;
   S.Free;
 
   // Load phone from pb
   L.Pb^ := TpbInput.From(r);
   LoadedPhone.Init;
-  tag := L.Pb.readTag;
-  while tag.v <> 0 do
-  begin
-    fieldNo := tag.FieldNumber;
-    prop := PhoneMeta.GetProp(fieldNo);
-    field := prop.GetField(LoadedPhone);
-    prop.io.Load(L, field^);
-    tag := L.Pb.readTag;
-  end;
+  PhoneMeta.LoadFrom(L, LoadedPhone);
   L.Free;
 
   CheckTrue(Phone.Number = LoadedPhone.Number);

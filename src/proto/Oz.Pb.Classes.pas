@@ -317,7 +317,7 @@ type
     name: AnsiString; // name for xml/json
   public
     procedure Init(const name: AnsiString; io: TpbIoProc; offset: Integer);
-    function GetField(var Obj): Pointer; inline;
+    function GetField(const Obj): Pointer; inline;
   end;
 
 {$EndRegion}
@@ -341,6 +341,10 @@ type
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     procedure Add<T>(tag: Word; const name: AnsiString; offset: Integer);
     property GetProp: TGetProp read FGetProp;
+    // Save instance to pb
+    procedure SaveTo(const S: TpbSaver; const obj);
+    // Load instance from pb
+    procedure LoadFrom(const L: TpbLoader; var obj);
   end;
 
 {$EndRegion}
@@ -1211,7 +1215,7 @@ end;
 
 {$Region 'TPropMeta}
 
-function TPropMeta.GetField(var Obj): Pointer;
+function TPropMeta.GetField(const Obj): Pointer;
 begin
   Result := PByte(@Obj) + offset;
 end;
@@ -1270,6 +1274,40 @@ end;
 function TObjMeta.PropByIndex(fieldNumber: Integer): PPropMeta;
 begin
   Result := @props[fieldNumber - 1];
+end;
+
+procedure TObjMeta.SaveTo(const S: TpbSaver; const obj);
+var
+  i: Integer;
+  prop: PPropMeta;
+  field: Pointer;
+begin
+  for i := 0 to High(props) do
+  begin
+    prop := @props[i];
+    S.Pb.writeRawVarint32(prop.io.tag.v);
+    field := prop.GetField(obj);
+    prop.io.Save(S, field^);
+  end;
+end;
+
+procedure TObjMeta.LoadFrom(const L: TpbLoader; var obj);
+var
+  fieldNo: Integer;
+  tag: TpbTag;
+  prop: PPropMeta;
+  field: Pointer;
+begin
+  tag := L.Pb.readTag;
+  while tag.v <> 0 do
+  begin
+    fieldNo := tag.FieldNumber;
+    prop := GetProp(fieldNo);
+    field := prop.GetField(obj);
+    prop.io.Load(L, field^);
+    tag := L.Pb.readTag;
+  end;
+  L.Free;
 end;
 
 function TObjMeta.PropByFind(fieldNumber: Integer): PPropMeta;
