@@ -75,10 +75,18 @@ type
 {$Region 'TMetaRegister: Meta for save & load data'}
 
   TMetaRegister = record
-    // Generate data
+  private
+    PhoneMeta: TObjMeta;
+    procedure InitPhoneMeta;
+  public
+    // Create metadata
+    procedure Init;
+    // Generate data for test
     procedure GenData(var AddressBook: TAddressBook);
     // Dump data
     procedure Dump(var AddressBook: TAddressBook);
+    // Returns phone meta
+    function GetPhoneMeta: PObjMeta; inline;
     // Save data to protocol buffer
     procedure SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
     // Load data from protocol buffer
@@ -107,6 +115,7 @@ type
     procedure TestCurrency;
     procedure TestString;
     procedure TestIO;
+    procedure TestMeta;
   end;
 
 {$EndRegion}
@@ -158,11 +167,29 @@ end;
 
 {$Region 'TMetaRegister'}
 
+procedure TMetaRegister.Init;
+begin
+
+end;
+
+procedure TMetaRegister.InitPhoneMeta;
+var
+  Phone: TPhoneNumber;
+  offset: Integer;
+begin
+  PhoneMeta := TObjMeta.From<TPhoneNumber>;
+  offset := PByte(@Phone.Number) - PByte(@Phone);
+  PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number', offset);
+  offset := PByte(@Phone.&Type) - PByte(@Phone);
+  PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type', offset);
+end;
+
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
 var
   Person: TPerson;
   Phone: TPhoneNumber;
 begin
+  AddressBook.Init;
   // data
   Person.Init;
   Person.Name := 'Oz Grock';
@@ -203,6 +230,11 @@ begin
   Phone.Number := '+7 913 826 2144';
   Person.Phones.Add(@Phone);
   AddressBook.Peoples.Add(@Person);
+end;
+
+function TMetaRegister.GetPhoneMeta: PObjMeta;
+begin
+  Result := @PhoneMeta;
 end;
 
 procedure TMetaRegister.Dump(var AddressBook: TAddressBook);
@@ -402,6 +434,32 @@ begin
 
   CheckTrue(Phone.Number = LoadedPhone.Number);
   CheckTrue(Phone.&Type = LoadedPhone.&Type);
+end;
+
+procedure TPbTest.TestMeta;
+var
+  meta: TMetaRegister;
+  AddressBook: TAddressBook;
+  S: TpbSaver;
+  L: TpbLoader;
+  r: TBytes;
+begin
+  meta.Init;
+  // Init address book data
+  meta.GenData(AddressBook);
+  // Save address book data to pb
+  S.Init;
+  meta.SaveTo(S, AddressBook);
+  r := S.Pb.GetBytes;
+  S.Free;
+
+  // Load address book data from pb
+  L.Pb^ := TpbInput.From(r);
+  meta.LoadFrom(L, AddressBook);
+  L.Free;
+
+//  CheckTrue(Phone.Number = LoadedPhone.Number);
+//  CheckTrue(Phone.&Type = LoadedPhone.&Type);
 end;
 
 {$EndRegion}
