@@ -77,7 +77,11 @@ type
   TMetaRegister = record
   private
     PhoneMeta: TObjMeta;
+    PersonMeta: TObjMeta;
+    AddressBookMeta: TObjMeta;
     procedure InitPhoneMeta;
+    procedure InitPersonMeta;
+    procedure InitAddressBookMeta;
   public
     // Create metadata
     procedure Init;
@@ -87,6 +91,10 @@ type
     procedure Dump(var AddressBook: TAddressBook);
     // Returns phone meta
     function GetPhoneMeta: PObjMeta; inline;
+    // Returns person meta
+    function GetPersonMeta: PObjMeta; inline;
+    // Returns address book meta
+    function GetAddressBookMeta: PObjMeta; inline;
     // Save data to protocol buffer
     procedure SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
     // Load data from protocol buffer
@@ -169,7 +177,9 @@ end;
 
 procedure TMetaRegister.Init;
 begin
-
+  InitPhoneMeta;
+  InitPersonMeta;
+  InitAddressBookMeta;
 end;
 
 procedure TMetaRegister.InitPhoneMeta;
@@ -182,6 +192,34 @@ begin
   PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number', offset);
   offset := PByte(@Phone.&Type) - PByte(@Phone);
   PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type', offset);
+end;
+
+procedure TMetaRegister.InitPersonMeta;
+var
+  Person: TPerson;
+  offset: Integer;
+begin
+  PersonMeta := TObjMeta.From<TPerson>;
+  offset := PByte(@Person.FName) - PByte(@Person);
+  PersonMeta.Add<string>(TPerson.ftName, 'Name', offset);
+  offset := PByte(@Person.FId) - PByte(@Person);
+  PersonMeta.Add<Integer>(TPerson.ftId, 'Id', offset);
+  offset := PByte(@Person.FEmail) - PByte(@Person);
+  PersonMeta.Add<Integer>(TPerson.ftEmail, 'Email', offset);
+  offset := PByte(@Person.FPhones) - PByte(@Person);
+  PersonMeta.Add<TsgRecordList<TPhoneNumber>>(TPerson.ftPhones, 'Phones', offset);
+  offset := PByte(@Person.FMyPhone) - PByte(@Person);
+  PersonMeta.Add<TPhoneNumber>(TPerson.ftPhones, 'MyPhone', offset);
+end;
+
+procedure TMetaRegister.InitAddressBookMeta;
+var
+  AddressBook: TAddressBook;
+  offset: Integer;
+begin
+  PersonMeta := TObjMeta.From<TPerson>;
+  offset := PByte(@AddressBook.FPeoples) - PByte(@AddressBook);
+  PersonMeta.Add<TPhoneNumber>(TAddressBook.ftPeoples, 'Peoples', offset);
 end;
 
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
@@ -235,6 +273,16 @@ end;
 function TMetaRegister.GetPhoneMeta: PObjMeta;
 begin
   Result := @PhoneMeta;
+end;
+
+function TMetaRegister.GetPersonMeta: PObjMeta;
+begin
+  Result := @PersonMeta;
+end;
+
+function TMetaRegister.GetAddressBookMeta: PObjMeta;
+begin
+  Result := @AddressBookMeta;
 end;
 
 procedure TMetaRegister.Dump(var AddressBook: TAddressBook);
