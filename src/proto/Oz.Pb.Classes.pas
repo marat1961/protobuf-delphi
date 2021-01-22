@@ -312,12 +312,27 @@ type
   PPropMeta = ^TPropMeta;
   TPropMeta = record
   var
-    io: TpbIoProc;
     offset: Integer;
     name: AnsiString; // name for xml/json
+    io: TpbIoProc;
   public
-    procedure Init(const name: AnsiString; io: TpbIoProc; offset: Integer);
+    procedure Init(const name: AnsiString; offset: Integer; io: TpbIoProc);
     function GetField(const Obj): Pointer; inline;
+  end;
+
+{$EndRegion}
+
+{$Region 'TFieldParam: Field paramater'}
+
+  TFieldParam = record
+    fieldNumber: Integer;
+    offset: Integer;
+    name: AnsiString;
+  end;
+
+  TFieldParams = record
+    Fields: TArray<TFieldParam>;
+    procedure Add(fieldNumber, offset: Integer; const name: AnsiString);
   end;
 
 {$EndRegion}
@@ -338,8 +353,13 @@ type
     function PropByFind(fieldNumber: Integer): PPropMeta;
     function PropByIndex(fieldNumber: Integer): PPropMeta;
   public
+    procedure Init(const fp: TFieldParams);
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
-    procedure Add<T>(tag: Word; const name: AnsiString; offset: Integer);
+    // Add metadata for standard type
+    procedure Add<T>(const fp: TFieldParam);
+    // Add metadata for user defined type
+    procedure AddObj(const fp: TFieldParam;
+      Save: TpbIoProc.TSaveProc; Load: TpbIoProc.TLoadProc);
     property GetProp: TGetProp read FGetProp;
     // Save instance to pb
     procedure SaveTo(const S: TpbSaver; const obj);
@@ -1220,11 +1240,25 @@ begin
   Result := PByte(@Obj) + offset;
 end;
 
-procedure TPropMeta.Init(const name: AnsiString; io: TpbIoProc; offset: Integer);
+procedure TPropMeta.Init(const name: AnsiString; offset: Integer; io: TpbIoProc);
 begin
   Self.name := name;
-  Self.io := io;
   Self.offset := offset;
+  Self.io := io;
+end;
+
+{$EndRegion}
+
+{$Region 'TFieldParams}
+
+procedure TFieldParams.Add(fieldNumber, offset: Integer; const name: AnsiString);
+var
+  fp: TFieldParam;
+begin
+  fp.fieldNumber := fieldNumber;
+  fp.offset := offset;
+  fp.name := name;
+  Fields := Fields + [fp];
 end;
 
 {$EndRegion}
@@ -1242,11 +1276,29 @@ begin
   end;
 end;
 
-procedure TObjMeta.Add<T>(tag: Word; const name: AnsiString; offset: Integer);
+procedure TObjMeta.Init(const fp: TFieldParams);
+begin
+
+end;
+
+procedure TObjMeta.Add<T>(const fp: TFieldParam);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, TpbIoProc.From<T>(tag), offset);
+  meta.Init(fp.name, fp.offset, TpbIoProc.From<T>(fp.fieldNumber));
+  props := props + [meta];
+end;
+
+procedure TObjMeta.AddObj(const fp: TFieldParam;
+  Save: TpbIoProc.TSaveProc; Load: TpbIoProc.TLoadProc);
+var
+  meta: TPropMeta;
+begin
+  meta.name := fp.name;
+  meta.offset := fp.offset;
+  meta.io.tag.MakeTag(fp.fieldNumber, TWire.LENGTH_DELIMITED);
+  meta.io.Save := Save;
+  meta.io.Load := Load;
   props := props + [meta];
 end;
 
