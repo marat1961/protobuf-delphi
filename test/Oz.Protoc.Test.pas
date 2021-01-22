@@ -59,21 +59,6 @@ type
     property MyPhone: TPhoneNumber read FMyPhone write FMyPhone;
   end;
 
-(*
-
-procedure TMetaRegister.InitAddressBookMeta;
-var
-  AddressBook: TAddressBook;
-  offset: Integer;
-begin
-  PersonMeta := TObjMeta.From<TPerson>;
-  offset := PByte(@AddressBook.FPeoples) - PByte(@AddressBook);
-  PersonMeta.Add<TPhoneNumber>(TAddressBook.ftPeoples, 'Peoples', offset);
-end;
-
-
-
-*)
   PAddressBook = ^TAddressBook;
   TAddressBook = record
   const
@@ -83,6 +68,7 @@ end;
   public
     procedure Init;
     procedure Free;
+    class procedure GetFields(var fp: TFieldParams); static;
     // properties
     property Peoples: TsgRecordList<TPerson> read FPeoples;
   end;
@@ -193,6 +179,14 @@ end;
 
 {$Region 'TAddressBook'}
 
+class procedure TAddressBook.GetFields(var fp: TFieldParams);
+var
+  v: TAddressBook;
+begin
+//  AddressBookMeta := TObjMeta.From<TAddressBook>;
+  fp.Add(ftPeoples, PByte(@v.FPeoples) - PByte(@v), 'Peoples');
+end;
+
 procedure TAddressBook.Init;
 begin
   Self := Default(TAddressBook);
@@ -214,8 +208,10 @@ var
 begin
   TPhoneNumber.GetFields(fp);
   PhoneMeta.Init(fp);
-//  InitPersonMeta;
-//  InitAddressBookMeta;
+  TPerson.GetFields(fp);
+  PersonMeta.Init(fp);
+  TAddressBook.GetFields(fp);
+  AddressBookMeta.Init(fp);
 end;
 
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
