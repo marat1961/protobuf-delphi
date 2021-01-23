@@ -27,7 +27,6 @@ type
   public
     procedure Init;
     procedure Free;
-    class procedure GetFields(var fp: TFieldParams); static;
     // properties
     property Number: string read FNumber write FNumber;
     property &Type: TPhoneType read FType write FType;
@@ -50,7 +49,6 @@ type
   public
     procedure Init;
     procedure Free;
-    class procedure GetFields(var fp: TFieldParams); static;
     // properties
     property Name: string read FName write FName;
     property Id: Integer read FId write FId;
@@ -68,7 +66,6 @@ type
   public
     procedure Init;
     procedure Free;
-    class procedure GetFields(var fp: TFieldParams); static;
     // properties
     property Peoples: TsgRecordList<TPerson> read FPeoples;
   end;
@@ -82,6 +79,9 @@ type
     PhoneMeta: TObjMeta;
     PersonMeta: TObjMeta;
     AddressBookMeta: TObjMeta;
+    procedure SetPhoneMeta;
+    procedure SetPersonMeta;
+    procedure SetAddressBookMeta;
   public
     // Create metadata
     procedure Init;
@@ -141,28 +141,9 @@ procedure TPhoneNumber.Free;
 begin
 end;
 
-class procedure TPhoneNumber.GetFields(var fp: TFieldParams);
-var
-  v: TPhoneNumber;
-begin
-  fp.Add(ftNumber, PByte(@v.FNumber) - PByte(@v), 'Number');
-  fp.Add(ftType, PByte(@v.FType) - PByte(@v), 'Type');
-end;
-
 {$EndRegion}
 
 {$Region 'TPerson'}
-
-class procedure TPerson.GetFields(var fp: TFieldParams);
-var
-  v: TPerson;
-begin
-  fp.Add(ftName, PByte(@v.FName) - PByte(@v), 'Name');
-  fp.Add(ftId, PByte(@v.FEmail) - PByte(@v), 'Id');
-  fp.Add(ftEmail, PByte(@v.FName) - PByte(@v), 'Email');
-  fp.Add(ftPhones, PByte(@v.FPhones) - PByte(@v), 'Phones');
-  fp.Add(ftName, PByte(@v.MyPhone) - PByte(@v), 'MyPhone');
-end;
 
 procedure TPerson.Init;
 begin
@@ -178,14 +159,6 @@ end;
 {$EndRegion}
 
 {$Region 'TAddressBook'}
-
-class procedure TAddressBook.GetFields(var fp: TFieldParams);
-var
-  v: TAddressBook;
-begin
-//  AddressBookMeta := TObjMeta.From<TAddressBook>;
-  fp.Add(ftPeoples, PByte(@v.FPeoples) - PByte(@v), 'Peoples');
-end;
 
 procedure TAddressBook.Init;
 begin
@@ -203,15 +176,47 @@ end;
 {$Region 'TMetaRegister'}
 
 procedure TMetaRegister.Init;
-var
-  fp: TFieldParams;
 begin
-  TPhoneNumber.GetFields(fp);
-  PhoneMeta.Init(fp);
-  TPerson.GetFields(fp);
-  PersonMeta.Init(fp);
-  TAddressBook.GetFields(fp);
-  AddressBookMeta.Init(fp);
+  SetPhoneMeta;
+  SetPersonMeta;
+  SetAddressBookMeta;
+end;
+
+procedure TMetaRegister.SetAddressBookMeta;
+var
+  v: TAddressBook;
+begin
+  AddressBookMeta := TObjMeta.From<TAddressBook>;
+  AddressBookMeta.Add<string>(TFieldParam.From(
+    TAddressBook.ftPeoples, PByte(@v.FPeoples) - PByte(@v), 'Peoples'));
+end;
+
+procedure TMetaRegister.SetPersonMeta;
+var
+  v: TPerson;
+begin
+  PersonMeta := TObjMeta.From<TPerson>;
+  PersonMeta.Add<string>(TFieldParam.From(
+    TPerson.ftName, PByte(@v.FName) - PByte(@v), 'Name'));
+  PersonMeta.Add<Integer>(TFieldParam.From(
+  TPerson.ftId, PByte(@v.FEmail) - PByte(@v), 'Id'));
+  PersonMeta.Add<string>(TFieldParam.From(
+    TPerson.ftEmail, PByte(@v.FName) - PByte(@v), 'Email'));
+  PersonMeta.AddObj(TFieldParam.From(
+    TPerson.ftPhones, PByte(@v.FPhones) - PByte(@v), 'Phones'), nil, nil);
+  PersonMeta.Add<string>(TFieldParam.From(
+    TPerson.ftName, PByte(@v.MyPhone) - PByte(@v), 'MyPhone'));
+end;
+
+procedure TMetaRegister.SetPhoneMeta;
+var
+  v: TPhoneNumber;
+begin
+  PhoneMeta := TObjMeta.From<TPhoneNumber>;
+  PhoneMeta.Add<string>(TFieldParam.From(
+    TPhoneNumber.ftNumber, PByte(@v.FNumber) - PByte(@v), 'Number'));
+  PhoneMeta.Add<TPhoneType>(TFieldParam.From(
+    TPhoneNumber.ftType, PByte(@v.FType) - PByte(@v), 'Type'));
 end;
 
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
@@ -443,17 +448,13 @@ end;
 procedure TPbTest.TestIO;
 var
   Phone, LoadedPhone: TPhoneNumber;
-  PhoneMeta: TObjMeta;
+  ms: TMetaRegister;
   S: TpbSaver;
   L: TpbLoader;
   r: TBytes;
-  fp: TFieldParams;
 begin
   // Create metadata for TPhoneNumber
-  PhoneMeta := TObjMeta.From<TPhoneNumber>;
-  TPhoneNumber.GetFields(fp);
-  PhoneMeta.Add<string>(fp.Fields[0]);
-  PhoneMeta.Add<TPhoneType>(fp.Fields[1]);
+  ms.Init;
 
   // Init phone instance
   Phone.Number := '243699';
@@ -461,14 +462,14 @@ begin
 
   // Save phone to pb
   S.Init;
-  PhoneMeta.SaveTo(S, Phone);
+  ms.PhoneMeta.SaveTo(S, Phone);
   r := S.Pb.GetBytes;
   S.Free;
 
   // Load phone from pb
   L.Pb^ := TpbInput.From(r);
   LoadedPhone.Init;
-  PhoneMeta.LoadFrom(L, LoadedPhone);
+  ms.PhoneMeta.LoadFrom(L, LoadedPhone);
   L.Free;
 
   CheckTrue(Phone.Number = LoadedPhone.Number);

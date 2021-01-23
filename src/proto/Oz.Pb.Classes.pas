@@ -290,11 +290,11 @@ type
 
 {$Region 'TpbIoProc: Save and Load procedures for type'}
 
+  TSaveProc = procedure(const S: TpbSaver; const Value);
+  TLoadProc = procedure(const L: TpbLoader; var Value);
+
   PpbIoProc = ^TpbIoProc;
   TpbIoProc = record
-  type
-    TSaveProc = procedure(const S: TpbSaver; const Value);
-    TLoadProc = procedure(const L: TpbLoader; var Value);
   var
     Save: TSaveProc;
     Load: TLoadProc;
@@ -307,32 +307,31 @@ type
 
 {$EndRegion}
 
+{$Region 'TFieldParam: Field paramater'}
+
+  TFieldParam = record
+    name: AnsiString;
+    fieldNumber: Integer;
+    offset: Integer;
+    constructor From(fieldNumber, offset: Integer; const name: AnsiString);
+  end;
+
+{$EndRegion}
+
 {$Region 'TPropMeta: Metadata for serializing the property'}
 
   PPropMeta = ^TPropMeta;
   TPropMeta = record
   var
-    offset: Integer;
     name: AnsiString; // name for xml/json
+    offset: Integer;
     io: TpbIoProc;
   public
     procedure Init(const name: AnsiString; offset: Integer; io: TpbIoProc);
+    procedure InitObj(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
+    procedure InitList(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
+    procedure InitMap(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
     function GetField(const Obj): Pointer; inline;
-  end;
-
-{$EndRegion}
-
-{$Region 'TFieldParam: Field paramater'}
-
-  TFieldParam = record
-    fieldNumber: Integer;
-    offset: Integer;
-    name: AnsiString;
-  end;
-
-  TFieldParams = record
-    Fields: TArray<TFieldParam>;
-    procedure Add(fieldNumber, offset: Integer; const name: AnsiString);
   end;
 
 {$EndRegion}
@@ -353,13 +352,11 @@ type
     function PropByFind(fieldNumber: Integer): PPropMeta;
     function PropByIndex(fieldNumber: Integer): PPropMeta;
   public
-    procedure Init(const fp: TFieldParams);
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     // Add metadata for standard type
     procedure Add<T>(const fp: TFieldParam);
     // Add metadata for user defined type
-    procedure AddObj(const fp: TFieldParam;
-      Save: TpbIoProc.TSaveProc; Load: TpbIoProc.TLoadProc);
+    procedure AddObj(const fp: TFieldParam; Save: TSaveProc; Load: TLoadProc);
     property GetProp: TGetProp read FGetProp;
     // Save instance to pb
     procedure SaveTo(const S: TpbSaver; const obj);
@@ -1247,18 +1244,32 @@ begin
   Self.io := io;
 end;
 
+procedure TPropMeta.InitList(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
+begin
+
+end;
+
+procedure TPropMeta.InitMap(const TFieldParam; Save: TSaveProc;
+  Load: TLoadProc);
+begin
+
+end;
+
+procedure TPropMeta.InitObj(const TFieldParam; Save: TSaveProc;
+  Load: TLoadProc);
+begin
+
+end;
+
 {$EndRegion}
 
-{$Region 'TFieldParams}
+{$Region 'TFieldParam}
 
-procedure TFieldParams.Add(fieldNumber, offset: Integer; const name: AnsiString);
-var
-  fp: TFieldParam;
+constructor TFieldParam.From(fieldNumber, offset: Integer; const name: AnsiString);
 begin
-  fp.fieldNumber := fieldNumber;
-  fp.offset := offset;
-  fp.name := name;
-  Fields := Fields + [fp];
+  Self.fieldNumber := fieldNumber;
+  Self.offset := offset;
+  Self.name := name;
 end;
 
 {$EndRegion}
@@ -1276,11 +1287,6 @@ begin
   end;
 end;
 
-procedure TObjMeta.Init(const fp: TFieldParams);
-begin
-
-end;
-
 procedure TObjMeta.Add<T>(const fp: TFieldParam);
 var
   meta: TPropMeta;
@@ -1289,8 +1295,7 @@ begin
   props := props + [meta];
 end;
 
-procedure TObjMeta.AddObj(const fp: TFieldParam;
-  Save: TpbIoProc.TSaveProc; Load: TpbIoProc.TLoadProc);
+procedure TObjMeta.AddObj(const fp: TFieldParam; Save: TSaveProc; Load: TLoadProc);
 var
   meta: TPropMeta;
 begin
