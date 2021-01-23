@@ -341,16 +341,16 @@ type
   PObjMeta = ^TObjMeta;
   TObjMeta = record
   type
-    TGetProp = function(fieldNumber: Integer): PPropMeta of object;
+    TGetProp = function(om: PObjMeta; fieldNumber: Integer): PPropMeta;
     TGetPropBy = (getByBinary, getByFind, getByIndex);
   var
     info: PTypeInfo;
     props: TArray<TPropMeta>;
   private
     FGetProp: TGetProp;
-    function PropByBinary(fieldNumber: Integer): PPropMeta;
-    function PropByFind(fieldNumber: Integer): PPropMeta;
-    function PropByIndex(fieldNumber: Integer): PPropMeta;
+    class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
+    class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
+    class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
   public
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     // Add metadata for standard type
@@ -1307,16 +1307,16 @@ begin
   props := props + [meta];
 end;
 
-function TObjMeta.PropByBinary(fieldNumber: Integer): PPropMeta;
+class function TObjMeta.PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta;
 var
   L, R, M, F: Integer;
 begin
   L := 0;
-  R := High(props);
+  R := High(om.props);
   while L <> R do
   begin
     M := (L + R) div 2;
-    Result := @props[M];
+    Result := @om.props[M];
     F := Result.io.tag.FieldNumber;
     if F < fieldNumber then
       L := M + 1
@@ -1325,12 +1325,25 @@ begin
     else
       exit;
   end;
-  Result := @props[L];
+  Result := @om.props[L];
 end;
 
-function TObjMeta.PropByIndex(fieldNumber: Integer): PPropMeta;
+class function TObjMeta.PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta;
 begin
-  Result := @props[fieldNumber - 1];
+  Result := @om.props[fieldNumber - 1];
+end;
+
+class function TObjMeta.PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta;
+var
+  i: Integer;
+begin
+  for i := 0 to High(om.props) do
+  begin
+    Result := @om.props[i];
+    if Result.io.tag.FieldNumber = fieldNumber then
+      exit;
+  end;
+  Result := nil;
 end;
 
 procedure TObjMeta.SaveTo(const S: TpbSaver; const obj);
@@ -1359,25 +1372,12 @@ begin
   while tag.v <> 0 do
   begin
     fieldNo := tag.FieldNumber;
-    prop := GetProp(fieldNo);
+    prop := GetProp(@Self, fieldNo);
     field := prop.GetField(obj);
     prop.io.Load(L, field^);
     tag := L.Pb.readTag;
   end;
   L.Free;
-end;
-
-function TObjMeta.PropByFind(fieldNumber: Integer): PPropMeta;
-var
-  i: Integer;
-begin
-  for i := 0 to High(props) do
-  begin
-    Result := @props[i];
-    if Result.io.tag.FieldNumber = fieldNumber then
-      exit;
-  end;
-  Result := nil;
 end;
 
 {$EndRegion}
