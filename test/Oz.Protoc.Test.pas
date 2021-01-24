@@ -96,7 +96,7 @@ type
     // Returns address book meta
     function GetAddressBookMeta: PObjMeta; inline;
     // Save data to protocol buffer
-    procedure SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
+    procedure SaveTo(const S: TpbSaver; const AddressBook: TAddressBook);
     // Load data from protocol buffer
     procedure LoadFrom(const L: TpbLoader; var AddressBook: TAddressBook);
   end;
@@ -182,41 +182,37 @@ begin
   SetAddressBookMeta;
 end;
 
-procedure TMetaRegister.SetAddressBookMeta;
-var
-  v: TAddressBook;
-begin
-  AddressBookMeta := TObjMeta.From<TAddressBook>;
-  AddressBookMeta.Add<string>(TFieldParam.From(
-    TAddressBook.ftPeoples, PByte(@v.FPeoples) - PByte(@v), 'Peoples'));
-end;
-
-procedure TMetaRegister.SetPersonMeta;
-var
-  v: TPerson;
-begin
-  PersonMeta := TObjMeta.From<TPerson>;
-  PersonMeta.Add<string>(TFieldParam.From(
-    TPerson.ftName, PByte(@v.FName) - PByte(@v), 'Name'));
-  PersonMeta.Add<Integer>(TFieldParam.From(
-  TPerson.ftId, PByte(@v.FEmail) - PByte(@v), 'Id'));
-  PersonMeta.Add<string>(TFieldParam.From(
-    TPerson.ftEmail, PByte(@v.FName) - PByte(@v), 'Email'));
-  PersonMeta.AddObj(TFieldParam.From(
-    TPerson.ftPhones, PByte(@v.FPhones) - PByte(@v), 'Phones'), nil, nil);
-  PersonMeta.Add<string>(TFieldParam.From(
-    TPerson.ftName, PByte(@v.MyPhone) - PByte(@v), 'MyPhone'));
-end;
-
 procedure TMetaRegister.SetPhoneMeta;
 var
   v: TPhoneNumber;
 begin
   PhoneMeta := TObjMeta.From<TPhoneNumber>;
-  PhoneMeta.Add<string>(TFieldParam.From(
-    TPhoneNumber.ftNumber, PByte(@v.FNumber) - PByte(@v), 'Number'));
-  PhoneMeta.Add<TPhoneType>(TFieldParam.From(
-    TPhoneNumber.ftType, PByte(@v.FType) - PByte(@v), 'Type'));
+  PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number', PByte(@v.FNumber) - PByte(@v));
+  PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type', PByte(@v.FType) - PByte(@v));
+end;
+
+procedure TMetaRegister.SetPersonMeta;
+var
+  v: TPerson;
+  io: TpbIoProc;
+begin
+  PersonMeta := TObjMeta.From<TPerson>;
+  PersonMeta.Add<string>(TPerson.ftName, 'Name', PByte(@v.FName) - PByte(@v));
+  PersonMeta.Add<Integer>(TPerson.ftId, 'Id', PByte(@v.FEmail) - PByte(@v));
+  PersonMeta.Add<string>(TPerson.ftEmail, 'Email', PByte(@v.FName) - PByte(@v));
+  io := TpbIoProc.From(TPerson.ftPhones, TpbFieldKind.fkList, @PhoneMeta);
+  PersonMeta.AddObj('Phones', PByte(@v.FPhones) - PByte(@v), io);
+  PersonMeta.Add<string>(TPerson.ftName, 'MyPhone', PByte(@v.MyPhone) - PByte(@v));
+end;
+
+procedure TMetaRegister.SetAddressBookMeta;
+var
+  v: TAddressBook;
+  io: TpbIoProc;
+begin
+  AddressBookMeta := TObjMeta.From<TAddressBook>;
+  io := TpbIoProc.From(TAddressBook.ftPeoples, TpbFieldKind.fkList, @PhoneMeta);
+  AddressBookMeta.AddObj('Peoples', PByte(@v.FPeoples) - PByte(@v), io);
 end;
 
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
@@ -306,14 +302,14 @@ begin
   Readln;
 end;
 
-procedure TMetaRegister.SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
+procedure TMetaRegister.SaveTo(const S: TpbSaver; const AddressBook: TAddressBook);
 begin
-  AddressBookMeta.SaveTo(S, AddressBook);
+  TObjMeta.SaveTo(@AddressBookMeta, S, AddressBook);
 end;
 
 procedure TMetaRegister.LoadFrom(const L: TpbLoader; var AddressBook: TAddressBook);
 begin
-  AddressBookMeta.LoadFrom(L, AddressBook);
+  TObjMeta.LoadFrom(@AddressBookMeta, L, AddressBook);
 end;
 
 {$EndRegion}
@@ -464,14 +460,14 @@ begin
 
   // Save phone to pb
   S.Init;
-  ms.PhoneMeta.SaveTo(S, Phone);
+  TObjMeta.SaveTo(@ms.PhoneMeta, S, Phone);
   r := S.Pb.GetBytes;
   S.Free;
 
   // Load phone from pb
   L.Pb^ := TpbInput.From(r);
   LoadedPhone.Init;
-  ms.PhoneMeta.LoadFrom(L, LoadedPhone);
+  TObjMeta.LoadFrom(@ms.PhoneMeta, L, LoadedPhone);
   L.Free;
 
   CheckTrue(Phone.Number = LoadedPhone.Number);
