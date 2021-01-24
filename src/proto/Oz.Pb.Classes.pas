@@ -21,7 +21,8 @@ unit Oz.Pb.Classes;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Rtti, System.TypInfo, Oz.Pb.StrBuffer;
+  System.Classes, System.SysUtils, System.Rtti, System.TypInfo,
+  Oz.Pb.StrBuffer, Oz.SGL.Collections;
 
 const
   TAG_TYPE_BITS = 3;
@@ -295,7 +296,7 @@ type
 
   PpbIoProc = ^TpbIoProc;
   TpbIoProc = record
-  var
+  private
     Save: TSaveProc;
     Load: TLoadProc;
     tag: TpbTag;
@@ -303,6 +304,10 @@ type
     // Find the right read/save procedure for the specified type
     class function From<T>(fieldNo: Integer): TpbIoProc; overload; static;
     class function From(info: PTypeInfo; size, fieldNo: Integer): TpbIoProc; overload; static;
+    // Save property to pb
+    procedure SaveTo(const S: TpbSaver; const obj); inline;
+    // Load property from pb
+    procedure LoadFrom(const L: TpbLoader; var obj); inline;
   end;
 
 {$EndRegion}
@@ -322,16 +327,30 @@ type
 
   PPropMeta = ^TPropMeta;
   TPropMeta = record
-  var
+  type
+    TFieldKind = (
+      SingleProp, // Single property
+      List,       // TsgRecordList<T>
+      Map);       // TsgHashMap<Key, T>
+  private
     name: AnsiString; // name for xml/json
-    offset: Integer;
+    offset: Word;
+    kind: TFieldKind;
     io: TpbIoProc;
-  public
-    procedure Init(const name: AnsiString; offset: Integer; io: TpbIoProc);
-    procedure InitObj(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
-    procedure InitList(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
-    procedure InitMap(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
+    // Get pointer to field of object
     function GetField(const Obj): Pointer; inline;
+    // Save List to pb
+    procedure SaveList(const S: TpbSaver; const obj); inline;
+    // Load List from pb
+    procedure LoadList(const L: TpbLoader; var obj); inline;
+    // Save Map to pb
+    procedure SaveMap(const S: TpbSaver; const obj); inline;
+    // Load Map from pb
+    procedure LoadMap(const L: TpbLoader; var obj); inline;
+  public
+    procedure Init(const name: AnsiString; offset: Word; io: TpbIoProc);
+    procedure InitObj(kind: TFieldKind; const fp: TFieldParam;
+      Save: TSaveProc; Load: TLoadProc);
   end;
 
 {$EndRegion}
@@ -1228,6 +1247,16 @@ begin
     raise EProtobufError.Create('Type serialization is not supported');
 end;
 
+procedure TpbIoProc.LoadFrom(const L: TpbLoader; var obj);
+begin
+  Load(L, obj);
+end;
+
+procedure TpbIoProc.SaveTo(const S: TpbSaver; const obj);
+begin
+  Save(S, obj);
+end;
+
 {$EndRegion}
 
 {$Region 'TPropMeta}
@@ -1237,26 +1266,63 @@ begin
   Result := PByte(@Obj) + offset;
 end;
 
-procedure TPropMeta.Init(const name: AnsiString; offset: Integer; io: TpbIoProc);
+procedure TPropMeta.Init(const name: AnsiString; offset: Word; io: TpbIoProc);
 begin
   Self.name := name;
   Self.offset := offset;
+  kind := TFieldKind.SingleProp;
   Self.io := io;
 end;
 
-procedure TPropMeta.InitList(const TFieldParam; Save: TSaveProc; Load: TLoadProc);
+procedure TPropMeta.InitObj(kind: TFieldKind; const fp: TFieldParam;
+  Save: TSaveProc; Load: TLoadProc);
+begin
+  Self.name := name;
+  Self.offset := offset;
+  Self.kind := kind;
+  Self.io.Save := Save;
+  Self.io.Load := Load;
+end;
+
+procedure TPropMeta.SaveList(const S: TpbSaver; const obj);
+var
+  i: Integer;
+  h: TpbSaver;
+  List: PsgPointerList;
+begin
+  h.Init;
+  try
+    List := GetField(obj);
+    for i := 0 to List.Count - 1 do
+    begin
+      h.Clear;
+      io.Save(h, List.Items[i]^);
+      S.Pb.writeMessage(io.tag.FieldNumber, h.Pb^);
+    end;
+  finally
+    h.Free;
+  end;
+end;
+
+procedure TPropMeta.LoadList(const L: TpbLoader; var obj);
+var
+  List: PsgPointerList;
+begin
+  L.Pb.Push;
+  try
+    List := PsgPointerList(obj);
+    io.Load(L, List.Add^);
+  finally
+    L.Pb.Pop;
+  end;
+end;
+
+procedure TPropMeta.LoadMap(const L: TpbLoader; var obj);
 begin
 
 end;
 
-procedure TPropMeta.InitMap(const TFieldParam; Save: TSaveProc;
-  Load: TLoadProc);
-begin
-
-end;
-
-procedure TPropMeta.InitObj(const TFieldParam; Save: TSaveProc;
-  Load: TLoadProc);
+procedure TPropMeta.SaveMap(const S: TpbSaver; const obj);
 begin
 
 end;
@@ -1309,7 +1375,7 @@ end;
 
 class function TObjMeta.PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta;
 var
-  L, R, M, F: Integer;
+  L, R, M, fn: Integer;
 begin
   L := 0;
   R := High(om.props);
@@ -1317,10 +1383,10 @@ begin
   begin
     M := (L + R) div 2;
     Result := @om.props[M];
-    F := Result.io.tag.FieldNumber;
-    if F < fieldNumber then
+    fn := Result.io.tag.FieldNumber;
+    if fn < fieldNumber then
       L := M + 1
-    else if F > fieldNumber then
+    else if fn > fieldNumber then
       R := M - 1
     else
       exit;
@@ -1356,8 +1422,15 @@ begin
   begin
     prop := @props[i];
     S.Pb.writeRawVarint32(prop.io.tag.v);
-    field := prop.GetField(obj);
-    prop.io.Save(S, field^);
+    case prop.kind of
+      SingleProp:
+        begin
+          field := prop.GetField(obj);
+          prop.io.Save(S, field^);
+        end;
+      List: prop.SaveList(S, obj);
+      Map: prop.SaveMap(S, obj);
+    end;
   end;
 end;
 
@@ -1373,8 +1446,17 @@ begin
   begin
     fieldNo := tag.FieldNumber;
     prop := GetProp(@Self, fieldNo);
-    field := prop.GetField(obj);
-    prop.io.Load(L, field^);
+    case prop.kind of
+      SingleProp:
+        begin
+          field := prop.GetField(obj);
+          prop.io.Load(L, field^);
+        end;
+      List:
+        prop.LoadList(L, obj);
+      Map:
+        prop.LoadMap(L, obj);
+    end;
     tag := L.Pb.readTag;
   end;
   L.Free;

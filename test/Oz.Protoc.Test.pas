@@ -98,7 +98,7 @@ type
     // Save data to protocol buffer
     procedure SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
     // Load data from protocol buffer
-    procedure LoadFrom(const L: TpbLoader; var obj);
+    procedure LoadFrom(const L: TpbLoader; var AddressBook: TAddressBook);
   end;
 
 {$EndRegion}
@@ -113,6 +113,8 @@ type
     procedure TearDown; override;
     procedure Test<T>(tag: Integer; const a: T; var b: T);
   published
+    procedure TestIO;
+    procedure TestMeta;
     procedure TestByte;
     procedure TestWord;
     procedure TestInteger;
@@ -122,8 +124,6 @@ type
     procedure TestExtended;
     procedure TestCurrency;
     procedure TestString;
-    procedure TestIO;
-    procedure TestMeta;
   end;
 
 {$EndRegion}
@@ -257,7 +257,7 @@ begin
   // home phones
   Phone.Init;
   Phone.&Type := TPhoneType.HOME;
-  Phone.Number := '+7 382 224 3699';
+  Phone.Number := '+7 382 000 0000';
 
   // mobile phone
   Phone.Init;
@@ -308,10 +308,12 @@ end;
 
 procedure TMetaRegister.SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
 begin
+  AddressBookMeta.SaveTo(S, AddressBook);
 end;
 
-procedure TMetaRegister.LoadFrom(const L: TpbLoader; var obj);
+procedure TMetaRegister.LoadFrom(const L: TpbLoader; var AddressBook: TAddressBook);
 begin
+  AddressBookMeta.LoadFrom(L, AddressBook);
 end;
 
 {$EndRegion}
@@ -337,10 +339,10 @@ var
 begin
   S.Clear;
   Io := TpbIoProc.From<T>(tag);
-  Io.Save(S, a);
+  Io.SaveTo(S, a);
   r := S.Pb.GetBytes;
   L.Pb^ := TpbInput.From(r);
-  Io.Load(L, b);
+  Io.LoadFrom(L, b);
 end;
 
 procedure TPbTest.TestByte;
