@@ -200,7 +200,7 @@ begin
   PersonMeta.Add<string>(TPerson.ftName, 'Name', PByte(@v.FName) - PByte(@v));
   PersonMeta.Add<Integer>(TPerson.ftId, 'Id', PByte(@v.FEmail) - PByte(@v));
   PersonMeta.Add<string>(TPerson.ftEmail, 'Email', PByte(@v.FName) - PByte(@v));
-  io := TpbIoProc.From(TPerson.ftPhones, TpbFieldKind.fkList, @PhoneMeta);
+  io := TpbIoProc.From(TPerson.ftPhones, TpbFieldKind.fkObjList, @PhoneMeta);
   PersonMeta.AddObj('Phones', PByte(@v.FPhones) - PByte(@v), io);
   PersonMeta.Add<string>(TPerson.ftName, 'MyPhone', PByte(@v.MyPhone) - PByte(@v));
 end;
@@ -211,7 +211,7 @@ var
   io: TpbIoProc;
 begin
   AddressBookMeta := TObjMeta.From<TAddressBook>;
-  io := TpbIoProc.From(TAddressBook.ftPeoples, TpbFieldKind.fkList, @PhoneMeta);
+  io := TpbIoProc.From(TAddressBook.ftPeoples, TpbFieldKind.fkObjList, @PhoneMeta);
   AddressBookMeta.AddObj('Peoples', PByte(@v.FPeoples) - PByte(@v), io);
 end;
 

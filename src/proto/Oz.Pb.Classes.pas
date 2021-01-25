@@ -303,7 +303,9 @@ type
     fkSingleProp, // Single property
     fkObj,        // record or object
     fkList,       // TsgRecordList<T>
-    fkMap);       // TsgHashMap<Key, T>
+    fkObjList,
+    fkMap,        // TsgHashMap<Key, T>
+    fkObjMap);
 
   PpbIoProc = ^TpbIoProc;
   TpbIoProc = record
@@ -321,10 +323,12 @@ type
   private
     tag: TpbTag;
     case kind: TpbFieldKind of
-      fkSingleProp:
-        (Save: TSaveProc; Load: TLoadProc);
-      fkObj, fkList, fkMap:
-        (SaveObj: TSaveObj; LoadObj: TLoadObj);
+      fkSingleProp: (
+        Save: TSaveProc;
+        Load: TLoadProc);
+      fkObj, fkList, fkMap: (
+        SaveObj: TSaveObj;
+        LoadObj: TLoadObj);
   end;
 
 {$EndRegion}
@@ -349,14 +353,6 @@ type
     io: TpbIoProc;
     // Get pointer to field of object
     function GetField(const Obj): Pointer; inline;
-    // Save List to pb
-    procedure SaveList(const S: TpbSaver; const obj); inline;
-    // Load List from pb
-    procedure LoadList(const L: TpbLoader; var obj); inline;
-    // Save Map to pb
-    procedure SaveMap(const S: TpbSaver; const obj); inline;
-    // Load Map from pb
-    procedure LoadMap(const L: TpbLoader; var obj); inline;
   public
     procedure Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
   end;
@@ -377,6 +373,7 @@ type
     class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
+    procedure SaveList(prop: PPropMeta; const S: TpbSaver; const obj);
   public
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
@@ -1290,49 +1287,6 @@ begin
   Self.io := io;
 end;
 
-procedure TPropMeta.SaveList(const S: TpbSaver; const obj);
-var
-  i: Integer;
-  h: TpbSaver;
-  List: PsgPointerList;
-begin
-  h.Init;
-  try
-    List := GetField(obj);
-    for i := 0 to List.Count - 1 do
-    begin
-      h.Clear;
-      io.Save(h, List.Items[i]^);
-      S.Pb.writeMessage(io.tag.FieldNumber, h.Pb^);
-    end;
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TPropMeta.LoadList(const L: TpbLoader; var obj);
-var
-  List: PsgPointerList;
-begin
-  L.Pb.Push;
-  try
-    List := PsgPointerList(obj);
-    io.Load(L, List.Add^);
-  finally
-    L.Pb.Pop;
-  end;
-end;
-
-procedure TPropMeta.LoadMap(const L: TpbLoader; var obj);
-begin
-
-end;
-
-procedure TPropMeta.SaveMap(const S: TpbSaver; const obj);
-begin
-
-end;
-
 {$EndRegion}
 
 {$Region 'TFieldParam}
@@ -1414,6 +1368,31 @@ begin
   Result := nil;
 end;
 
+procedure TObjMeta.SaveList(prop: PPropMeta; const S: TpbSaver; const obj);
+var
+  i: Integer;
+  h: TpbSaver;
+  List: PsgPointerList;
+  value: PPointer;
+begin
+  h.Init;
+  try
+    List := PsgPointerList(@obj);
+    for i := 0 to List.Count - 1 do
+    begin
+      h.Clear;
+      value := List.Items[i];
+      if prop.io.kind = fkList then
+        prop.io.Save(S, value^^)
+      else
+        prop.io.SaveObj(@Self, S, value^^);
+      S.Pb.writeMessage(prop.io.tag.FieldNumber, h.Pb^);
+    end;
+  finally
+    h.Free;
+  end;
+end;
+
 class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const obj);
 var
   i: Integer;
@@ -1424,15 +1403,16 @@ begin
   begin
     prop := @om.props[i];
     S.Pb.writeRawVarint32(prop.io.tag.v);
+    field := prop.GetField(obj);
     case prop.io.kind of
       fkSingleProp:
-        begin
-          field := prop.GetField(obj);
-          prop.io.Save(S, field^);
-        end;
-      fkObj: prop.io.SaveObj(om, S, obj);
-      fkList: prop.SaveList(S, obj);
-      fkMap: prop.SaveMap(S, obj);
+        prop.io.Save(S, field^);
+      fkObj:
+        prop.io.SaveObj(om, S, obj);
+      fkList, fkObjList:
+        om.SaveList(prop, S, obj);
+//      fkMap: prop.SaveMap(S, obj);
+//      fkObjMap: prop.SaveObjMap(om, S, obj);
     end;
   end;
 end;
@@ -1455,9 +1435,11 @@ begin
           field := prop.GetField(obj);
           prop.io.Load(L, field^);
         end;
-      fkObj: LoadFrom(om, L, obj);
-      fkList: prop.LoadList(L, obj);
-      fkMap: prop.LoadMap(L, obj);
+      fkObj: prop.io.LoadObj(om, L, obj);
+//      fkList: prop.LoadList(L, obj);
+//      fkObjList: prop.LoadObjList(om, L, obj);
+//      fkMap: prop.LoadMap(L, obj);
+//      fkObjMap: prop.LoadObjMap(om, L, obj);
     end;
     tag := L.Pb.readTag;
   end;
