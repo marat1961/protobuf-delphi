@@ -328,7 +328,8 @@ type
         Load: TLoadProc);
       fkObj, fkList, fkMap: (
         SaveObj: TSaveObj;
-        LoadObj: TLoadObj);
+        LoadObj: TLoadObj;
+        om: PObjMeta);
   end;
 
 {$EndRegion}
@@ -373,7 +374,7 @@ type
     class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
-    procedure SaveList(prop: PPropMeta; const S: TpbSaver; const obj);
+    procedure SaveList(pm: PPropMeta; const S: TpbSaver; const obj);
   public
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
@@ -1259,6 +1260,7 @@ begin
   Result.kind := kind;
   Result.SaveObj := om.SaveTo;
   Result.LoadObj := om.LoadFrom;
+  Result.om := om;
 end;
 
 procedure TpbIoProc.LoadFrom(const L: TpbLoader; var Value);
@@ -1368,7 +1370,7 @@ begin
   Result := nil;
 end;
 
-procedure TObjMeta.SaveList(prop: PPropMeta; const S: TpbSaver; const obj);
+procedure TObjMeta.SaveList(pm: PPropMeta; const S: TpbSaver; const obj);
 var
   i: Integer;
   h: TpbSaver;
@@ -1382,11 +1384,11 @@ begin
     begin
       h.Clear;
       value := List.Items[i];
-      if prop.io.kind = fkList then
-        prop.io.Save(S, value^^)
+      if pm.io.kind = fkList then
+        pm.io.Save(S, value^^)
       else
-        prop.io.SaveObj(@Self, S, value^^);
-      S.Pb.writeMessage(prop.io.tag.FieldNumber, h.Pb^);
+        pm.io.SaveObj(pm.io.om, S, value^^);
+      S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
     end;
   finally
     h.Free;
@@ -1408,8 +1410,13 @@ begin
       fkSingleProp:
         prop.io.Save(S, field^);
       fkObj:
-        prop.io.SaveObj(om, S, obj);
-      fkList, fkObjList:
+        // Make sure we use the right metadata
+        prop.io.SaveObj(prop.io.om, S, obj);
+      fkList:
+        // Make sure we use the right metadata
+        om.SaveList(prop, S, obj);
+      fkObjList:
+        // Make sure we use the right metadata
         om.SaveList(prop, S, obj);
 //      fkMap: prop.SaveMap(S, obj);
 //      fkObjMap: prop.SaveObjMap(om, S, obj);
