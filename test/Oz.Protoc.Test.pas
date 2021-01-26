@@ -87,6 +87,8 @@ type
     procedure Init;
     // Generate data for test
     procedure GenData(var AddressBook: TAddressBook);
+    // Checked the match with the generated data
+    function CheckData(const AddressBook: TAddressBook): Boolean;
     // Dump data
     procedure Dump(var AddressBook: TAddressBook);
     // Returns phone meta
@@ -254,6 +256,7 @@ begin
   Phone.Init;
   Phone.&Type := TPhoneType.HOME;
   Phone.Number := '+7 382 000 0000';
+  Person.Phones.Add(@Phone);
 
   // mobile phone
   Phone.Init;
@@ -263,19 +266,50 @@ begin
   AddressBook.Peoples.Add(@Person);
 end;
 
-function TMetaRegister.GetPhoneMeta: PObjMeta;
+function TMetaRegister.CheckData(const AddressBook: TAddressBook): Boolean;
+var
+  Person: PPerson;
+  Phone: PPhoneNumber;
 begin
-  Result := @PhoneMeta;
-end;
+  Result := False;
+  if AddressBook.Peoples.Count <> 2 then exit;
 
-function TMetaRegister.GetPersonMeta: PObjMeta;
-begin
-  Result := @PersonMeta;
-end;
+  Person := AddressBook.Peoples[0];
+  if Person.Name <> 'Oz Grock' then exit;
+  if Person.Id <> 1 then exit;
+  if Person.Email <> 'oz@mail.com' then exit;
 
-function TMetaRegister.GetAddressBookMeta: PObjMeta;
-begin
-  Result := @AddressBookMeta;
+  Phone := @Person.MyPhone;
+  if Phone.&Type <> TPhoneType.MOBILE then exit;
+  if Phone.Number <> '' then exit;
+
+  if Person.Phones.Count <> 2 then exit;
+  Phone := Person.Phones[0];
+  if Phone.&Type <> TPhoneType.HOME then exit;
+  if Phone.Number <> '+7 382 224 99999' then exit;
+  Phone := Person.Phones[1];
+  if Phone.&Type <> TPhoneType.MOBILE then exit;
+  if Phone.Number <> '999999' then exit;
+
+  Person := AddressBook.Peoples[1];
+  if Person.Name <> 'Marat Shaimardanov' then exit;
+  if Person.Id <> 2 then exit;
+  if Person.Email <> 'marat.sh.1961@gmail.com' then exit;
+
+  Phone := @Person.MyPhone;
+  if Phone.&Type <> TPhoneType.MOBILE then exit;
+  if Phone.Number <> 'qwerty' then exit;
+
+  if Person.Phones.Count <> 2 then exit;
+  Phone := Person.Phones[0];
+  if Phone.&Type <> TPhoneType.HOME then exit;
+  if Phone.Number <> '+7 382 000 0000' then exit;
+
+  Phone := Person.Phones[1];
+  if Phone.&Type <> TPhoneType.MOBILE then exit;
+  if Phone.Number <> '+7 913 826 2144' then exit;
+
+  Result := True;
 end;
 
 procedure TMetaRegister.Dump(var AddressBook: TAddressBook);
@@ -300,6 +334,21 @@ begin
     end;
   end;
   Readln;
+end;
+
+function TMetaRegister.GetPhoneMeta: PObjMeta;
+begin
+  Result := @PhoneMeta;
+end;
+
+function TMetaRegister.GetPersonMeta: PObjMeta;
+begin
+  Result := @PersonMeta;
+end;
+
+function TMetaRegister.GetAddressBookMeta: PObjMeta;
+begin
+  Result := @AddressBookMeta;
 end;
 
 procedure TMetaRegister.SaveTo(const S: TpbSaver; const AddressBook: TAddressBook);
@@ -485,6 +534,7 @@ begin
   meta.Init;
   // Init address book data
   meta.GenData(AddressBook);
+  Check(meta.CheckData(AddressBook));
   // Save address book data to pb
   S.Init;
   meta.SaveTo(S, AddressBook);
