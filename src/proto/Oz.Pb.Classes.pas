@@ -291,12 +291,12 @@ type
 
 {$Region 'TpbIoProc: Save and Load procedures for type'}
 
-  TSaveProc = procedure(const S: TpbSaver; const Value);
+  TSaveProc = procedure(const S: TpbSaver; const [Ref] Value);
   TLoadProc = procedure(const L: TpbLoader; var Value);
 
   PObjMeta = ^TObjMeta;
   PPropMeta = ^TPropMeta;
-  TSaveObj = procedure(om: PObjMeta; const S: TpbSaver; const Value);
+  TSaveObj = procedure(om: PObjMeta; const S: TpbSaver; const [Ref] Value);
   TLoadObj = procedure(om: PObjMeta; const L: TpbLoader; var Value);
 
   TpbFieldKind = (
@@ -317,7 +317,7 @@ type
     class function From(fieldNo: Integer; kind: TpbFieldKind;
       om: PObjMeta): TpbIoProc; overload; static;
     // Save property to pb
-    procedure SaveTo(const S: TpbSaver; const Value); inline;
+    procedure SaveTo(const S: TpbSaver; const [Ref] Value); inline;
     // Load property from pb
     procedure LoadFrom(const L: TpbLoader; var Value); inline;
   private
@@ -353,7 +353,7 @@ type
     offset: Word;
     io: TpbIoProc;
     // Get pointer to field of object
-    function GetField(const Obj): Pointer; inline;
+    function GetField(const [Ref] Obj): Pointer;
   public
     procedure Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
   end;
@@ -374,11 +374,12 @@ type
     class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
-    procedure SaveList(pm: PPropMeta; const S: TpbSaver; const obj);
+    procedure SaveList(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
+    procedure SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
   public
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
-    class procedure SaveTo(om: PObjMeta; const S: TpbSaver; const obj); static;
+    class procedure SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj); static;
     // Load instance from pb
     class procedure LoadFrom(om: PObjMeta; const L: TpbLoader; var obj); static;
     // Add metadata for standard type
@@ -1009,42 +1010,42 @@ end;
 
 {$Region 'TpbIoProc'}
 
-procedure WriteByte(const S: TpbSaver; const value);
+procedure WriteByte(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawByte(Shortint(value));
 end;
 
-procedure WriteInt16(const S: TpbSaver; const value);
+procedure WriteInt16(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawVarint32(Word(value));
 end;
 
-procedure WriteInt32(const S: TpbSaver; const value);
+procedure WriteInt32(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawVarint32(Int32(value));
 end;
 
-procedure WriteInt64(const S: TpbSaver; const value);
+procedure WriteInt64(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawVarint64(Int64(value));
 end;
 
-procedure WriteString(const S: TpbSaver; const value);
+procedure WriteString(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawString(string(value));
 end;
 
-procedure WriteSingle(const S: TpbSaver; const value);
+procedure WriteSingle(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawData(@value, sizeof(Single));
 end;
 
-procedure WriteDouble(const S: TpbSaver; const value);
+procedure WriteDouble(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawData(@value, sizeof(Double));
 end;
 
-procedure WriteExtended(const S: TpbSaver; const value);
+procedure WriteExtended(const S: TpbSaver; const [Ref] value);
 var
   v: Double;
 begin
@@ -1052,7 +1053,7 @@ begin
   S.Pb.writeRawData(@v, sizeof(Double));
 end;
 
-procedure WriteCurrency(const S: TpbSaver; const value);
+procedure WriteCurrency(const S: TpbSaver; const [Ref] value);
 begin
   S.Pb.writeRawData(@value, sizeof(Currency));
 end;
@@ -1268,7 +1269,7 @@ begin
   Load(L, Value);
 end;
 
-procedure TpbIoProc.SaveTo(const S: TpbSaver; const Value);
+procedure TpbIoProc.SaveTo(const S: TpbSaver; const [Ref] Value);
 begin
   Save(S, Value);
 end;
@@ -1277,7 +1278,7 @@ end;
 
 {$Region 'TPropMeta}
 
-function TPropMeta.GetField(const Obj): Pointer;
+function TPropMeta.GetField(const [Ref] Obj): Pointer;
 begin
   Result := PByte(@Obj) + offset;
 end;
@@ -1370,12 +1371,12 @@ begin
   Result := nil;
 end;
 
-procedure TObjMeta.SaveList(pm: PPropMeta; const S: TpbSaver; const obj);
+procedure TObjMeta.SaveList(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
 var
   i: Integer;
   h: TpbSaver;
   List: PsgPointerList;
-  value: PPointer;
+  value: Pointer;
 begin
   h.Init;
   try
@@ -1383,11 +1384,11 @@ begin
     for i := 0 to List.Count - 1 do
     begin
       h.Clear;
-      value := List.Items[i];
+      value := PPointer(List.Items[i])^;
       if pm.io.kind = fkList then
-        pm.io.Save(S, value^^)
+        pm.io.Save(S, value^)
       else
-        pm.io.SaveObj(pm.io.om, S, value^^);
+        pm.io.SaveObj(pm.io.om, S, value^);
       S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
     end;
   finally
@@ -1395,7 +1396,12 @@ begin
   end;
 end;
 
-class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const obj);
+procedure TObjMeta.SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
+begin
+
+end;
+
+class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj);
 var
   i: Integer;
   prop: PPropMeta;
@@ -1410,16 +1416,11 @@ begin
       fkSingleProp:
         prop.io.Save(S, field^);
       fkObj:
-        // Make sure we use the right metadata
-        prop.io.SaveObj(prop.io.om, S, obj);
-      fkList:
-        // Make sure we use the right metadata
-        om.SaveList(prop, S, obj);
-      fkObjList:
-        // Make sure we use the right metadata
-        om.SaveList(prop, S, obj);
-//      fkMap: prop.SaveMap(S, obj);
-//      fkObjMap: prop.SaveObjMap(om, S, obj);
+        prop.io.SaveObj(prop.io.om, S, field^);
+      fkList, fkObjList:
+        om.SaveList(prop, S, field^);
+      fkMap, fkObjMap:
+        om.SaveMap(prop, S, field^);
     end;
   end;
 end;
