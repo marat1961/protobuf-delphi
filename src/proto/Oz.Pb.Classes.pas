@@ -1386,9 +1386,9 @@ begin
       h.Clear;
       value := PPointer(List.Items[i])^;
       if pm.io.kind = fkList then
-        pm.io.Save(S, value^)
+        pm.io.Save(h, value^)
       else
-        pm.io.SaveObj(pm.io.om, S, value^);
+        pm.io.SaveObj(pm.io.om, h, value^);
       S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
     end;
   finally
@@ -1406,17 +1406,28 @@ var
   i: Integer;
   prop: PPropMeta;
   field: Pointer;
+  h: TpbSaver;
 begin
   for i := 0 to High(om.props) do
   begin
     prop := @om.props[i];
-    S.Pb.writeRawVarint32(prop.io.tag.v);
     field := prop.GetField(obj);
     case prop.io.kind of
       fkSingleProp:
-        prop.io.Save(S, field^);
+        begin
+          S.Pb.writeRawVarint32(prop.io.tag.v);
+          prop.io.Save(S, field^);
+        end;
       fkObj:
-        prop.io.SaveObj(prop.io.om, S, field^);
+        begin
+          h.Init;
+          try
+            prop.io.SaveObj(prop.io.om, h, field^);
+            S.Pb.writeMessage(prop.io.tag.FieldNumber, h.Pb^);
+          finally
+            h.Free;
+          end;
+        end;
       fkList, fkObjList:
         om.SaveList(prop, S, field^);
       fkMap, fkObjMap:
