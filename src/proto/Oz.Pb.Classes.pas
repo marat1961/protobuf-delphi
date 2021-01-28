@@ -376,6 +376,8 @@ type
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     procedure SaveList(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
+    procedure LoadList(pm: PPropMeta; const L: TpbLoader; var obj);
+    procedure LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
   public
     class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
@@ -1396,7 +1398,30 @@ begin
   end;
 end;
 
+procedure TObjMeta.LoadList(pm: PPropMeta; const L: TpbLoader; var obj);
+var
+  List: PsgPointerList;
+  value: Pointer;
+begin
+  List := PsgPointerList(@obj);
+  L.Pb.Push;
+  try
+    value := List.Add;
+    if pm.io.kind = fkList then
+      pm.io.Load(L, value^)
+    else
+      pm.io.LoadObj(pm.io.om, L, value^);
+  finally
+    L.Pb.Pop;
+  end;
+end;
+
 procedure TObjMeta.SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
+begin
+
+end;
+
+procedure TObjMeta.LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
 begin
 
 end;
@@ -1448,17 +1473,16 @@ begin
   begin
     fieldNo := tag.FieldNumber;
     prop := om.GetProp(om, fieldNo);
+    field := prop.GetField(obj);
     case prop.io.kind of
       fkSingleProp:
-        begin
-          field := prop.GetField(obj);
-          prop.io.Load(L, field^);
-        end;
-      fkObj: prop.io.LoadObj(om, L, obj);
-//      fkList: prop.LoadList(L, obj);
-//      fkObjList: prop.LoadObjList(om, L, obj);
-//      fkMap: prop.LoadMap(L, obj);
-//      fkObjMap: prop.LoadObjMap(om, L, obj);
+        prop.io.Load(L, field^);
+      fkObj:
+        prop.io.LoadObj(om, L, field^);
+      fkList, fkObjList:
+        om.LoadList(prop, L, field^);
+      fkMap, fkObjMap:
+        om.LoadMap(prop, L, field^);
     end;
     tag := L.Pb.readTag;
   end;

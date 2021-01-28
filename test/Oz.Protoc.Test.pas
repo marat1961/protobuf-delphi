@@ -543,6 +543,7 @@ begin
   S.Free;
 
   // Load address book data from pb
+  L.Init;
   L.Pb^ := TpbInput.From(r);
   meta.LoadFrom(L, readedBook);
   Check(meta.CheckData(readedBook));
