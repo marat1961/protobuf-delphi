@@ -366,11 +366,14 @@ type
   type
     TGetProp = function(om: PObjMeta; fieldNumber: Integer): PPropMeta;
     TGetPropBy = (getByBinary, getByFind, getByIndex);
+    TObjectMethod = procedure(var obj);
   var
     info: PTypeInfo;
     props: TArray<TPropMeta>;
   private
     FGetProp: TGetProp;
+    FInit: TObjectMethod;
+    FClear: TObjectMethod;
     class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
@@ -379,7 +382,8 @@ type
     procedure LoadList(pm: PPropMeta; const L: TpbLoader; var obj);
     procedure LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
   public
-    class function From<T>(get: TGetPropBy = getByBinary): TObjMeta; static;
+    class function From<T>(Init, Clear: TObjectMethod;
+      get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
     class procedure SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj); static;
     // Load instance from pb
@@ -1307,10 +1311,13 @@ end;
 
 {$Region 'TObjMeta}
 
-class function TObjMeta.From<T>(get: TGetPropBy = getByBinary): TObjMeta;
+class function TObjMeta.From<T>(Init, Clear: TObjectMethod;
+  get: TGetPropBy = getByBinary): TObjMeta;
 begin
   Result.info := TypeInfo(T);
   Result.props := [];
+  Result.FInit := Init;
+  Result.FClear := Clear;
   case get of
     getByBinary: Result.FGetProp := Result.PropByBinary;
     getByFind: Result.FGetProp := Result.PropByFind;

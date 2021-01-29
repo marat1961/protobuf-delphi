@@ -79,6 +79,12 @@ type
     PhoneMeta: TObjMeta;
     PersonMeta: TObjMeta;
     AddressBookMeta: TObjMeta;
+    class procedure InitPhone(var obj); static;
+    class procedure ClearPhone(var obj); static;
+    class procedure InitPerson(var obj); static;
+    class procedure CleatPerson(var obj); static;
+    class procedure InitAddressBook(var obj); static;
+    class procedure ClearAddressBook(var obj); static;
     procedure SetPhoneMeta;
     procedure SetPersonMeta;
     procedure SetAddressBookMeta;
@@ -184,11 +190,41 @@ begin
   SetAddressBookMeta;
 end;
 
+class procedure TMetaRegister.InitPhone(var obj);
+begin
+  TPhoneNumber(obj).Init;
+end;
+
+class procedure TMetaRegister.InitPerson(var obj);
+begin
+  TPerson(obj).Init;
+end;
+
+class procedure TMetaRegister.InitAddressBook(var obj);
+begin
+  TAddressBook(obj).Init;
+end;
+
+class procedure TMetaRegister.ClearPhone(var obj);
+begin
+  TPhoneNumber(obj).Free;
+end;
+
+class procedure TMetaRegister.CleatPerson(var obj);
+begin
+  TPerson(obj).Free;
+end;
+
+class procedure TMetaRegister.ClearAddressBook(var obj);
+begin
+  TAddressBook(obj).Free;
+end;
+
 procedure TMetaRegister.SetPhoneMeta;
 var
   v: TPhoneNumber;
 begin
-  PhoneMeta := TObjMeta.From<TPhoneNumber>;
+  PhoneMeta := TObjMeta.From<TPhoneNumber>(InitPhone, ClearPhone);
   PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number', PByte(@v.FNumber) - PByte(@v));
   PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type', PByte(@v.FType) - PByte(@v));
 end;
@@ -198,7 +234,7 @@ var
   v: TPerson;
   io: TpbIoProc;
 begin
-  PersonMeta := TObjMeta.From<TPerson>;
+  PersonMeta := TObjMeta.From<TPerson>(InitPerson, CleatPerson);
   PersonMeta.Add<string>(TPerson.ftName, 'Name', PByte(@v.FName) - PByte(@v));
   PersonMeta.Add<Integer>(TPerson.ftId, 'Id', PByte(@v.FId) - PByte(@v));
   PersonMeta.Add<string>(TPerson.ftEmail, 'Email', PByte(@v.FEmail) - PByte(@v));
@@ -212,7 +248,7 @@ var
   v: TAddressBook;
   io: TpbIoProc;
 begin
-  AddressBookMeta := TObjMeta.From<TAddressBook>;
+  AddressBookMeta := TObjMeta.From<TAddressBook>(InitAddressBook, ClearAddressBook);
   io := TpbIoProc.From(TAddressBook.ftPeoples, TpbFieldKind.fkObjList, @PersonMeta);
   AddressBookMeta.AddObj('Peoples', PByte(@v.FPeoples) - PByte(@v), io);
 end;
