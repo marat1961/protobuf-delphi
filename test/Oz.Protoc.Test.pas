@@ -371,12 +371,12 @@ end;
 
 procedure TMetaRegister.SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
 begin
-  TObjMeta.SaveObj(@RootIo, S, AddressBook);
+  TObjMeta.SaveTo(@RootIo, S, AddressBook);
 end;
 
 procedure TMetaRegister.LoadFrom(const L: TpbLoader; var AddressBook: TAddressBook);
 begin
-  TObjMeta.LoadObj(@RootIo, L, AddressBook);
+  TObjMeta.LoadFrom(@RootIo, L, AddressBook);
 end;
 
 {$EndRegion}
@@ -529,14 +529,14 @@ begin
   // Save phone to pb
   S.Init;
   io := TpbIoProc.From(-1, fkRoot, @ms.PhoneMeta);
-  TObjMeta.SaveObj(@io, S, Phone);
+  TObjMeta.SaveTo(@io, S, Phone);
   r := S.Pb.GetBytes;
   S.Free;
 
   // Load phone from pb
   L.Pb^ := TpbInput.From(r);
   LoadedPhone.Init;
-  TObjMeta.LoadObj(@io, L, LoadedPhone);
+  TObjMeta.LoadFrom(@io, L, LoadedPhone);
   L.Free;
 
   CheckTrue(Phone.Number = LoadedPhone.Number);
