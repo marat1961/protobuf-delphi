@@ -294,12 +294,12 @@ type
   TSaveProc = procedure(const S: TpbSaver; const [Ref] Value);
   TLoadProc = procedure(const L: TpbLoader; var Value);
 
-  PObjMeta = ^TObjMeta;
-  PPropMeta = ^TPropMeta;
-  TSaveObj = procedure(om: PObjMeta; const S: TpbSaver; const [Ref] Value);
-  TLoadObj = procedure(om: PObjMeta; const L: TpbLoader; var Value);
+  PpbIoProc = ^TpbIoProc;
+  TSaveObj = procedure(io: PpbIoProc; const S: TpbSaver; const [Ref] Value);
+  TLoadObj = procedure(io: PpbIoProc; const L: TpbLoader; var Value);
 
   TpbFieldKind = (
+    fkRoot,       // root object
     fkSingleProp, // Single property
     fkObj,        // record or object
     fkList,       // TsgRecordList<T>
@@ -307,7 +307,8 @@ type
     fkMap,        // TsgHashMap<Key, T>
     fkObjMap);
 
-  PpbIoProc = ^TpbIoProc;
+  PObjMeta = ^TObjMeta;
+  PPropMeta = ^TPropMeta;
   TpbIoProc = record
   public
     // Find the right read/save procedure for the specified type
@@ -373,7 +374,6 @@ type
   private
     FGetProp: TGetProp;
     FInit: TObjectMethod;
-    FClear: TObjectMethod;
     class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
@@ -381,19 +381,23 @@ type
     procedure SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure LoadList(pm: PPropMeta; const L: TpbLoader; var obj);
     procedure LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
+    procedure SaveProps(const S: TpbSaver; const [Ref] obj);
+    procedure LoadProps(const L: TpbLoader; var obj);
   public
-    class function From<T>(Init, Clear: TObjectMethod;
+    class function From<T>(Init: TObjectMethod;
       get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
-    class procedure SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj); static;
+    class procedure SaveObj(io: PpbIoProc; const S: TpbSaver; const obj); static;
     // Load instance from pb
-    class procedure LoadFrom(om: PObjMeta; const L: TpbLoader; var obj); static;
+    class procedure LoadObj(io: PpbIoProc; const L: TpbLoader; var obj); static;
     // Add metadata for standard type
     procedure Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
     // Add metadata for user defined type
     procedure AddObj(const name: AnsiString; offset: Integer; const io: TpbIoProc);
-    // get property
+    // Get property
     property GetProp: TGetProp read FGetProp;
+    // Init instance
+    property Init: TObjectMethod read FInit;
   end;
 
 {$EndRegion}
@@ -1258,6 +1262,7 @@ begin
   end
   else
     raise EProtobufError.Create('Type serialization is not supported');
+  Result.kind := fkSingleProp;
 end;
 
 class function TpbIoProc.From(fieldNo: Integer; kind: TpbFieldKind;
@@ -1265,8 +1270,8 @@ class function TpbIoProc.From(fieldNo: Integer; kind: TpbFieldKind;
 begin
   Result.tag.MakeTag(fieldNo, TWire.LENGTH_DELIMITED);
   Result.kind := kind;
-  Result.SaveObj := om.SaveTo;
-  Result.LoadObj := om.LoadFrom;
+  Result.SaveObj := om.SaveObj;
+  Result.LoadObj := om.LoadObj;
   Result.om := om;
 end;
 
@@ -1311,13 +1316,12 @@ end;
 
 {$Region 'TObjMeta}
 
-class function TObjMeta.From<T>(Init, Clear: TObjectMethod;
+class function TObjMeta.From<T>(Init: TObjectMethod;
   get: TGetPropBy = getByBinary): TObjMeta;
 begin
   Result.info := TypeInfo(T);
   Result.props := [];
   Result.FInit := Init;
-  Result.FClear := Clear;
   case get of
     getByBinary: Result.FGetProp := Result.PropByBinary;
     getByFind: Result.FGetProp := Result.PropByFind;
@@ -1397,7 +1401,7 @@ begin
       if pm.io.kind = fkList then
         pm.io.Save(h, value^)
       else
-        pm.io.SaveObj(pm.io.om, h, value^);
+        pm.io.SaveObj(@pm.io, h, value^);
       S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
     end;
   finally
@@ -1410,14 +1414,14 @@ var
   List: PsgPointerList;
   value: Pointer;
 begin
-  List := PsgPointerList(@obj);
   L.Pb.Push;
   try
+    List := PsgPointerList(@obj);
     value := List.Add;
     if pm.io.kind = fkList then
       pm.io.Load(L, value^)
     else
-      pm.io.LoadObj(pm.io.om, L, value^);
+      pm.io.LoadObj(@pm.io, L, value^);
   finally
     L.Pb.Pop;
   end;
@@ -1433,67 +1437,90 @@ begin
 
 end;
 
-class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj);
+class procedure TObjMeta.SaveObj(io: PpbIoProc; const S: TpbSaver; const obj);
+var
+  h: TpbSaver;
+  sz: Integer;
+begin
+  h.Init;
+  try
+    io.om.SaveProps(h, obj);
+    if io.kind <> fkRoot then
+      h.Pb.writeTag(io.tag.FieldNumber, TWire.LENGTH_DELIMITED);
+    sz := h.Pb.getSerializedSize;
+    S.Pb.writeRawVarint32(sz);
+    h.Pb.writeTo(S.Pb^);
+  finally
+    h.Free;
+  end;
+end;
+
+procedure TObjMeta.SaveProps(const S: TpbSaver; const [Ref]  obj);
 var
   i: Integer;
-  prop: PPropMeta;
+  pm: PPropMeta;
   field: Pointer;
-  h: TpbSaver;
 begin
-  for i := 0 to High(om.props) do
+  for i := 0 to High(props) do
   begin
-    prop := @om.props[i];
-    field := prop.GetField(obj);
-    case prop.io.kind of
+    pm := @props[i];
+    field := pm.GetField(obj);
+    case pm.io.kind of
       fkSingleProp:
         begin
-          S.Pb.writeRawVarint32(prop.io.tag.v);
-          prop.io.Save(S, field^);
+          S.Pb.writeRawVarint32(pm.io.tag.v);
+          pm.io.Save(S, field^);
         end;
       fkObj:
-        begin
-          h.Init;
-          try
-            prop.io.SaveObj(prop.io.om, h, field^);
-            S.Pb.writeMessage(prop.io.tag.FieldNumber, h.Pb^);
-          finally
-            h.Free;
-          end;
-        end;
+        SaveObj(@pm, S, field^);
       fkList, fkObjList:
-        om.SaveList(prop, S, field^);
+        SaveList(pm, S, field^);
       fkMap, fkObjMap:
-        om.SaveMap(prop, S, field^);
+        SaveMap(pm, S, field^);
     end;
   end;
 end;
 
-class procedure TObjMeta.LoadFrom(om: PObjMeta; const L: TpbLoader; var obj);
+class procedure TObjMeta.LoadObj(io: PpbIoProc; const L: TpbLoader; var obj);
+var
+  tag: TpbTag;
+begin
+  io.om.Init(obj);
+  if io.kind <> fkRoot then
+    tag := L.Pb.readTag;
+  L.Pb.Push;
+  try
+    io.om.LoadProps(L, obj);
+  finally
+    L.Pb.Pop;
+  end;
+end;
+
+procedure TObjMeta.LoadProps(const L: TpbLoader; var obj);
 var
   fieldNo: Integer;
   tag: TpbTag;
-  prop: PPropMeta;
+  pm: PPropMeta;
   field: Pointer;
 begin
   tag := L.Pb.readTag;
   while tag.v <> 0 do
   begin
     fieldNo := tag.FieldNumber;
-    prop := om.GetProp(om, fieldNo);
-    field := prop.GetField(obj);
-    case prop.io.kind of
+    pm := GetProp(@Self, fieldNo);
+    field := pm.GetField(obj);
+    case pm.io.kind of
       fkSingleProp:
-        prop.io.Load(L, field^);
+        pm.io.Load(L, field^);
       fkObj:
-        prop.io.LoadObj(om, L, field^);
+        pm.io.LoadObj(@pm.io, L, field^);
       fkList, fkObjList:
-        om.LoadList(prop, L, field^);
+        LoadList(pm, L, field^);
       fkMap, fkObjMap:
-        om.LoadMap(prop, L, field^);
+        LoadMap(pm, L, field^);
     end;
     tag := L.Pb.readTag;
   end;
-  L.Free;
 end;
 
 {$EndRegion}
