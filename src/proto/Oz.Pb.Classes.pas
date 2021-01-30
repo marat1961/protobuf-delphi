@@ -24,6 +24,8 @@ uses
   System.Classes, System.SysUtils, System.Rtti, System.TypInfo,
   Oz.Pb.StrBuffer, Oz.SGL.Collections;
 
+{$T+}
+
 const
   TAG_TYPE_BITS = 3;
   TAG_TYPE_MASK = (1 shl TAG_TYPE_BITS) - 1;
@@ -294,12 +296,13 @@ type
   TSaveProc = procedure(const S: TpbSaver; const [Ref] Value);
   TLoadProc = procedure(const L: TpbLoader; var Value);
 
-  PpbIoProc = ^TpbIoProc;
-  TSaveObj = procedure(io: PpbIoProc; const S: TpbSaver; const [Ref] Value);
-  TLoadObj = procedure(io: PpbIoProc; const L: TpbLoader; var Value);
+  PObjMeta = ^TObjMeta;
+  PPropMeta = ^TPropMeta;
+
+  TSaveObj = procedure(om: PObjMeta; const S: TpbSaver; const [Ref] Value);
+  TLoadObj = procedure(om: PObjMeta; const L: TpbLoader; var Value);
 
   TpbFieldKind = (
-    fkRoot,       // root object
     fkSingleProp, // Single property
     fkObj,        // record or object
     fkList,       // TsgRecordList<T>
@@ -307,8 +310,7 @@ type
     fkMap,        // TsgHashMap<Key, T>
     fkObjMap);
 
-  PObjMeta = ^TObjMeta;
-  PPropMeta = ^TPropMeta;
+  PpbIoProc = ^TpbIoProc;
   TpbIoProc = record
   public
     // Find the right read/save procedure for the specified type
@@ -392,9 +394,9 @@ type
     class function From<T>(Init: TObjectMethod;
       get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
-    class procedure SaveTo(io: PpbIoProc; const S: TpbSaver; const [Ref] obj); static;
+    class procedure SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj); static;
     // Load instance from pb
-    class procedure LoadFrom(io: PpbIoProc; const L: TpbLoader; var obj); static;
+    class procedure LoadFrom(om: PObjMeta; const L: TpbLoader; var obj); static;
     // Add metadata for standard type
     procedure Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
     // Add metadata for user defined type
@@ -1406,7 +1408,7 @@ begin
       if pm.io.kind = fkList then
         pm.io.Save(h, value^)
       else
-        pm.io.SaveObj(@pm.io, h, value^);
+        pm.io.SaveObj(@Self, h, value^);
       S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
     end;
   finally
@@ -1426,7 +1428,7 @@ begin
     if pm.io.kind = fkList then
       pm.io.Load(L, value^)
     else
-      pm.io.LoadObj(@pm.io, L, value^);
+      pm.io.LoadObj(@Self, L, value^);
   finally
     L.Pb.Pop;
   end;
@@ -1442,15 +1444,15 @@ begin
 
 end;
 
-class procedure TObjMeta.SaveTo(io: PpbIoProc; const S: TpbSaver; const [Ref] obj);
+class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj);
 begin
-  io.om.SaveProps(S, obj);
+  om.SaveProps(S, obj);
 end;
 
-class procedure TObjMeta.LoadFrom(io: PpbIoProc; const L: TpbLoader; var obj);
+class procedure TObjMeta.LoadFrom(om: PObjMeta; const L: TpbLoader; var obj);
 begin
-  io.om.Init(obj);
-  io.om.LoadProps(L, obj);
+  om.Init(obj);
+  om.LoadProps(L, obj);
 end;
 
 procedure TObjMeta.SaveObject(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
@@ -1494,7 +1496,7 @@ begin
           pm.io.Save(S, field^);
         end;
       fkObj:
-        SaveObject(@pm, S, field^);
+        SaveObject(pm, S, field^);
       fkList, fkObjList:
         SaveList(pm, S, field^);
       fkMap, fkObjMap:
@@ -1520,7 +1522,7 @@ begin
       fkSingleProp:
         pm.io.Load(L, field^);
       fkObj:
-        LoadObject(@pm, L, field^);
+        LoadObject(pm, L, field^);
       fkList, fkObjList:
         LoadList(pm, L, field^);
       fkMap, fkObjMap:

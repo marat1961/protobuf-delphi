@@ -79,7 +79,6 @@ type
     PhoneMeta: TObjMeta;
     PersonMeta: TObjMeta;
     AddressBookMeta: TObjMeta;
-    RootIo: TpbIoProc;
     class procedure InitPhone(var obj); static;
     class procedure InitPerson(var obj); static;
     class procedure InitAddressBook(var obj); static;
@@ -230,7 +229,6 @@ var
   v: TAddressBook;
 begin
   AddressBookMeta := TObjMeta.From<TAddressBook>(InitAddressBook);
-  RootIo := TpbIoProc.From(-1, fkRoot, @AddressBookMeta);
   AddressBookMeta.AddObj('Peoples', PByte(@v.FPeoples) - PByte(@v),
     TpbIoProc.From(TAddressBook.ftPeoples, TpbFieldKind.fkObjList, @PersonMeta));
 end;
@@ -371,12 +369,12 @@ end;
 
 procedure TMetaRegister.SaveTo(const S: TpbSaver; var AddressBook: TAddressBook);
 begin
-  TObjMeta.SaveTo(@RootIo, S, AddressBook);
+  TObjMeta.SaveTo(@AddressBookMeta, S, AddressBook);
 end;
 
 procedure TMetaRegister.LoadFrom(const L: TpbLoader; var AddressBook: TAddressBook);
 begin
-  TObjMeta.LoadFrom(@RootIo, L, AddressBook);
+  TObjMeta.LoadFrom(@AddressBookMeta, L, AddressBook);
 end;
 
 {$EndRegion}
@@ -514,7 +512,6 @@ procedure TPbTest.TestIO;
 var
   Phone, LoadedPhone: TPhoneNumber;
   ms: TMetaRegister;
-  io: TpbIoProc;
   S: TpbSaver;
   L: TpbLoader;
   r: TBytes;
@@ -528,15 +525,14 @@ begin
 
   // Save phone to pb
   S.Init;
-  io := TpbIoProc.From(-1, fkRoot, @ms.PhoneMeta);
-  TObjMeta.SaveTo(@io, S, Phone);
+  TObjMeta.SaveTo(@ms.PhoneMeta, S, Phone);
   r := S.Pb.GetBytes;
   S.Free;
 
   // Load phone from pb
   L.Pb^ := TpbInput.From(r);
   LoadedPhone.Init;
-  TObjMeta.LoadFrom(@io, L, LoadedPhone);
+  TObjMeta.LoadFrom(@ms.PhoneMeta, L, LoadedPhone);
   L.Free;
 
   CheckTrue(Phone.Number = LoadedPhone.Number);
