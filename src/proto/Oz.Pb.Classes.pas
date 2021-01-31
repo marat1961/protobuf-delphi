@@ -258,6 +258,9 @@ type
     function getSerializedSize: Integer;
     // Write to buffer
     procedure writeTo(buffer: TpbOutput);
+
+    // Return the content as a string
+    function ToString(lo: Integer = 0): string;
   end;
 
 {$EndRegion}
@@ -359,6 +362,7 @@ type
     function GetField(const [Ref] Obj): Pointer;
   public
     procedure Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+    function ToString: string;
   end;
 
 {$EndRegion}
@@ -401,6 +405,7 @@ type
     procedure Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
     // Add metadata for user defined type
     procedure AddObj(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+    function ToString: string;
     // Get property
     property GetProp: TGetProp read FGetProp;
     // Init instance
@@ -980,6 +985,24 @@ begin
   buffer.FBuffer.Add(GetBytes);
 end;
 
+function TpbOutput.ToString(lo: Integer): string;
+var
+  i, hi: Integer;
+  bytes: TBytes;
+  s: string;
+begin
+  hi := FBuffer.GetCount - 1;
+  bytes := FBuffer.GetBytes;
+  for i := lo to hi do
+  begin
+    s := IntToHex(bytes[i], 2);
+    if i = lo then
+      Result := s
+    else
+      Result := Result + ' ' + s;
+  end;
+end;
+
 {$EndRegion}
 
 {$Region 'TpbCustomLoader: Base class for a load object'}
@@ -1308,6 +1331,15 @@ begin
   Self.io := io;
 end;
 
+function TPropMeta.ToString: string;
+const
+  Kinds: array [TpbFieldKind] of string =
+    ('Single', 'Obj', 'List', 'ObjList', 'Map', 'ObjMap');
+begin
+  Result := Format('%s tag=%d offset=%d kind=%s',
+    [name, io.tag.FieldNumber, offset, Kinds[io.kind]]);
+end;
+
 {$EndRegion}
 
 {$Region 'TFieldParam}
@@ -1408,7 +1440,7 @@ begin
       if pm.io.kind = fkList then
         pm.io.Save(h, value^)
       else
-        pm.io.SaveObj(@Self, h, value^);
+        pm.io.SaveObj(pm.io.om, h, value^);
       S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
     end;
   finally
@@ -1428,7 +1460,7 @@ begin
     if pm.io.kind = fkList then
       pm.io.Load(L, value^)
     else
-      pm.io.LoadObj(@Self, L, value^);
+      pm.io.LoadObj(pm.io.om, L, value^);
   finally
     L.Pb.Pop;
   end;
@@ -1446,7 +1478,13 @@ end;
 
 class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj);
 begin
+  log.print(om.ToString);
   om.SaveProps(S, obj);
+end;
+
+function TObjMeta.ToString: string;
+begin
+  Result := string(info.Name);
 end;
 
 class procedure TObjMeta.LoadFrom(om: PObjMeta; const L: TpbLoader; var obj);
@@ -1481,14 +1519,17 @@ end;
 
 procedure TObjMeta.SaveProps(const S: TpbSaver; const [Ref] obj);
 var
-  i: Integer;
+  i, lo, hi: Integer;
   pm: PPropMeta;
   field: Pointer;
 begin
+  log.print('SaveProps');
   for i := 0 to High(props) do
   begin
     pm := @props[i];
+    log.print(Format('  [%d] %s', [i, pm.ToString]));
     field := pm.GetField(obj);
+    lo := S.Pb.FBuffer.GetCount;
     case pm.io.kind of
       fkSingleProp:
         begin
@@ -1502,6 +1543,9 @@ begin
       fkMap, fkObjMap:
         SaveMap(pm, S, field^);
     end;
+    hi := S.Pb.FBuffer.GetCount;
+    log.print(Format('  prop %s, lo=%d hi=%d', [pm.name, lo, hi]));
+    log.print('  ', [S.Pb.ToString(lo)]);
   end;
 end;
 

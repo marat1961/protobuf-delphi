@@ -383,12 +383,14 @@ end;
 
 procedure TPbTest.SetUp;
 begin
+  log.Init;
   S.Init;
   L.Init;
 end;
 
 procedure TPbTest.TearDown;
 begin
+  log.SaveToFile('dump.txt');
   S.Free;
   L.Free;
 end;
