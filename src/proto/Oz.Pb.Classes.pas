@@ -196,6 +196,9 @@ type
     function readBytes: TBytes;
     // Skip "size" bytes
     procedure skipRawBytes(size: Integer);
+
+    // Return the content as a string
+    function ToString(lo: Integer = 0): string;
   end;
 
 {$EndRegion}
@@ -748,6 +751,25 @@ begin
   if FCurrent > FLast then
     EProtobufError.Create(EProtobufError.TruncatedMessage);
   Inc(FCurrent, size);
+end;
+
+function TpbInput.ToString(lo: Integer): string;
+var
+  p, hi: PByte;
+  s: string;
+begin
+  Result := '';
+  hi := FCurrent;
+  p := FBuf + lo;
+  while p < hi do
+  begin
+    s := IntToHex(p^, 2);
+    Inc(p);
+    if Result = '' then
+      Result := s
+    else
+      Result := Result + ' ' + s;
+  end;
 end;
 
 procedure TpbInput.SaveToFile(const FileName: string);
@@ -1614,17 +1636,20 @@ end;
 
 procedure TObjMeta.LoadProps(const L: TpbLoader; var obj);
 var
-  fieldNo: Integer;
+  fieldNo, lo, hi: Integer;
   tag: TpbTag;
   pm: PPropMeta;
   field: Pointer;
 begin
+  log.print('LoadProps');
   tag := L.Pb.readTag;
   while tag.v <> 0 do
   begin
     fieldNo := tag.FieldNumber;
     pm := GetProp(@Self, fieldNo);
+    log.print(Format('  %s', [pm.ToString]));
     field := pm.GetField(obj);
+    lo := L.Pb.FCurrent - L.Pb.FBuf - 1;
     case pm.io.kind of
       fkSingleProp:
         pm.io.Load(L, field^);
@@ -1635,6 +1660,10 @@ begin
       fkMap, fkObjMap:
         LoadMap(pm, L, field^);
     end;
+    hi := L.Pb.FLast - L.Pb.FBuf;
+    log.print(Format('  prop %s, lo=%d hi=%d Count=$%x',
+      [pm.name, hi - lo, hi, hi - lo + 1]));
+    log.print('  ', [L.Pb.ToString(lo)]);
     tag := L.Pb.readTag;
   end;
 end;
