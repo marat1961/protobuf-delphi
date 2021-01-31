@@ -21,7 +21,7 @@ unit Oz.Pb.Classes;
 interface
 
 uses
-  System.Classes, System.SysUtils, System.Rtti, System.TypInfo,
+  System.Classes, System.SysUtils, System.Math, System.Rtti, System.TypInfo,
   Oz.Pb.StrBuffer, Oz.SGL.Collections;
 
 {$T+}
@@ -328,6 +328,7 @@ type
     procedure LoadFrom(const L: TpbLoader; var Value); inline;
   private
     tag: TpbTag;
+    info: PTypeInfo;
     case kind: TpbFieldKind of
       fkSingleProp: (
         Save: TSaveProc;
@@ -354,15 +355,20 @@ type
 {$Region 'TPropMeta: Metadata for serializing the property'}
 
   TPropMeta = record
+  type
+    PValue = ^TValue;
   private
     name: AnsiString; // name for xml/json
     offset: Word;
+    defValue: PValue;
     io: TpbIoProc;
     // Get pointer to field of object
     function GetField(const [Ref] Obj): Pointer;
   public
     procedure Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+    function EqualToDefault(var field): Boolean;
     function ToString: string;
+    procedure SetDefValue<T>(const Value: T);
   end;
 
 {$EndRegion}
@@ -1292,6 +1298,7 @@ begin
   end
   else
     raise EProtobufError.Create('Type serialization is not supported');
+  Result.info := info;
   Result.kind := fkSingleProp;
 end;
 
@@ -1319,15 +1326,11 @@ end;
 
 {$Region 'TPropMeta}
 
-function TPropMeta.GetField(const [Ref] Obj): Pointer;
-begin
-  Result := PByte(@Obj) + offset;
-end;
-
 procedure TPropMeta.Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
 begin
   Self.name := name;
   Self.offset := offset;
+  defValue := nil;
   Self.io := io;
 end;
 
@@ -1338,6 +1341,64 @@ const
 begin
   Result := Format('%s tag=%d offset=%d kind=%s',
     [name, io.tag.FieldNumber, offset, Kinds[io.kind]]);
+end;
+
+function TPropMeta.GetField(const [Ref] Obj): Pointer;
+begin
+  Result := PByte(@Obj) + offset;
+end;
+
+procedure TPropMeta.SetDefValue<T>(const Value: T);
+begin
+  Assert(TypeInfo(T) = io.info);
+  if defValue = nil then
+    New(defValue);
+  defValue^ := TValue.From<T>(Value);
+end;
+
+function TPropMeta.EqualToDefault(var field): Boolean;
+var
+  v: TValue;
+begin
+  Result := False;
+  if defValue = nil then
+  begin
+    case io.info.Kind of
+      tkInteger, tkChar, tkWChar, tkEnumeration:
+        case GetTypeData(io.info)^.OrdType of
+          otSByte, otUByte: Result := Byte(field) = 0;
+          otSWord, otUWord: Result := Word(field)= 0;
+          otSLong, otULong: Result := Cardinal(field) = 0;
+        end;
+      tkInt64:
+        Result := Int64(field) = 0;
+      tkFloat:
+        case GetTypeData(io.info)^.FloatType of
+          ftSingle: Result := IsZero(Single(field));
+          ftDouble: Result := IsZero(Double(field));
+          ftExtended: Result := IsZero(Extended(field));
+        end;
+      tkString:
+        Result := Length(string(field)) = 0;
+      tkLString, tkWString, tkUString:
+        begin
+          TValue.Make(@field, io.info, v);
+          Result := Length(v.AsString) = 0;
+        end
+    end;
+  end
+  else
+  begin
+    TValue.Make(@field, io.info, v);
+    case io.info.Kind of
+      tkInteger, tkChar, tkWChar, tkEnumeration, tkInt64:
+        Result := v.AsOrdinal = defValue.AsOrdinal;
+      tkFloat:
+        Result := SameValue(v.AsType<Extended>, defValue.AsType<Extended>);
+      tkString, tkLString, tkWString, tkUString:
+        Result := v.AsString = defValue.AsString;
+    end;
+  end;
 end;
 
 {$EndRegion}
@@ -1532,6 +1593,7 @@ begin
     lo := S.Pb.FBuffer.GetCount;
     case pm.io.kind of
       fkSingleProp:
+        if not pm.EqualToDefault(field^) then
         begin
           S.Pb.writeRawVarint32(pm.io.tag.v);
           pm.io.Save(S, field^);
@@ -1544,7 +1606,8 @@ begin
         SaveMap(pm, S, field^);
     end;
     hi := S.Pb.FBuffer.GetCount;
-    log.print(Format('  prop %s, lo=%d hi=%d', [pm.name, lo, hi]));
+    log.print(Format('  prop %s, lo=%d hi=%d Count=$%x',
+      [pm.name, lo, hi, hi - lo + 1]));
     log.print('  ', [S.Pb.ToString(lo)]);
   end;
 end;

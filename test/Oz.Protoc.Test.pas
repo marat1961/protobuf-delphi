@@ -522,6 +522,7 @@ begin
   ms.Init;
 
   // Init phone instance
+  Phone.Init;
   Phone.Number := '243699';
   Phone.&Type := HOME;
 
