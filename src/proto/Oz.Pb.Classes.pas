@@ -392,15 +392,10 @@ type
     class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
     class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
-
-    // makes sense to transfer to TPropMeta
-    procedure SaveObject(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
-    procedure LoadObject(pm: PPropMeta; const L: TpbLoader; var obj);
     procedure SaveList(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
-    procedure LoadList(pm: PPropMeta; const L: TpbLoader; var obj);
+    procedure LoadList(const tag: TpbTag; pm: PPropMeta; const L: TpbLoader; var obj);
     procedure LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
-
     procedure SaveProps(const S: TpbSaver; const [Ref] obj);
     procedure LoadProps(const L: TpbLoader; var obj);
   public
@@ -1451,6 +1446,11 @@ begin
   end;
 end;
 
+function TObjMeta.ToString: string;
+begin
+  Result := string(info.Name);
+end;
+
 procedure TObjMeta.Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
 var
   meta: TPropMeta;
@@ -1531,19 +1531,22 @@ begin
   end;
 end;
 
-procedure TObjMeta.LoadList(pm: PPropMeta; const L: TpbLoader; var obj);
+procedure TObjMeta.LoadList(const tag: TpbTag; pm: PPropMeta; const L: TpbLoader; var obj);
 var
   List: PsgPointerList;
   value: Pointer;
+  last: TpbTag;
 begin
   L.Pb.Push;
   try
     List := PsgPointerList(@obj);
-    value := List.Add;
-    if pm.io.kind = fkList then
-      pm.io.Load(L, value^)
-    else
-      pm.io.LoadObj(pm.io.om, L, value^);
+    repeat
+      value := List.Add;
+      if pm.io.kind = fkList then
+        pm.io.Load(L, value^)
+      else
+        pm.io.LoadObj(pm.io.om, L, value^);
+    until tag.v <> L.Pb.readTag.v;
   finally
     L.Pb.Pop;
   end;
@@ -1565,39 +1568,10 @@ begin
   om.SaveProps(S, obj);
 end;
 
-function TObjMeta.ToString: string;
-begin
-  Result := string(info.Name);
-end;
-
 class procedure TObjMeta.LoadFrom(om: PObjMeta; const L: TpbLoader; var obj);
 begin
-  om.Init(obj);
+  log.print(om.ToString);
   om.LoadProps(L, obj);
-end;
-
-procedure TObjMeta.SaveObject(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
-var
-  h: TpbSaver;
-begin
-  h.Init;
-  try
-    SaveProps(h, obj);
-    S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
-  finally
-    h.Free;
-  end;
-end;
-
-procedure TObjMeta.LoadObject(pm: PPropMeta; const L: TpbLoader; var obj);
-begin
-  Init(obj);
-  L.Pb.Push;
-  try
-    LoadProps(L, obj);
-  finally
-    L.Pb.Pop;
-  end;
 end;
 
 procedure TObjMeta.SaveProps(const S: TpbSaver; const [Ref] obj);
@@ -1605,6 +1579,7 @@ var
   i, lo, hi: Integer;
   pm: PPropMeta;
   field: Pointer;
+  h: TpbSaver;
 begin
   log.print('SaveProps');
   for i := 0 to High(props) do
@@ -1621,7 +1596,15 @@ begin
           pm.io.Save(S, field^);
         end;
       fkObj:
-        SaveObject(pm, S, field^);
+        begin
+          h.Init;
+          try
+            pm.io.SaveObj(pm.io.om, h, field^);
+            S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
+          finally
+            h.Free;
+          end;
+        end;
       fkList, fkObjList:
         SaveList(pm, S, field^);
       fkMap, fkObjMap:
@@ -1641,6 +1624,7 @@ var
   pm: PPropMeta;
   field: Pointer;
 begin
+  Init(obj);
   log.print('LoadProps');
   tag := L.Pb.readTag;
   while tag.v <> 0 do
@@ -1654,9 +1638,16 @@ begin
       fkSingleProp:
         pm.io.Load(L, field^);
       fkObj:
-        LoadObject(pm, L, field^);
+        begin
+          L.Pb.Push;
+          try
+            pm.io.om.LoadProps(L, field^);
+          finally
+            L.Pb.Pop;
+          end;
+        end;
       fkList, fkObjList:
-        LoadList(pm, L, field^);
+        LoadList(tag, pm, L, field^);
       fkMap, fkObjMap:
         LoadMap(pm, L, field^);
     end;

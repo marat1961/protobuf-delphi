@@ -221,7 +221,8 @@ begin
   PersonMeta.Add<string>(TPerson.ftEmail, 'Email', PByte(@v.FEmail) - PByte(@v));
   PersonMeta.AddObj('Phones', PByte(@v.FPhones) - PByte(@v),
     TpbIoProc.From(TPerson.ftPhones, TpbFieldKind.fkObjList, @PhoneMeta));
-  PersonMeta.Add<string>(TPerson.ftName, 'MyPhone', PByte(@v.MyPhone) - PByte(@v));
+  PersonMeta.AddObj('MyPhone', PByte(@v.MyPhone) - PByte(@v),
+    TpbIoProc.From(TPerson.ftMyPhone, TpbFieldKind.fkObj, @PhoneMeta));
 end;
 
 procedure TMetaRegister.SetAddressBookMeta;
@@ -565,6 +566,7 @@ begin
   L.Init;
   L.Pb^ := TpbInput.From(r);
   meta.LoadFrom(L, readedBook);
+
   Check(meta.CheckData(readedBook));
   L.Free;
 end;
