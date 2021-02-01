@@ -144,11 +144,15 @@ type
     // Create metadata
     procedure Init;
     // Generate data for test
-    procedure GenData(var AddressBook: TAddressBook);
+    procedure GenData(var Maps: TMapFields);
     // Checked the match with the generated data
-    function CheckData(const AddressBook: TAddressBook): Boolean;
+    function CheckData(const Maps: TMapFields): Boolean;
     // Dump data
-    procedure Dump(var AddressBook: TAddressBook);
+    procedure Dump(var Maps: TMapFields);
+    // Save data to protocol buffer
+    procedure SaveTo(const S: TpbSaver; var Maps: TMapFields);
+    // Load data from protocol buffer
+    procedure LoadFrom(const L: TpbLoader; var Maps: TMapFields);
   end;
 
 {$EndRegion}
@@ -466,20 +470,30 @@ end;
 
 class procedure TMapMetaRegister.InitMapFields(var obj);
 begin
-
+  TMapFields(obj).Init;
 end;
 
-procedure TMapMetaRegister.GenData(var AddressBook: TAddressBook);
+procedure TMapMetaRegister.GenData(var Maps: TMapFields);
 begin
 
 end;
 
-function TMapMetaRegister.CheckData(const AddressBook: TAddressBook): Boolean;
+function TMapMetaRegister.CheckData(const Maps: TMapFields): Boolean;
+begin
+  Result := True;
+end;
+
+procedure TMapMetaRegister.Dump(var Maps: TMapFields);
 begin
 
 end;
 
-procedure TMapMetaRegister.Dump(var AddressBook: TAddressBook);
+procedure TMapMetaRegister.LoadFrom(const L: TpbLoader; var Maps: TMapFields);
+begin
+
+end;
+
+procedure TMapMetaRegister.SaveTo(const S: TpbSaver; var Maps: TMapFields);
 begin
 
 end;
@@ -657,7 +671,24 @@ var
   L: TpbLoader;
   r: TBytes;
 begin
+  meta.Init;
+  // Init address book data
+  meta.GenData(genMaps);
+  Check(meta.CheckData(genMaps));
+  // Save address book data to pb
+  S.Init;
+  meta.SaveTo(S, genMaps);
+  S.Pb.SaveToFile('book.pb');
+  r := S.Pb.GetBytes;
+  S.Free;
 
+  // Load address book data from pb
+  L.Init;
+  L.Pb^ := TpbInput.From(r);
+  meta.LoadFrom(L, readedMaps);
+
+  Check(meta.CheckData(readedMaps));
+  L.Free;
 end;
 
 procedure TPbTest.TestMeta;
