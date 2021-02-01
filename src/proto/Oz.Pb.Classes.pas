@@ -407,6 +407,8 @@ type
     class procedure LoadFrom(om: PObjMeta; const L: TpbLoader; var obj); static;
     // Add metadata for standard type
     procedure Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
+    // Add metadata for map collection
+    procedure AddMap<Key>(const name: AnsiString; offset: Integer; const io: TpbIoProc);
     // Add metadata for user defined type
     procedure AddObj(const name: AnsiString; offset: Integer; const io: TpbIoProc);
     function ToString: string;
@@ -1457,6 +1459,12 @@ var
 begin
   meta.Init(name, offset, TpbIoProc.From<T>(fieldNumber));
   props := props + [meta];
+end;
+
+procedure TObjMeta.AddMap<Key>(const name: AnsiString; offset: Integer;
+  const io: TpbIoProc);
+begin
+
 end;
 
 procedure TObjMeta.AddObj(const name: AnsiString; offset: Integer; const io: TpbIoProc);

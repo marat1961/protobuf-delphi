@@ -32,6 +32,10 @@ type
     property &Type: TPhoneType read FType write FType;
   end;
 
+{$EndRegion}
+
+{$Region 'TPerson'}
+
   PPerson = ^TPerson;
   TPerson = record
   const
@@ -56,6 +60,10 @@ type
     property Phones: TsgRecordList<TPhoneNumber> read FPhones;
     property MyPhone: TPhoneNumber read FMyPhone write FMyPhone;
   end;
+
+{$EndRegion}
+
+{$Region 'TAddressBook'}
 
   PAddressBook = ^TAddressBook;
   TAddressBook = record
@@ -108,6 +116,43 @@ type
 
 {$EndRegion}
 
+{$Region 'TMapFields'}
+
+  TMapFields = record
+  type
+    TStringInt32 = TsgHashMap<string, Integer>;
+    TStringMapFields = TsgHashMap<string, TMapFields>;
+  const
+    ftStringInt32 = 2;
+    ftStringMapFields = 11;
+  private
+    FMapStringInt32: TStringInt32;
+    FStringMapFields: TStringMapFields;
+  public
+    procedure Init;
+    procedure Free;
+    // properties
+    property MapStringInt32: TStringInt32 read FMapStringInt32 write FMapStringInt32;
+    property StringMapFields: TStringMapFields read FStringMapFields write FStringMapFields;
+  end;
+
+  TMapMetaRegister = record
+  private
+    MapFieldsMeta: TObjMeta;
+    class procedure InitMapFields(var obj); static;
+  public
+    // Create metadata
+    procedure Init;
+    // Generate data for test
+    procedure GenData(var AddressBook: TAddressBook);
+    // Checked the match with the generated data
+    function CheckData(const AddressBook: TAddressBook): Boolean;
+    // Dump data
+    procedure Dump(var AddressBook: TAddressBook);
+  end;
+
+{$EndRegion}
+
 {$Region 'TPbTest'}
 
   TPbTest = class(TTestCase)
@@ -120,6 +165,7 @@ type
   published
     procedure TestIO;
     procedure TestMeta;
+    procedure TestMap;
     procedure TestByte;
     procedure TestWord;
     procedure TestInteger;
@@ -380,6 +426,66 @@ end;
 
 {$EndRegion}
 
+{$Region 'TMapFields'}
+
+procedure TMapFields.Init;
+begin
+  Self := Default(TMapFields);
+  FMapStringInt32 := TsgHashMap<string, Integer>.From(300);
+  FStringMapFields := TsgHashMap<string, TMapFields>.From(300);
+end;
+
+procedure TMapFields.Free;
+begin
+  FMapStringInt32.Free;
+  FStringMapFields.Free;
+end;
+
+{$EndRegion}
+
+{$Region 'TMapMetaRegister'}
+
+procedure TMapMetaRegister.Init;
+var
+  v: TMapFields;
+  io: TpbIoProc;
+  offset: Integer;
+begin
+  MapFieldsMeta := TObjMeta.From<TMapFields>(InitMapFields);
+
+  // FMapStringInt32: TStringInt32;
+  io := TpbIoProc.From<Int32>(TMapFields.ftStringInt32);
+  offset := PByte(@v.FMapStringInt32) - PByte(@v);
+  MapFieldsMeta.AddMap<string>('MapStringInt32', offset, io);
+
+  // FStringMapFields: TStringMapFields;
+  io := TpbIoProc.From(TMapFields.ftStringMapFields, fkObjMap, @MapFieldsMeta);
+  offset := PByte(@v.FStringMapFields) - PByte(@v);
+  MapFieldsMeta.AddObj('StringMapFields', offset, io);
+end;
+
+class procedure TMapMetaRegister.InitMapFields(var obj);
+begin
+
+end;
+
+procedure TMapMetaRegister.GenData(var AddressBook: TAddressBook);
+begin
+
+end;
+
+function TMapMetaRegister.CheckData(const AddressBook: TAddressBook): Boolean;
+begin
+
+end;
+
+procedure TMapMetaRegister.Dump(var AddressBook: TAddressBook);
+begin
+
+end;
+
+{$EndRegion}
+
 {$Region 'TPbTest'}
 
 procedure TPbTest.SetUp;
@@ -541,6 +647,17 @@ begin
 
   CheckTrue(Phone.Number = LoadedPhone.Number);
   CheckTrue(Phone.&Type = LoadedPhone.&Type);
+end;
+
+procedure TPbTest.TestMap;
+var
+  meta: TMapMetaRegister;
+  genMaps, readedMaps: TMapFields;
+  S: TpbSaver;
+  L: TpbLoader;
+  r: TBytes;
+begin
+
 end;
 
 procedure TPbTest.TestMeta;
