@@ -395,7 +395,7 @@ type
     procedure SaveList(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure LoadList(const tag: TpbTag; pm: PPropMeta; const L: TpbLoader; var obj);
-    procedure LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
+    procedure LoadMap(const tag: TpbTag; pm: PPropMeta; const L: TpbLoader; var obj);
     procedure SaveProps(const S: TpbSaver; const [Ref] obj);
     procedure LoadProps(const L: TpbLoader; var obj);
   public
@@ -1539,7 +1539,8 @@ begin
   end;
 end;
 
-procedure TObjMeta.LoadList(const tag: TpbTag; pm: PPropMeta; const L: TpbLoader; var obj);
+procedure TObjMeta.LoadList(const tag: TpbTag; pm: PPropMeta;
+  const L: TpbLoader; var obj);
 var
   List: PsgPointerList;
   value: Pointer;
@@ -1565,9 +1566,26 @@ begin
 
 end;
 
-procedure TObjMeta.LoadMap(pm: PPropMeta; const L: TpbLoader; var obj);
+procedure TObjMeta.LoadMap(const tag: TpbTag; pm: PPropMeta;
+  const L: TpbLoader; var obj);
+var
+  Map: PsgCustomHashMap;
+  pair: Pointer;
+  last: TpbTag;
 begin
-
+  L.Pb.Push;
+  try
+    Map := PsgCustomHashMap(@obj);
+    repeat
+      if pm.io.kind = fkMap then
+        pm.io.Load(L, pair^)
+      else
+        pm.io.LoadObj(pm.io.om, L, pair^);
+      Map.InsertOrAssign(pair);
+    until tag.v <> L.Pb.readTag.v;
+  finally
+    L.Pb.Pop;
+  end;
 end;
 
 class procedure TObjMeta.SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj);
@@ -1657,7 +1675,7 @@ begin
       fkList, fkObjList:
         LoadList(tag, pm, L, field^);
       fkMap, fkObjMap:
-        LoadMap(pm, L, field^);
+        LoadMap(tag, pm, L, field^);
     end;
     hi := L.Pb.FLast - L.Pb.FBuf;
     log.print(Format('  prop %s, lo=%d hi=%d Count=$%x',
