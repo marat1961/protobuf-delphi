@@ -474,12 +474,34 @@ begin
 end;
 
 procedure TMapMetaRegister.GenData(var Maps: TMapFields);
+var
+  Pair: TsgHashMap<string, Integer>.PPair;
+  i: Integer;
 begin
-
+  Maps.Init;
+  Pair := Maps.MapStringInt32.GetTemporaryPair;
+  for i := 1 to 20 do
+  begin
+    Pair.Key := IntToStr(i);
+    Pair.Value := i * 10;
+    Maps.MapStringInt32.Insert(Pair^);
+  end;
 end;
 
 function TMapMetaRegister.CheckData(const Maps: TMapFields): Boolean;
+var
+  Pair, r: TsgHashMap<string, Integer>.PPair;
+  i: Integer;
 begin
+  Pair := Maps.MapStringInt32.GetTemporaryPair;
+  for i := 1 to 20 do
+  begin
+    Pair.Key := IntToStr(i);
+    Pair.Value := i * 10;
+    r := Maps.MapStringInt32.Find(Pair.Key);
+    if (r.key <> Pair.Key) or (r.value = Pair.Value) then
+      exit(False);
+  end;
   Result := True;
 end;
 

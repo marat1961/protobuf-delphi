@@ -22,7 +22,7 @@ interface
 
 uses
   System.Classes, System.SysUtils, System.Math, System.Rtti, System.TypInfo,
-  Oz.Pb.StrBuffer, Oz.SGL.Collections;
+  Oz.Pb.StrBuffer, Oz.SGL.Heap, Oz.SGL.Collections;
 
 {$T+}
 
@@ -1544,7 +1544,6 @@ procedure TObjMeta.LoadList(const tag: TpbTag; pm: PPropMeta;
 var
   List: PsgPointerList;
   value: Pointer;
-  last: TpbTag;
 begin
   L.Pb.Push;
   try
@@ -1571,12 +1570,12 @@ procedure TObjMeta.LoadMap(const tag: TpbTag; pm: PPropMeta;
 var
   Map: PsgCustomHashMap;
   pair: Pointer;
-  last: TpbTag;
 begin
   L.Pb.Push;
   try
     Map := PsgCustomHashMap(@obj);
     repeat
+      pair := Map.GetTemporaryPair;
       if pm.io.kind = fkMap then
         pm.io.Load(L, pair^)
       else
