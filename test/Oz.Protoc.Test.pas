@@ -435,8 +435,8 @@ end;
 procedure TMapFields.Init;
 begin
   Self := Default(TMapFields);
-  FMapStringInt32 := TsgHashMap<string, Integer>.From(300);
-  FStringMapFields := TsgHashMap<string, TMapFields>.From(300);
+  FMapStringInt32 := TsgHashMap<string, Integer>.From(300, nil);
+  FStringMapFields := TsgHashMap<string, TMapFields>.From(300, nil);
 end;
 
 procedure TMapFields.Free;
@@ -499,7 +499,7 @@ begin
     Pair.Key := IntToStr(i);
     Pair.Value := i * 10;
     r := Maps.MapStringInt32.Find(Pair.Key);
-    if (r.key <> Pair.Key) or (r.value = Pair.Value) then
+    if (r.key <> Pair.Key) or (r.value <> Pair.Value) then
       exit(False);
   end;
   Result := True;

@@ -1236,61 +1236,60 @@ end;
 
 type
   TSelectProc = function(info: PTypeInfo; size: Integer): PpbIoProc;
-  TInfoFlags = set of (ifVariableSize, ifSelector);
   PIoInfo = ^TIoInfo;
   TIoInfo = record
-    Flags: TInfoFlags;
+    Selector: Boolean;
     Data: Pointer;
   end;
 
 const
   VtabIo: array[TTypeKind] of TIoInfo = (
     // tkUnknown
-    (Flags: [ifSelector]; Data: @SelectBinary),
+    (Selector: True; Data: @SelectBinary),
     // tkInteger
-    (Flags: [ifSelector]; Data: @SelectInteger),
+    (Selector: True; Data: @SelectInteger),
     // tkChar
-    (Flags: [ifSelector]; Data: @SelectBinary),
+    (Selector: True; Data: @SelectBinary),
     // tkEnumeration
-    (Flags: [ifSelector]; Data: @SelectInteger),
+    (Selector: True; Data: @SelectInteger),
     // tkFloat
-    (Flags: [ifSelector]; Data: @SelectFloat),
+    (Selector: True; Data: @SelectFloat),
     // tkString
-    (Flags: []; Data: @IoProcString),
+    (Selector: False; Data: @IoProcString),
     // tkSet
-    (Flags: [ifSelector]; Data: @SelectBinary),
+    (Selector: True; Data: @SelectBinary),
     // tkClass
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkMethod
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkWChar
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkLString
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkWString
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkVariant
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkArray
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkRecord
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkInterface
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkInt64
-    (Flags: []; Data: @IoProcInt64),
+    (Selector: False; Data: @IoProcInt64),
     // tkDynArray
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkUString
-    (Flags: []; Data: @IoProcString),
+    (Selector: False; Data: @IoProcString),
     // tkClassRef
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkPointer
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkProcedure
-    (Flags: []; Data: nil),
+    (Selector: False; Data: nil),
     // tkMRecord
-    (Flags: []; Data: nil)
+    (Selector: False; Data: nil)
   );
 
 class function TpbIoProc.From<T>(fieldNo: Integer): TpbIoProc;
@@ -1305,7 +1304,7 @@ begin
   if info = nil then
     raise EProtobufError.Create('Invalid parameter');
   pio := @VtabIo[info^.Kind];
-  if ifSelector in pio^.Flags then
+  if pio^.Selector then
   begin
     Result := TSelectProc(pio^.Data)(info, size)^;
     Result.tag.MakeTag(fieldNo, Result.tag.v);
