@@ -126,13 +126,13 @@ type
     ftStringInt32 = 2;
     ftStringMapFields = 11;
   private
-    FMapStringInt32: TStringInt32;
+    FStringInt32: TStringInt32;
     FStringMapFields: TStringMapFields;
   public
     procedure Init;
     procedure Free;
     // properties
-    property MapStringInt32: TStringInt32 read FMapStringInt32 write FMapStringInt32;
+    property StringInt32: TStringInt32 read FStringInt32 write FStringInt32;
     property StringMapFields: TStringMapFields read FStringMapFields write FStringMapFields;
   end;
 
@@ -435,13 +435,13 @@ end;
 procedure TMapFields.Init;
 begin
   Self := Default(TMapFields);
-  FMapStringInt32 := TsgHashMap<string, Integer>.From(300, nil);
+  FStringInt32 := TsgHashMap<string, Integer>.From(300, nil);
   FStringMapFields := TsgHashMap<string, TMapFields>.From(300, nil);
 end;
 
 procedure TMapFields.Free;
 begin
-  FMapStringInt32.Free;
+  FStringInt32.Free;
   FStringMapFields.Free;
 end;
 
@@ -457,10 +457,10 @@ var
 begin
   MapFieldsMeta := TObjMeta.From<TMapFields>(InitMapFields);
 
-  // FMapStringInt32: TStringInt32;
+  // FStringInt32: TStringInt32;
   io := TpbIoProc.From<Int32>(TMapFields.ftStringInt32);
-  offset := PByte(@v.FMapStringInt32) - PByte(@v);
-  MapFieldsMeta.AddMap<string>('MapStringInt32', offset, io);
+  offset := PByte(@v.FStringInt32) - PByte(@v);
+  MapFieldsMeta.AddMap<string>('StringInt32', offset, io);
 
   // FStringMapFields: TStringMapFields;
   io := TpbIoProc.From(TMapFields.ftStringMapFields, fkObjMap, @MapFieldsMeta);
@@ -479,12 +479,12 @@ var
   i: Integer;
 begin
   Maps.Init;
-  Pair := Maps.MapStringInt32.GetTemporaryPair;
+  Pair := Maps.StringInt32.GetTemporaryPair;
   for i := 1 to 20 do
   begin
     Pair.Key := IntToStr(i);
     Pair.Value := i * 10;
-    Maps.MapStringInt32.Insert(Pair^);
+    Maps.StringInt32.Insert(Pair^);
   end;
 end;
 
@@ -493,12 +493,12 @@ var
   Pair, r: TsgHashMap<string, Integer>.PPair;
   i: Integer;
 begin
-  Pair := Maps.MapStringInt32.GetTemporaryPair;
+  Pair := Maps.StringInt32.GetTemporaryPair;
   for i := 1 to 20 do
   begin
     Pair.Key := IntToStr(i);
     Pair.Value := i * 10;
-    r := Maps.MapStringInt32.Find(Pair.Key);
+    r := Maps.StringInt32.Find(Pair.Key);
     if (r.key <> Pair.Key) or (r.value <> Pair.Value) then
       exit(False);
   end;
@@ -506,8 +506,46 @@ begin
 end;
 
 procedure TMapMetaRegister.Dump(var Maps: TMapFields);
-begin
 
+  procedure DumpSI(const map: TMapFields.TStringInt32);
+  var
+    it: TsgHashMapIterator<string, Integer>;
+    key: string;
+    value: Integer;
+  begin
+    it := map.Begins;
+    while it <> map.Ends do
+    begin
+      key := it.GetKey^;
+      value := it.GetValue^;
+      Writeln('key: ', key);
+      Writeln('value: ', value);
+      it.Next;
+    end;
+  end;
+
+  procedure DumpSM(const map: TMapFields.TStringMapFields);
+  var
+    it: TsgHashMapIterator<string, TMapFields>;
+    key: string;
+    value: TMapFields;
+  begin
+    it := map.Begins;
+    while it <> map.Ends do
+    begin
+      key := it.GetKey^;
+      value := it.GetValue^;
+      Writeln('key : ', key);
+      Writeln('StringInt32.Count ', value.StringInt32.Count);
+      Writeln('StringMapFields');
+      it.Next;
+    end;
+  end;
+
+begin
+  DumpSI(Maps.StringInt32);
+  DumpSM(Maps.StringMapFields);
+  Readln;
 end;
 
 procedure TMapMetaRegister.LoadFrom(const L: TpbLoader; var Maps: TMapFields);
