@@ -1560,8 +1560,28 @@ begin
 end;
 
 procedure TObjMeta.SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
+var
+  Map: PsgCustomHashMap;
+  it: TsgCustomHashMapIterator;
+  h: TpbSaver;
 begin
-
+  Map := PsgCustomHashMap(@obj);
+  h.Init;
+  try
+    it := Map.Begins;
+    while it <> Map.Ends do
+    begin
+      h.Clear;
+      if pm.io.kind = fkMap then
+        pm.io.Save(h, it.GetKey^)
+      else
+        pm.io.SaveObj(pm.io.om, h, it.GetKey^);
+      S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
+      it.Next;
+    end;
+  finally
+    h.Free;
+  end;
 end;
 
 procedure TObjMeta.LoadMap(const tag: TpbTag; pm: PPropMeta;

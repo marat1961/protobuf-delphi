@@ -548,14 +548,14 @@ begin
   Readln;
 end;
 
-procedure TMapMetaRegister.LoadFrom(const L: TpbLoader; var Maps: TMapFields);
-begin
-
-end;
-
 procedure TMapMetaRegister.SaveTo(const S: TpbSaver; var Maps: TMapFields);
 begin
+  TObjMeta.SaveTo(@MapFieldsMeta, S, Maps);
+end;
 
+procedure TMapMetaRegister.LoadFrom(const L: TpbLoader; var Maps: TMapFields);
+begin
+  TObjMeta.LoadFrom(@MapFieldsMeta, L, Maps);
 end;
 
 {$EndRegion}
@@ -732,17 +732,18 @@ var
   r: TBytes;
 begin
   meta.Init;
-  // Init address book data
+  // Init maps data
   meta.GenData(genMaps);
   Check(meta.CheckData(genMaps));
-  // Save address book data to pb
+
+  // Save maps data to pb
   S.Init;
   meta.SaveTo(S, genMaps);
-  S.Pb.SaveToFile('book.pb');
+  S.Pb.SaveToFile('map.pb');
   r := S.Pb.GetBytes;
   S.Free;
 
-  // Load address book data from pb
+  // Load maps data from pb
   L.Init;
   L.Pb^ := TpbInput.From(r);
   meta.LoadFrom(L, readedMaps);
