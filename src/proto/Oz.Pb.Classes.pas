@@ -297,7 +297,7 @@ type
 
 {$EndRegion}
 
-{$Region 'TpbIoProc: Save and Load procedures for type'}
+{$Region 'TpbOps: Save and Load procedures for type'}
 
   TSaveProc = procedure(const S: TpbSaver; const [Ref] Value);
   TLoadProc = procedure(const L: TpbLoader; var Value);
@@ -316,21 +316,21 @@ type
     fkMap,        // TsgHashMap<Key, T>
     fkObjMap);
 
-  PpbIoProc = ^TpbIoProc;
-  TpbIoProc = record
+  PpbOps = ^TpbOps;
+  TpbOps = record
   public
     // Find the right read/save procedure for the specified type
-    class function From<T>(fieldNo: Integer): TpbIoProc; overload; static;
-    class function From(info: PTypeInfo; size, fieldNo: Integer): TpbIoProc; overload; static;
+    class function From<T>: TpbOps; overload; static;
+    class function From(info: PTypeInfo; size: Integer): TpbOps; overload; static;
     // Create for user defined type
-    class function From(fieldNo: Integer; kind: TpbFieldKind;
-      om: PObjMeta): TpbIoProc; overload; static;
+    class function From(kind: TpbFieldKind; om: PObjMeta): TpbOps; overload; static;
     // Save property to pb
     procedure SaveTo(const S: TpbSaver; const [Ref] Value); inline;
     // Load property from pb
     procedure LoadFrom(const L: TpbLoader; var Value); inline;
+    // Returns wire
+    function GetWire: Integer;
   private
-    tag: TpbTag;
     info: PTypeInfo;
     case kind: TpbFieldKind of
       fkSingleProp: (
@@ -364,11 +364,12 @@ type
     name: AnsiString; // name for xml/json
     offset: Word;
     defValue: PValue;
-    io: TpbIoProc;
+    tag: TpbTag;
+    ops: TpbOps;
     // Get pointer to field of object
     function GetField(const [Ref] Obj): Pointer;
   public
-    procedure Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+    procedure Init(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
     function EqualToDefault(var field): Boolean;
     function ToString: string;
     procedure SetDefValue<T>(const Value: T);
@@ -406,11 +407,11 @@ type
     // Load instance from pb
     class procedure LoadFrom(om: PObjMeta; const L: TpbLoader; var obj); static;
     // Add metadata for standard type
-    procedure Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
+    procedure Add<T>(const name: AnsiString; tag, offset: Integer);
     // Add metadata for map collection
-    procedure AddMap<Key>(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+    procedure AddMap<Key>(const name: AnsiString; tag, offset: Integer; const ops: TpbOps);
     // Add metadata for user defined type
-    procedure AddObj(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+    procedure AddObj(const name: AnsiString; tag, offset: Integer; const ops: TpbOps);
     function ToString: string;
     // Get property
     property GetProp: TGetProp read FGetProp;
@@ -1073,7 +1074,7 @@ end;
 
 {$EndRegion}
 
-{$Region 'TpbIoProc'}
+{$Region 'TpbOps'}
 
 procedure WriteByte(const S: TpbSaver; const [Ref] value);
 begin
@@ -1173,28 +1174,19 @@ end;
 
 const
   // Integer
-  IoProcByte: TpbIoProc =
-    (tag: (v: TWire.VARINT); Save: WriteByte; Load: ReadByte);
-  IoProcInt16: TpbIoProc =
-    (tag: (v: TWire.VARINT); Save: WriteInt16; Load: ReadInt16);
-  IoProcInt32: TpbIoProc =
-    (tag: (v: TWire.VARINT); Save: WriteInt32; Load: ReadInt32);
-  IoProcInt64: TpbIoProc =
-   (tag: (v: TWire.VARINT); Save: WriteInt64; Load: ReadInt64);
+  IoProcByte: TpbOps = (Save: WriteByte; Load: ReadByte);
+  IoProcInt16: TpbOps = (Save: WriteInt16; Load: ReadInt16);
+  IoProcInt32: TpbOps = (Save: WriteInt32; Load: ReadInt32);
+  IoProcInt64: TpbOps = (Save: WriteInt64; Load: ReadInt64);
   // Real
-  IoProcR4: TpbIoProc =
-    (tag: (v: TWire.FIXED32); Save: WriteSingle; Load: ReadSingle);
-  IoProcR8: TpbIoProc =
-    (tag: (v: TWire.FIXED64); Save: WriteDouble; Load: ReadDouble);
-  IoProcR10: TpbIoProc =
-    (tag: (v: TWire.FIXED64); Save: WriteExtended; Load: ReadExtended);
-  IoProcRC8: TpbIoProc =
-    (tag: (v: TWire.FIXED64); Save: WriteCurrency; Load: ReadCurrency);
+  IoProcR4: TpbOps = (Save: WriteSingle; Load: ReadSingle);
+  IoProcR8: TpbOps = (Save: WriteDouble; Load: ReadDouble);
+  IoProcR10: TpbOps = (Save: WriteExtended; Load: ReadExtended);
+  IoProcRC8: TpbOps = (Save: WriteCurrency; Load: ReadCurrency);
   // String
-  IoProcString: TpbIoProc =
-    (tag: (v: TWire.LENGTH_DELIMITED); Save: WriteString; Load: ReadString);
+  IoProcString: TpbOps = (Save: WriteString; Load: ReadString);
 
-function SelectBinary(info: PTypeInfo; size: Integer): PpbIoProc;
+function SelectBinary(info: PTypeInfo; size: Integer): PpbOps;
 begin
   case size of
     1: Result := @IoProcByte;
@@ -1209,7 +1201,7 @@ begin
   end;
 end;
 
-function SelectInteger(info: PTypeInfo; size: Integer): PpbIoProc;
+function SelectInteger(info: PTypeInfo; size: Integer): PpbOps;
 begin
   case GetTypeData(info)^.OrdType of
     otSByte, otUByte: Result := @IoProcByte;
@@ -1221,7 +1213,7 @@ begin
   end;
 end;
 
-function SelectFloat(info: PTypeInfo; size: Integer): PpbIoProc;
+function SelectFloat(info: PTypeInfo; size: Integer): PpbOps;
 begin
   case GetTypeData(info)^.FloatType of
     ftSingle: Result := @IoProcR4;
@@ -1235,7 +1227,7 @@ begin
 end;
 
 type
-  TSelectProc = function(info: PTypeInfo; size: Integer): PpbIoProc;
+  TSelectProc = function(info: PTypeInfo; size: Integer): PpbOps;
   PIoInfo = ^TIoInfo;
   TIoInfo = record
     Selector: Boolean;
@@ -1292,12 +1284,18 @@ const
     (Selector: False; Data: nil)
   );
 
-class function TpbIoProc.From<T>(fieldNo: Integer): TpbIoProc;
+class function TpbOps.From<T>: TpbOps;
 begin
-  Result := From(System.TypeInfo(T), SizeOf(T), fieldNo);
+  Result := From(System.TypeInfo(T), SizeOf(T));
 end;
 
-class function TpbIoProc.From(info: PTypeInfo; size, fieldNo: Integer): TpbIoProc;
+function TpbOps.GetWire: Integer;
+begin
+  //
+
+end;
+
+class function TpbOps.From(info: PTypeInfo; size: Integer): TpbOps;
 var
   pio: PIoInfo;
 begin
@@ -1305,37 +1303,29 @@ begin
     raise EProtobufError.Create('Invalid parameter');
   pio := @VtabIo[info^.Kind];
   if pio^.Selector then
-  begin
-    Result := TSelectProc(pio^.Data)(info, size)^;
-    Result.tag.MakeTag(fieldNo, Result.tag.v);
-  end
+    Result := TSelectProc(pio^.Data)(info, size)^
   else if pio^.Data <> nil then
-  begin
-    Result := PpbIoProc(pio^.Data)^;
-    Result.tag.MakeTag(fieldNo, Result.tag.v);
-  end
+    Result := PpbOps(pio^.Data)^
   else
     raise EProtobufError.Create('Type serialization is not supported');
   Result.info := info;
   Result.kind := fkSingleProp;
 end;
 
-class function TpbIoProc.From(fieldNo: Integer; kind: TpbFieldKind;
-  om: PObjMeta): TpbIoProc;
+class function TpbOps.From(kind: TpbFieldKind; om: PObjMeta): TpbOps;
 begin
-  Result.tag.MakeTag(fieldNo, TWire.LENGTH_DELIMITED);
   Result.kind := kind;
   Result.SaveObj := om.SaveTo;
   Result.LoadObj := om.LoadFrom;
   Result.om := om;
 end;
 
-procedure TpbIoProc.LoadFrom(const L: TpbLoader; var Value);
+procedure TpbOps.LoadFrom(const L: TpbLoader; var Value);
 begin
   Load(L, Value);
 end;
 
-procedure TpbIoProc.SaveTo(const S: TpbSaver; const [Ref] Value);
+procedure TpbOps.SaveTo(const S: TpbSaver; const [Ref] Value);
 begin
   Save(S, Value);
 end;
@@ -1344,12 +1334,14 @@ end;
 
 {$Region 'TPropMeta}
 
-procedure TPropMeta.Init(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+procedure TPropMeta.Init(const name: AnsiString; fno, offset: Integer;
+  const ops: TpbOps);
 begin
   Self.name := name;
   Self.offset := offset;
   defValue := nil;
-  Self.io := io;
+  Self.ops := ops;
+  Self.tag.MakeTag(fno, ops.GetWire);
 end;
 
 function TPropMeta.ToString: string;
@@ -1358,7 +1350,7 @@ const
     ('Single', 'Obj', 'List', 'ObjList', 'Map', 'ObjMap');
 begin
   Result := Format('%s tag=%d offset=%d kind=%s',
-    [name, io.tag.FieldNumber, offset, Kinds[io.kind]]);
+    [name, offset, Kinds[ops.kind]]);
 end;
 
 function TPropMeta.GetField(const [Ref] Obj): Pointer;
@@ -1368,7 +1360,7 @@ end;
 
 procedure TPropMeta.SetDefValue<T>(const Value: T);
 begin
-  Assert(TypeInfo(T) = io.info);
+  Assert(TypeInfo(T) = ops.info);
   if defValue = nil then
     New(defValue);
   defValue^ := TValue.From<T>(Value);
@@ -1381,9 +1373,9 @@ begin
   Result := False;
   if defValue = nil then
   begin
-    case io.info.Kind of
+    case ops.info.Kind of
       tkInteger, tkChar, tkWChar, tkEnumeration:
-        case GetTypeData(io.info)^.OrdType of
+        case GetTypeData(ops.info)^.OrdType of
           otSByte, otUByte: Result := Byte(field) = 0;
           otSWord, otUWord: Result := Word(field)= 0;
           otSLong, otULong: Result := Cardinal(field) = 0;
@@ -1391,7 +1383,7 @@ begin
       tkInt64:
         Result := Int64(field) = 0;
       tkFloat:
-        case GetTypeData(io.info)^.FloatType of
+        case GetTypeData(ops.info)^.FloatType of
           ftSingle: Result := IsZero(Single(field));
           ftDouble: Result := IsZero(Double(field));
           ftExtended: Result := IsZero(Extended(field));
@@ -1400,15 +1392,15 @@ begin
         Result := Length(string(field)) = 0;
       tkLString, tkWString, tkUString:
         begin
-          TValue.Make(@field, io.info, v);
+          TValue.Make(@field, ops.info, v);
           Result := Length(v.AsString) = 0;
         end
     end;
   end
   else
   begin
-    TValue.Make(@field, io.info, v);
-    case io.info.Kind of
+    TValue.Make(@field, ops.info, v);
+    case ops.info.Kind of
       tkInteger, tkChar, tkWChar, tkEnumeration, tkInt64:
         Result := v.AsOrdinal = defValue.AsOrdinal;
       tkFloat:
@@ -1452,31 +1444,34 @@ begin
   Result := string(info.Name);
 end;
 
-procedure TObjMeta.Add<T>(fieldNumber: Integer; const name: AnsiString; offset: Integer);
+procedure TObjMeta.Add<T>(const name: AnsiString; tag, offset: Integer);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, offset, TpbIoProc.From<T>(fieldNumber));
+  meta.Init(name, offset, tag, TpbOps.From<T>);
   props := props + [meta];
 end;
 
-procedure TObjMeta.AddMap<Key>(const name: AnsiString; offset: Integer;
-  const io: TpbIoProc);
-begin
-
-end;
-
-procedure TObjMeta.AddObj(const name: AnsiString; offset: Integer; const io: TpbIoProc);
+procedure TObjMeta.AddMap<Key>(const name: AnsiString; tag, offset: Integer;
+  const ops: TpbOps);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, offset, io);
+  meta.Init(name, tag, offset, ops);
+  props := props + [meta];
+end;
+
+procedure TObjMeta.AddObj(const name: AnsiString; tag, offset: Integer; const ops: TpbOps);
+var
+  meta: TPropMeta;
+begin
+  meta.Init(name, tag, offset, ops);
   props := props + [meta];
 end;
 
 class function TObjMeta.PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta;
 var
-  L, R, M, fn: Integer;
+  L, R, M, fno: Integer;
 begin
   L := 0;
   R := High(om.props);
@@ -1484,10 +1479,10 @@ begin
   begin
     M := (L + R) div 2;
     Result := @om.props[M];
-    fn := Result.io.tag.FieldNumber;
-    if fn < fieldNumber then
+    fno := Result.tag.FieldNumber;
+    if fno < fieldNumber then
       L := M + 1
-    else if fn > fieldNumber then
+    else if fno > fieldNumber then
       R := M - 1
     else
       exit;
@@ -1507,7 +1502,7 @@ begin
   for i := 0 to High(om.props) do
   begin
     Result := @om.props[i];
-    if Result.io.tag.FieldNumber = fieldNumber then
+    if Result.tag.FieldNumber = fieldNumber then
       exit;
   end;
   Result := nil;
@@ -1527,11 +1522,11 @@ begin
     begin
       h.Clear;
       value := PPointer(List.Items[i])^;
-      if pm.io.kind = fkList then
-        pm.io.Save(h, value^)
+      if pm.ops.kind = fkList then
+        pm.ops.Save(h, value^)
       else
-        pm.io.SaveObj(pm.io.om, h, value^);
-      S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
+        pm.ops.SaveObj(pm.ops.om, h, value^);
+      S.Pb.writeMessage(pm.tag.FieldNumber, h.Pb^);
     end;
   finally
     h.Free;
@@ -1549,10 +1544,10 @@ begin
     List := PsgPointerList(@obj);
     repeat
       value := List.Add;
-      if pm.io.kind = fkList then
-        pm.io.Load(L, value^)
+      if pm.ops.kind = fkList then
+        pm.ops.Load(L, value^)
       else
-        pm.io.LoadObj(pm.io.om, L, value^);
+        pm.ops.LoadObj(pm.ops.om, L, value^);
     until tag.v <> L.Pb.readTag.v;
   finally
     L.Pb.Pop;
@@ -1572,11 +1567,11 @@ begin
     while it <> Map.Ends do
     begin
       h.Clear;
-      if pm.io.kind = fkMap then
-        pm.io.Save(h, it.GetKey^)
+      if pm.ops.kind = fkMap then
+        pm.ops.Save(h, it.GetKey^)
       else
-        pm.io.SaveObj(pm.io.om, h, it.GetKey^);
-      S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
+        pm.ops.SaveObj(pm.ops.om, h, it.GetKey^);
+      S.Pb.writeMessage(pm.tag.FieldNumber, h.Pb^);
       it.Next;
     end;
   finally
@@ -1595,10 +1590,10 @@ begin
     Map := PsgCustomHashMap(@obj);
     repeat
       pair := Map.GetTemporaryPair;
-      if pm.io.kind = fkMap then
-        pm.io.Load(L, pair^)
+      if pm.ops.kind = fkMap then
+        pm.ops.Load(L, pair^)
       else
-        pm.io.LoadObj(pm.io.om, L, pair^);
+        pm.ops.LoadObj(pm.ops.om, L, pair^);
       Map.InsertOrAssign(pair);
     until tag.v <> L.Pb.readTag.v;
   finally
@@ -1632,19 +1627,19 @@ begin
     log.print(Format('  [%d] %s', [i, pm.ToString]));
     field := pm.GetField(obj);
     lo := S.Pb.FBuffer.GetCount;
-    case pm.io.kind of
+    case pm.ops.kind of
       fkSingleProp:
         if not pm.EqualToDefault(field^) then
         begin
-          S.Pb.writeRawVarint32(pm.io.tag.v);
-          pm.io.Save(S, field^);
+          S.Pb.writeRawVarint32(pm.tag.v);
+          pm.ops.Save(S, field^);
         end;
       fkObj:
         begin
           h.Init;
           try
-            pm.io.SaveObj(pm.io.om, h, field^);
-            S.Pb.writeMessage(pm.io.tag.FieldNumber, h.Pb^);
+            pm.ops.SaveObj(pm.ops.om, h, field^);
+            S.Pb.writeMessage(pm.tag.FieldNumber, h.Pb^);
           finally
             h.Free;
           end;
@@ -1678,14 +1673,14 @@ begin
     log.print(Format('  %s', [pm.ToString]));
     field := pm.GetField(obj);
     lo := L.Pb.FCurrent - L.Pb.FBuf - 1;
-    case pm.io.kind of
+    case pm.ops.kind of
       fkSingleProp:
-        pm.io.Load(L, field^);
+        pm.ops.Load(L, field^);
       fkObj:
         begin
           L.Pb.Push;
           try
-            pm.io.om.LoadProps(L, field^);
+            pm.ops.om.LoadProps(L, field^);
           finally
             L.Pb.Pop;
           end;
