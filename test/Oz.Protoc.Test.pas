@@ -165,7 +165,7 @@ type
     L: TpbLoader;
     procedure SetUp; override;
     procedure TearDown; override;
-    procedure Test<T>(tag: Integer; var a: T; var b: T);
+    procedure Test<T>(var a: T; var b: T);
   published
     procedure TestIO;
     procedure TestMeta;
@@ -257,8 +257,8 @@ var
   v: TPhoneNumber;
 begin
   PhoneMeta := TObjMeta.From<TPhoneNumber>(InitPhone);
-  PhoneMeta.Add<string>(TPhoneNumber.ftNumber, 'Number', PByte(@v.FNumber) - PByte(@v));
-  PhoneMeta.Add<TPhoneType>(TPhoneNumber.ftType, 'Type', PByte(@v.FType) - PByte(@v));
+  PhoneMeta.Add<string>('Number', TPhoneNumber.ftNumber, PByte(@v.FNumber) - PByte(@v));
+  PhoneMeta.Add<TPhoneType>('Type', TPhoneNumber.ftType, PByte(@v.FType) - PByte(@v));
 end;
 
 procedure TMetaRegister.SetPersonMeta;
@@ -266,13 +266,13 @@ var
   v: TPerson;
 begin
   PersonMeta := TObjMeta.From<TPerson>(InitPerson);
-  PersonMeta.Add<string>(TPerson.ftName, 'Name', PByte(@v.FName) - PByte(@v));
-  PersonMeta.Add<Integer>(TPerson.ftId, 'Id', PByte(@v.FId) - PByte(@v));
-  PersonMeta.Add<string>(TPerson.ftEmail, 'Email', PByte(@v.FEmail) - PByte(@v));
-  PersonMeta.AddObj('Phones', PByte(@v.FPhones) - PByte(@v),
-    TpbIoProc.From(TPerson.ftPhones, TpbFieldKind.fkObjList, @PhoneMeta));
-  PersonMeta.AddObj('MyPhone', PByte(@v.MyPhone) - PByte(@v),
-    TpbIoProc.From(TPerson.ftMyPhone, TpbFieldKind.fkObj, @PhoneMeta));
+  PersonMeta.Add<string>('Name', TPerson.ftName, PByte(@v.FName) - PByte(@v));
+  PersonMeta.Add<Integer>('Id', TPerson.ftId, PByte(@v.FId) - PByte(@v));
+  PersonMeta.Add<string>('Email', TPerson.ftEmail, PByte(@v.FEmail) - PByte(@v));
+  PersonMeta.AddObj('Phones', TPerson.ftPhones, PByte(@v.FPhones) - PByte(@v),
+    TpbOps.From(TpbFieldKind.fkObjList, @PhoneMeta));
+  PersonMeta.AddObj('MyPhone', TPerson.ftMyPhone, PByte(@v.MyPhone) - PByte(@v),
+    TpbOps.From(TpbFieldKind.fkObj, @PhoneMeta));
 end;
 
 procedure TMetaRegister.SetAddressBookMeta;
@@ -280,8 +280,8 @@ var
   v: TAddressBook;
 begin
   AddressBookMeta := TObjMeta.From<TAddressBook>(InitAddressBook);
-  AddressBookMeta.AddObj('Peoples', PByte(@v.FPeoples) - PByte(@v),
-    TpbIoProc.From(TAddressBook.ftPeoples, TpbFieldKind.fkObjList, @PersonMeta));
+  AddressBookMeta.AddObj('Peoples', TAddressBook.ftPeoples, PByte(@v.FPeoples) - PByte(@v),
+    TpbOps.From(TpbFieldKind.fkObjList, @PersonMeta));
 end;
 
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
@@ -452,20 +452,20 @@ end;
 procedure TMapMetaRegister.Init;
 var
   v: TMapFields;
-  io: TpbIoProc;
+  ops: TpbOps;
   offset: Integer;
 begin
   MapFieldsMeta := TObjMeta.From<TMapFields>(InitMapFields);
 
   // FStringInt32: TStringInt32;
-  io := TpbIoProc.From<Int32>(TMapFields.ftStringInt32);
+  ops := TpbOps.From<Int32>;
   offset := PByte(@v.FStringInt32) - PByte(@v);
-  MapFieldsMeta.AddMap<string>('StringInt32', offset, io);
+  MapFieldsMeta.AddMap<string>('StringInt32', TMapFields.ftStringInt32, offset, ops);
 
   // FStringMapFields: TStringMapFields;
-  io := TpbIoProc.From(TMapFields.ftStringMapFields, fkObjMap, @MapFieldsMeta);
+  ops := TpbOps.From(fkObjMap, @MapFieldsMeta);
   offset := PByte(@v.FStringMapFields) - PByte(@v);
-  MapFieldsMeta.AddObj('StringMapFields', offset, io);
+  MapFieldsMeta.AddMap<string>('StringMapFields', TMapFields.ftStringMapFields, offset, ops);
 end;
 
 class procedure TMapMetaRegister.InitMapFields(var obj);
@@ -576,17 +576,17 @@ begin
   L.Free;
 end;
 
-procedure TPbTest.Test<T>(tag: Integer; var a: T; var b: T);
+procedure TPbTest.Test<T>(var a: T; var b: T);
 var
-  Io: TpbIoProc;
+  ops: TpbOps;
   r: TBytes;
 begin
   S.Clear;
-  Io := TpbIoProc.From<T>(tag);
-  Io.SaveTo(S, a);
+  ops := TpbOps.From<T>;
+  ops.SaveTo(S, a);
   r := S.Pb.GetBytes;
   L.Pb^ := TpbInput.From(r);
-  Io.LoadFrom(L, b);
+  ops.LoadFrom(L, b);
 end;
 
 procedure TPbTest.TestByte;
@@ -594,7 +594,7 @@ var
   a, b: Byte;
 begin
   a := 123;
-  Test<Byte>(1, a, b);
+  Test<Byte>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -603,10 +603,10 @@ var
   a, b: Word;
 begin
   a := 4567;
-  Test<Word>(1, a, b);
+  Test<Word>(a, b);
   CheckTrue(a = b);
   a := 65535;
-  Test<Word>(1, a, b);
+  Test<Word>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -615,10 +615,10 @@ var
   a, b: Integer;
 begin
   a := 1234567;
-  Test<Integer>(1, a, b);
+  Test<Integer>(a, b);
   CheckTrue(a = b);
   a := -754567;
-  Test<Integer>(1, a, b);
+  Test<Integer>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -627,10 +627,10 @@ var
   a, b: Int64;
 begin
   a := 123456745654;
-  Test<Int64>(1, a, b);
+  Test<Int64>(a, b);
   CheckTrue(a = b);
   a := -75456712;
-  Test<Int64>(1, a, b);
+  Test<Int64>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -639,10 +639,10 @@ var
   a, b: Single;
 begin
   a := 1.25E15;
-  Test<Single>(1, a, b);
+  Test<Single>(a, b);
   CheckTrue(a = b);
   a := -7.5456712E23;
-  Test<Single>(1, a, b);
+  Test<Single>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -651,10 +651,10 @@ var
   a, b: Double;
 begin
   a := 1.25E+23;
-  Test<Double>(1, a, b);
+  Test<Double>(a, b);
   CheckTrue(a = b);
   a := -7.5456712E+8;
-  Test<Double>(1, a, b);
+  Test<Double>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -663,10 +663,10 @@ var
   a, b: Extended;
 begin
   a := 1.25E+23;
-  Test<Extended>(1, a, b);
+  Test<Extended>(a, b);
   CheckTrue(SameValue(a, b));
   a := -7.5456712E+8;
-  Test<Extended>(1, a, b);
+  Test<Extended>(a, b);
   CheckTrue(SameValue(a, b));
 end;
 
@@ -675,10 +675,10 @@ var
   a, b: Currency;
 begin
   a := 456451.25;
-  Test<Currency>(1, a, b);
+  Test<Currency>(a, b);
   CheckTrue(a = b);
   a := -7.5456;
-  Test<Currency>(1, a, b);
+  Test<Currency>(a, b);
   CheckTrue(a = b);
 end;
 
@@ -687,7 +687,7 @@ var
   a, b: string;
 begin
   a := '123 15° ▲ qwerty';
-  Test<string>(1, a, b);
+  Test<string>(a, b);
   CheckTrue(a = b);
 end;
 
