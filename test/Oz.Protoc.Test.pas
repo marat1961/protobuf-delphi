@@ -264,15 +264,16 @@ end;
 procedure TMetaRegister.SetPersonMeta;
 var
   v: TPerson;
+  ops: TpbOps;
 begin
   PersonMeta := TObjMeta.From<TPerson>(InitPerson);
   PersonMeta.Add<string>('Name', TPerson.ftName, PByte(@v.FName) - PByte(@v));
   PersonMeta.Add<Integer>('Id', TPerson.ftId, PByte(@v.FId) - PByte(@v));
   PersonMeta.Add<string>('Email', TPerson.ftEmail, PByte(@v.FEmail) - PByte(@v));
-  PersonMeta.AddObj('Phones', TPerson.ftPhones, PByte(@v.FPhones) - PByte(@v),
-    TpbOps.From(TpbFieldKind.fkObjList, @PhoneMeta));
-  PersonMeta.AddObj('MyPhone', TPerson.ftMyPhone, PByte(@v.MyPhone) - PByte(@v),
-    TpbOps.From(TpbFieldKind.fkObj, @PhoneMeta));
+  ops := TpbOps.From(TpbFieldKind.fkObjList, @PhoneMeta);
+  PersonMeta.AddObj('Phones', TPerson.ftPhones, PByte(@v.FPhones) - PByte(@v), ops);
+  ops := TpbOps.From(TpbFieldKind.fkObj, @PhoneMeta);
+  PersonMeta.AddObj('MyPhone', TPerson.ftMyPhone, PByte(@v.MyPhone) - PByte(@v), ops);
 end;
 
 procedure TMetaRegister.SetAddressBookMeta;

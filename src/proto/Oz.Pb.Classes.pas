@@ -332,14 +332,14 @@ type
     function GetWire: Integer;
   private
     info: PTypeInfo;
+    om: PObjMeta;
     case kind: TpbFieldKind of
       fkSingleProp: (
         Save: TSaveProc;
         Load: TLoadProc);
       fkObj, fkList, fkMap: (
         SaveObj: TSaveObj;
-        LoadObj: TLoadObj;
-        om: PObjMeta);
+        LoadObj: TLoadObj);
   end;
 
 {$EndRegion}
@@ -350,7 +350,7 @@ type
     name: AnsiString;
     fieldNumber: Integer;
     offset: Integer;
-    constructor From(const name: AnsiString; fieldNumber, offset: Integer);
+    constructor From(const name: AnsiString; fno, offset: Integer);
   end;
 
 {$EndRegion}
@@ -381,7 +381,7 @@ type
 
   TObjMeta = record
   type
-    TGetProp = function(om: PObjMeta; fieldNumber: Integer): PPropMeta;
+    TGetProp = function(om: PObjMeta; fno: Integer): PPropMeta;
     TGetPropBy = (getByBinary, getByFind, getByIndex);
     TObjectMethod = procedure(var obj);
   var
@@ -390,9 +390,9 @@ type
   private
     FGetProp: TGetProp;
     FInit: TObjectMethod;
-    class function PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
-    class function PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
-    class function PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta; static;
+    class function PropByBinary(om: PObjMeta; fno: Integer): PPropMeta; static;
+    class function PropByFind(om: PObjMeta; fno: Integer): PPropMeta; static;
+    class function PropByIndex(om: PObjMeta; fno: Integer): PPropMeta; static;
     procedure SaveList(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure SaveMap(pm: PPropMeta; const S: TpbSaver; const [Ref] obj);
     procedure LoadList(const tag: TpbTag; pm: PPropMeta; const L: TpbLoader; var obj);
@@ -400,18 +400,17 @@ type
     procedure SaveProps(const S: TpbSaver; const [Ref] obj);
     procedure LoadProps(const L: TpbLoader; var obj);
   public
-    class function From<T>(Init: TObjectMethod;
-      get: TGetPropBy = getByBinary): TObjMeta; static;
+    class function From<T>(Init: TObjectMethod; get: TGetPropBy = getByBinary): TObjMeta; static;
     // Save instance to pb
     class procedure SaveTo(om: PObjMeta; const S: TpbSaver; const [Ref] obj); static;
     // Load instance from pb
     class procedure LoadFrom(om: PObjMeta; const L: TpbLoader; var obj); static;
     // Add metadata for standard type
-    procedure Add<T>(const name: AnsiString; tag, offset: Integer);
+    procedure Add<T>(const name: AnsiString; fno, offset: Integer);
     // Add metadata for map collection
-    procedure AddMap<Key>(const name: AnsiString; tag, offset: Integer; const ops: TpbOps);
+    procedure AddMap<Key>(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
     // Add metadata for user defined type
-    procedure AddObj(const name: AnsiString; tag, offset: Integer; const ops: TpbOps);
+    procedure AddObj(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
     function ToString: string;
     // Get property
     property GetProp: TGetProp read FGetProp;
@@ -1286,13 +1285,24 @@ const
 
 class function TpbOps.From<T>: TpbOps;
 begin
-  Result := From(System.TypeInfo(T), SizeOf(T));
+  Result := TpbOps.From(System.TypeInfo(T), SizeOf(T));
 end;
 
 function TpbOps.GetWire: Integer;
 begin
-  //
-
+  case info.Kind of
+    tkInteger, tkInt64, tkChar, tkEnumeration, tkSet:
+      Result := TWire.VARINT;
+    tkFloat:
+      case GetTypeData(info)^.FloatType of
+        ftSingle: Result := TWire.FIXED32;
+        ftDouble: Result := TWire.FIXED64;
+        else
+          raise EProtobufError.Create('Invalid parameter');
+      end;
+    else
+      Result := TWire.LENGTH_DELIMITED;
+  end;
 end;
 
 class function TpbOps.From(info: PTypeInfo; size: Integer): TpbOps;
@@ -1310,14 +1320,16 @@ begin
     raise EProtobufError.Create('Type serialization is not supported');
   Result.info := info;
   Result.kind := fkSingleProp;
+  Result.om := nil;
 end;
 
 class function TpbOps.From(kind: TpbFieldKind; om: PObjMeta): TpbOps;
 begin
+  Result.info := om.info;
+  Result.om := om;
   Result.kind := kind;
   Result.SaveObj := om.SaveTo;
   Result.LoadObj := om.LoadFrom;
-  Result.om := om;
 end;
 
 procedure TpbOps.LoadFrom(const L: TpbLoader; var Value);
@@ -1349,8 +1361,7 @@ const
   Kinds: array [TpbFieldKind] of string =
     ('Single', 'Obj', 'List', 'ObjList', 'Map', 'ObjMap');
 begin
-  Result := Format('%s tag=%d offset=%d kind=%s',
-    [name, offset, Kinds[ops.kind]]);
+  Result := Format('%s offset=%d kind=%s', [name, offset, Kinds[ops.kind]]);
 end;
 
 function TPropMeta.GetField(const [Ref] Obj): Pointer;
@@ -1415,10 +1426,10 @@ end;
 
 {$Region 'TFieldParam}
 
-constructor TFieldParam.From(const name: AnsiString; fieldNumber, offset: Integer);
+constructor TFieldParam.From(const name: AnsiString; fno, offset: Integer);
 begin
   Self.name := name;
-  Self.fieldNumber := fieldNumber;
+  Self.fieldNumber := fno;
   Self.offset := offset;
 end;
 
@@ -1444,34 +1455,34 @@ begin
   Result := string(info.Name);
 end;
 
-procedure TObjMeta.Add<T>(const name: AnsiString; tag, offset: Integer);
+procedure TObjMeta.Add<T>(const name: AnsiString; fno, offset: Integer);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, offset, tag, TpbOps.From<T>);
+  meta.Init(name, offset, fno, TpbOps.From<T>);
   props := props + [meta];
 end;
 
-procedure TObjMeta.AddMap<Key>(const name: AnsiString; tag, offset: Integer;
+procedure TObjMeta.AddMap<Key>(const name: AnsiString; fno, offset: Integer;
   const ops: TpbOps);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, tag, offset, ops);
+  meta.Init(name, fno, offset, ops);
   props := props + [meta];
 end;
 
-procedure TObjMeta.AddObj(const name: AnsiString; tag, offset: Integer; const ops: TpbOps);
+procedure TObjMeta.AddObj(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, tag, offset, ops);
+  meta.Init(name, fno, offset, ops);
   props := props + [meta];
 end;
 
-class function TObjMeta.PropByBinary(om: PObjMeta; fieldNumber: Integer): PPropMeta;
+class function TObjMeta.PropByBinary(om: PObjMeta; fno: Integer): PPropMeta;
 var
-  L, R, M, fno: Integer;
+  L, R, M, n: Integer;
 begin
   L := 0;
   R := High(om.props);
@@ -1479,10 +1490,10 @@ begin
   begin
     M := (L + R) div 2;
     Result := @om.props[M];
-    fno := Result.tag.FieldNumber;
-    if fno < fieldNumber then
+    n := Result.tag.FieldNumber;
+    if n < fno then
       L := M + 1
-    else if fno > fieldNumber then
+    else if n > fno then
       R := M - 1
     else
       exit;
@@ -1490,19 +1501,19 @@ begin
   Result := @om.props[L];
 end;
 
-class function TObjMeta.PropByIndex(om: PObjMeta; fieldNumber: Integer): PPropMeta;
+class function TObjMeta.PropByIndex(om: PObjMeta; fno: Integer): PPropMeta;
 begin
-  Result := @om.props[fieldNumber - 1];
+  Result := @om.props[fno - 1];
 end;
 
-class function TObjMeta.PropByFind(om: PObjMeta; fieldNumber: Integer): PPropMeta;
+class function TObjMeta.PropByFind(om: PObjMeta; fno: Integer): PPropMeta;
 var
   i: Integer;
 begin
   for i := 0 to High(om.props) do
   begin
     Result := @om.props[i];
-    if Result.tag.FieldNumber = fieldNumber then
+    if Result.tag.FieldNumber = fno then
       exit;
   end;
   Result := nil;
