@@ -1459,7 +1459,7 @@ procedure TObjMeta.Add<T>(const name: AnsiString; fno, offset: Integer);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, offset, fno, TpbOps.From<T>);
+  meta.Init(name, fno, offset, TpbOps.From<T>);
   props := props + [meta];
 end;
 
