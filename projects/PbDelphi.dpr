@@ -18,7 +18,11 @@ uses
   Oz.Pb.StrBuffer in '..\src\proto\Oz.Pb.StrBuffer.pas',
   Oz.Pb.CustomGen in '..\src\protoc\Oz.Pb.CustomGen.pas',
   Oz.Pb.GenSGL in '..\src\protoc\Oz.Pb.GenSGL.pas',
-  Oz.Pb.GenDC in '..\src\protoc\Oz.Pb.GenDC.pas';
+  Oz.Pb.GenDC in '..\src\protoc\Oz.Pb.GenDC.pas',
+  Oz.SGL.HandleManager in '..\..\Oz-SGL\src\Oz.SGL.HandleManager.pas',
+  Oz.SGL.Hash in '..\..\Oz-SGL\src\Oz.SGL.Hash.pas',
+  Oz.SGL.Heap in '..\..\Oz-SGL\src\Oz.SGL.Heap.pas',
+  Oz.SGL.Collections in '..\..\Oz-SGL\src\Oz.SGL.Collections.pas';
 
 begin
   try
