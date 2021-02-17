@@ -37,6 +37,7 @@ type
     FSrcName: string;
     FSrcDir: string;
     FOutPath: string;
+    FCodeGen: string;
     FListing: TStrings;
     FGenLib: TCollectionLibrary;
   public
@@ -102,7 +103,12 @@ begin
   WriteLn('Usage: Protoc file.proto {Option}');
   WriteLn('Options:');
   WriteLn('  -proto <protoFilesDirectory>');
-  WriteLn('  -o     <outputDirectory>');
+  WriteLn('  -o <outputDirectory>');
+  WriteLn('  -c <code generation kind>');
+  WriteLn('     list of code generation kind:');
+  WriteLn('       • s - standard code');
+  WriteLn('       • m - using metadata');
+  WriteLn('       • a - using attributes');
   WriteLn('  -genDelphi');
   WriteLn('  -genSGL');
 end;
@@ -130,6 +136,8 @@ begin
       FSrcDir := p
     else if (p = '-o') and GetParam then
       FOutPath := p
+    else if (p = '-c') and GetParam then
+      FCodeGen := p
     else if (p = '-gendelphi') then
       FGenLib := clDelphi
     else if (p = '-gensgl') then
