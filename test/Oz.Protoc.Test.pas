@@ -270,10 +270,12 @@ begin
   PersonMeta.Add<string>('Name', TPerson.ftName, PByte(@v.FName) - PByte(@v));
   PersonMeta.Add<Integer>('Id', TPerson.ftId, PByte(@v.FId) - PByte(@v));
   PersonMeta.Add<string>('Email', TPerson.ftEmail, PByte(@v.FEmail) - PByte(@v));
-  ops := TpbOps.From(TpbFieldKind.fkObjList, @PhoneMeta);
-  PersonMeta.AddObj('Phones', TPerson.ftPhones, PByte(@v.FPhones) - PByte(@v), ops);
-  ops := TpbOps.From(TpbFieldKind.fkObj, @PhoneMeta);
-  PersonMeta.AddObj('MyPhone', TPerson.ftMyPhone, PByte(@v.MyPhone) - PByte(@v), ops);
+  ops := TpbOps.From(@PhoneMeta);
+  PersonMeta.AddObj(TpbFieldKind.fkObjList, 'Phones', TPerson.ftPhones,
+    PByte(@v.FPhones) - PByte(@v), ops);
+  ops := TpbOps.From(@PhoneMeta);
+  PersonMeta.AddObj(TpbFieldKind.fkObj, 'MyPhone', TPerson.ftMyPhone,
+    PByte(@v.MyPhone) - PByte(@v), ops);
 end;
 
 procedure TMetaRegister.SetAddressBookMeta;
@@ -281,8 +283,8 @@ var
   v: TAddressBook;
 begin
   AddressBookMeta := TObjMeta.From<TAddressBook>(InitAddressBook);
-  AddressBookMeta.AddObj('Peoples', TAddressBook.ftPeoples, PByte(@v.FPeoples) - PByte(@v),
-    TpbOps.From(TpbFieldKind.fkObjList, @PersonMeta));
+  AddressBookMeta.AddObj(TpbFieldKind.fkObjList, 'Peoples', TAddressBook.ftPeoples,
+    PByte(@v.FPeoples) - PByte(@v), TpbOps.From(@PersonMeta));
 end;
 
 procedure TMetaRegister.GenData(var AddressBook: TAddressBook);
@@ -461,12 +463,14 @@ begin
   // FStringInt32: TStringInt32;
   ops := TpbOps.From<Int32>;
   offset := PByte(@v.FStringInt32) - PByte(@v);
-  MapFieldsMeta.AddMap<string>('StringInt32', TMapFields.ftStringInt32, offset, ops);
+  MapFieldsMeta.AddMap<string>(TpbFieldKind.fkMap, 'StringInt32',
+    TMapFields.ftStringInt32, offset, ops);
 
   // FStringMapFields: TStringMapFields;
-  ops := TpbOps.From(fkObjMap, @MapFieldsMeta);
+  ops := TpbOps.From(@MapFieldsMeta);
   offset := PByte(@v.FStringMapFields) - PByte(@v);
-  MapFieldsMeta.AddMap<string>('StringMapFields', TMapFields.ftStringMapFields, offset, ops);
+  MapFieldsMeta.AddMap<string>(fkObjMap, 'StringMapFields',
+    TMapFields.ftStringMapFields, offset, ops);
 end;
 
 class procedure TMapMetaRegister.InitMapFields(var obj);
@@ -494,6 +498,7 @@ var
   Pair, r: TsgHashMap<string, Integer>.PPair;
   i: Integer;
 begin
+  if Maps.StringInt32.Count <> 20 then exit(False);
   Pair := Maps.StringInt32.GetTemporaryPair;
   for i := 1 to 20 do
   begin
@@ -575,6 +580,7 @@ begin
   log.SaveToFile('dump.txt');
   S.Free;
   L.Free;
+  log.Free;
 end;
 
 procedure TPbTest.Test<T>(var a: T; var b: T);
@@ -735,22 +741,29 @@ begin
   meta.Init;
   // Init maps data
   meta.GenData(genMaps);
-  Check(meta.CheckData(genMaps));
+  try
+    Check(meta.CheckData(genMaps));
 
-  // Save maps data to pb
-  S.Init;
-  meta.SaveTo(S, genMaps);
-  S.Pb.SaveToFile('map.pb');
-  r := S.Pb.GetBytes;
-  S.Free;
+    // Save maps data to pb
+    S.Init;
+    meta.SaveTo(S, genMaps);
+    S.Pb.SaveToFile('map.pb');
+    r := S.Pb.GetBytes;
+    S.Free;
+  finally
+    genMaps.Free;
+  end;
 
   // Load maps data from pb
   L.Init;
   L.Pb^ := TpbInput.From(r);
   meta.LoadFrom(L, readedMaps);
-
-  Check(meta.CheckData(readedMaps));
-  L.Free;
+  try
+    Check(meta.CheckData(readedMaps));
+    L.Free;
+  finally
+    readedMaps.Free;
+  end;
 end;
 
 procedure TPbTest.TestMeta;

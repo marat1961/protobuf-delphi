@@ -323,7 +323,7 @@ type
     class function From<T>: TpbOps; overload; static;
     class function From(info: PTypeInfo; size: Integer): TpbOps; overload; static;
     // Create for user defined type
-    class function From(kind: TpbFieldKind; om: PObjMeta): TpbOps; overload; static;
+    class function From(om: PObjMeta): TpbOps; overload; static;
     // Save property to pb
     procedure SaveTo(const S: TpbSaver; const [Ref] Value); inline;
     // Load property from pb
@@ -333,7 +333,7 @@ type
   private
     info: PTypeInfo;
     om: PObjMeta;
-    case kind: TpbFieldKind of
+    case TpbFieldKind of
       fkSingleProp: (
         Save: TSaveProc;
         Load: TLoadProc);
@@ -363,13 +363,15 @@ type
   private
     name: AnsiString; // name for xml/json
     offset: Word;
+    kind: TpbFieldKind;
     defValue: PValue;
     tag: TpbTag;
     ops: TpbOps;
     // Get pointer to field of object
     function GetField(const [Ref] Obj): Pointer;
   public
-    procedure Init(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
+    procedure Init(kind: TpbFieldKind; const name: AnsiString;
+      fno, offset: Integer; const ops: TpbOps);
     function EqualToDefault(var field): Boolean;
     function ToString: string;
     procedure SetDefValue<T>(const Value: T);
@@ -408,9 +410,11 @@ type
     // Add metadata for standard type
     procedure Add<T>(const name: AnsiString; fno, offset: Integer);
     // Add metadata for map collection
-    procedure AddMap<Key>(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
+    procedure AddMap<Key>(kind: TpbFieldKind; const name: AnsiString;
+      fno, offset: Integer; const ops: TpbOps);
     // Add metadata for user defined type
-    procedure AddObj(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
+    procedure AddObj(kind: TpbFieldKind; const name: AnsiString;
+      fno, offset: Integer; const ops: TpbOps);
     function ToString: string;
     // Get property
     property GetProp: TGetProp read FGetProp;
@@ -1319,15 +1323,13 @@ begin
   else
     raise EProtobufError.Create('Type serialization is not supported');
   Result.info := info;
-  Result.kind := fkSingleProp;
   Result.om := nil;
 end;
 
-class function TpbOps.From(kind: TpbFieldKind; om: PObjMeta): TpbOps;
+class function TpbOps.From(om: PObjMeta): TpbOps;
 begin
   Result.info := om.info;
   Result.om := om;
-  Result.kind := kind;
   Result.SaveObj := om.SaveTo;
   Result.LoadObj := om.LoadFrom;
 end;
@@ -1346,8 +1348,8 @@ end;
 
 {$Region 'TPropMeta}
 
-procedure TPropMeta.Init(const name: AnsiString; fno, offset: Integer;
-  const ops: TpbOps);
+procedure TPropMeta.Init(kind: TpbFieldKind; const name: AnsiString;
+  fno, offset: Integer; const ops: TpbOps);
 begin
   Self.name := name;
   Self.offset := offset;
@@ -1361,7 +1363,7 @@ const
   Kinds: array [TpbFieldKind] of string =
     ('Single', 'Obj', 'List', 'ObjList', 'Map', 'ObjMap');
 begin
-  Result := Format('%s offset=%d kind=%s', [name, offset, Kinds[ops.kind]]);
+  Result := Format('%s offset=%d kind=%s', [name, offset, Kinds[kind]]);
 end;
 
 function TPropMeta.GetField(const [Ref] Obj): Pointer;
@@ -1459,24 +1461,25 @@ procedure TObjMeta.Add<T>(const name: AnsiString; fno, offset: Integer);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, fno, offset, TpbOps.From<T>);
+  meta.Init(fkSingleProp, name, fno, offset, TpbOps.From<T>);
   props := props + [meta];
 end;
 
-procedure TObjMeta.AddMap<Key>(const name: AnsiString; fno, offset: Integer;
-  const ops: TpbOps);
+procedure TObjMeta.AddMap<Key>(kind: TpbFieldKind; const name: AnsiString;
+  fno, offset: Integer; const ops: TpbOps);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, fno, offset, ops);
+  meta.Init(kind, name, fno, offset, ops);
   props := props + [meta];
 end;
 
-procedure TObjMeta.AddObj(const name: AnsiString; fno, offset: Integer; const ops: TpbOps);
+procedure TObjMeta.AddObj(kind: TpbFieldKind; const name: AnsiString;
+  fno, offset: Integer; const ops: TpbOps);
 var
   meta: TPropMeta;
 begin
-  meta.Init(name, fno, offset, ops);
+  meta.Init(kind, name, fno, offset, ops);
   props := props + [meta];
 end;
 
@@ -1533,7 +1536,7 @@ begin
     begin
       h.Clear;
       value := PPointer(List.Items[i])^;
-      if pm.ops.kind = fkList then
+      if pm.kind = fkList then
         pm.ops.Save(h, value^)
       else
         pm.ops.SaveObj(pm.ops.om, h, value^);
@@ -1555,7 +1558,7 @@ begin
     List := PsgPointerList(@obj);
     repeat
       value := List.Add;
-      if pm.ops.kind = fkList then
+      if pm.kind = fkList then
         pm.ops.Load(L, value^)
       else
         pm.ops.LoadObj(pm.ops.om, L, value^);
@@ -1578,7 +1581,7 @@ begin
     while it <> Map.Ends do
     begin
       h.Clear;
-      if pm.ops.kind = fkMap then
+      if pm.kind = fkMap then
         pm.ops.Save(h, it.GetKey^)
       else
         pm.ops.SaveObj(pm.ops.om, h, it.GetKey^);
@@ -1601,7 +1604,7 @@ begin
     Map := PsgCustomHashMap(@obj);
     repeat
       pair := Map.GetTemporaryPair;
-      if pm.ops.kind = fkMap then
+      if pm.kind = fkMap then
         pm.ops.Load(L, pair^)
       else
         pm.ops.LoadObj(pm.ops.om, L, pair^);
@@ -1638,7 +1641,7 @@ begin
     log.print(Format('  [%d] %s', [i, pm.ToString]));
     field := pm.GetField(obj);
     lo := S.Pb.FBuffer.GetCount;
-    case pm.ops.kind of
+    case pm.kind of
       fkSingleProp:
         if not pm.EqualToDefault(field^) then
         begin
@@ -1684,7 +1687,7 @@ begin
     log.print(Format('  %s', [pm.ToString]));
     field := pm.GetField(obj);
     lo := L.Pb.FCurrent - L.Pb.FBuf - 1;
-    case pm.ops.kind of
+    case pm.kind of
       fkSingleProp:
         pm.ops.Load(L, field^);
       fkObj:
