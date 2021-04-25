@@ -555,7 +555,7 @@ end;
 procedure TpbInput.checkLastTagWas(value: Integer);
 begin
   if FLastTag.v <> value then
-    EProtobufError.Create(EProtobufError.InvalidEndTag);
+    raise EProtobufError.Create(EProtobufError.InvalidEndTag);
 end;
 
 function TpbInput.skipField(tag: TpbTag): Boolean;
@@ -632,7 +632,7 @@ procedure TpbInput.readMessage(builder: PpbInput);
 begin
   readRawVarint32;
   if FRecursionDepth >= RECURSION_LIMIT then
-    EProtobufError.Create(EProtobufError.RecursionLimitExceeded);
+    raise EProtobufError.Create(EProtobufError.RecursionLimitExceeded);
   Inc(FRecursionDepth);
   builder.mergeFrom(Self);
   checkLastTagWas(0);
@@ -679,7 +679,7 @@ begin
   repeat
     // for negative numbers number value may be to 10 byte
     if shift >= 64 then
-      EProtobufError.Create(EProtobufError.MalformedVarint);
+      raise EProtobufError.Create(EProtobufError.MalformedVarint);
     tmp := readRawByte;
     Result := Result or ((tmp and $7f) shl shift);
     Inc(shift, 7);
@@ -697,7 +697,7 @@ begin
   repeat
     Inc(shift, 7);
     if shift >= 64 then
-      EProtobufError.Create(EProtobufError.MalformedVarint);
+      raise EProtobufError.Create(EProtobufError.MalformedVarint);
     tmp := readRawByte;
     i64 := tmp and $7f;
     i64 := i64 shl shift;
@@ -718,7 +718,7 @@ end;
 function TpbInput.readRawByte: ShortInt;
 begin
   if FCurrent > FLast then
-    EProtobufError.Create(EProtobufError.EofEncounterd);
+    raise EProtobufError.Create(EProtobufError.EofEncounterd);
   Result := ShortInt(FCurrent^);
   Inc(FCurrent);
 end;
@@ -726,7 +726,7 @@ end;
 procedure TpbInput.readRawBytes(var data; size: Integer);
 begin
   if FCurrent > FLast then
-    EProtobufError.Create(EProtobufError.EofEncounterd);
+    raise EProtobufError.Create(EProtobufError.EofEncounterd);
   Move(FCurrent^, data, size);
   Inc(FCurrent, size);
 end;
@@ -737,9 +737,9 @@ var
 begin
   size := readRawVarint32;
   if size <= 0 then
-     EProtobufError.Create(EProtobufError.InvalidSize);
+     raise EProtobufError.Create(EProtobufError.InvalidSize);
   if FCurrent > FLast then
-    EProtobufError.Create(EProtobufError.EofEncounterd);
+    raise EProtobufError.Create(EProtobufError.EofEncounterd);
   SetLength(Result, size);
   Move(FCurrent^, Pointer(Result)^, size);
   Inc(FCurrent, size);
@@ -748,9 +748,9 @@ end;
 procedure TpbInput.skipRawBytes(size: Integer);
 begin
   if size < 0 then
-    EProtobufError.Create(EProtobufError.NegativeSize);
+    raise EProtobufError.Create(EProtobufError.NegativeSize);
   if FCurrent > FLast then
-    EProtobufError.Create(EProtobufError.TruncatedMessage);
+    raise EProtobufError.Create(EProtobufError.TruncatedMessage);
   Inc(FCurrent, size);
 end;
 
@@ -819,7 +819,7 @@ end;
 
 procedure TpbInput.mergeFrom(const builder: TpbInput);
 begin
-  EProtobufError.Create(EProtobufError.NotImplemented);
+  raise EProtobufError.Create(EProtobufError.NotImplemented);
 end;
 
 procedure TpbInput.Push;

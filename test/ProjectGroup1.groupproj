@@ -9,6 +9,9 @@
         <Projects Include="PbUnitTest.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="..\projects\PbDelphi.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -35,14 +38,23 @@
     <Target Name="PbUnitTest:Make">
         <MSBuild Projects="PbUnitTest.dproj" Targets="Make"/>
     </Target>
+    <Target Name="PbDelphi">
+        <MSBuild Projects="..\projects\PbDelphi.dproj"/>
+    </Target>
+    <Target Name="PbDelphi:Clean">
+        <MSBuild Projects="..\projects\PbDelphi.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="PbDelphi:Make">
+        <MSBuild Projects="..\projects\PbDelphi.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="PbTest;PbUnitTest"/>
+        <CallTarget Targets="PbTest;PbUnitTest;PbDelphi"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="PbTest:Clean;PbUnitTest:Clean"/>
+        <CallTarget Targets="PbTest:Clean;PbUnitTest:Clean;PbDelphi:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="PbTest:Make;PbUnitTest:Make"/>
+        <CallTarget Targets="PbTest:Make;PbUnitTest:Make;PbDelphi:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>
